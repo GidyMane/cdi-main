@@ -12,6 +12,7 @@ import {
   Navigation,
   Filter,
   X,
+  MapPin,
   Map as MapIcon,
   TrendingUp,
 } from "lucide-react";
@@ -495,6 +496,21 @@ export default function WeatherForecastPage({
         )} */}
 
         {/* Stat cards */}
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+          <span className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>
+            Kampala, Central Region
+          </span>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded-full"
+            style={{
+              backgroundColor: isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}20`,
+              color: FAO_BLUE,
+            }}
+          >
+            Live
+          </span>
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
           {statCards.map((card, index) => {
             const Icon = card.icon;
