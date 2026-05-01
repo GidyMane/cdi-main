@@ -241,7 +241,7 @@ const FilterContent = ({
       </select>
     </div>
     <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Date Range</label>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
       <input
         type="date"
         value={dateRange}
@@ -299,7 +299,7 @@ export default function WeatherForecastPage({
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   // const [selectedParameter, setSelectedParameter] = useState("temperature");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2);
+  const [sliderValue, setSliderValue] = useState(12);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
     null,
@@ -308,24 +308,9 @@ export default function WeatherForecastPage({
     useState<DailyForecastResponse | null>(null);
   // const [weatherError, setWeatherError] = useState(null);
 
-  const getMonthYear = (months: number) => {
-    const year = 2001 + Math.floor(months / 12);
-    const month = months % 12;
-    const names = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${names[month]} ${year}`;
+  const getHourLabel = (hour: number) => {
+    const twoDigit = hour.toString().padStart(2, "0");
+    return `${twoDigit}:00`;
   };
 
   // Parallel data fetch
@@ -659,12 +644,12 @@ export default function WeatherForecastPage({
                       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
                     >
                       <span className={`text-xs font-medium ${textMuted}`}>
-                        2001
+                        00:00
                       </span>
                       <input
                         type="range"
                         min="0"
-                        max={(2026 - 2001 + 1) * 12 - 1}
+                        max={23}
                         value={sliderValue}
                         onChange={(e) =>
                           setSliderValue(parseInt(e.target.value))
@@ -682,7 +667,7 @@ export default function WeatherForecastPage({
                           color: FAO_BLUE,
                         }}
                       >
-                        {getMonthYear(sliderValue)}
+                        {getHourLabel(sliderValue)}
                       </span>
                     </div>
                   </div>
@@ -867,12 +852,12 @@ export default function WeatherForecastPage({
                   className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
                 >
                   <span className={`text-[10px] font-medium ${textMuted}`}>
-                    2001
+                    00:00
                   </span>
                   <input
                     type="range"
                     min="0"
-                    max={(2026 - 2001 + 1) * 12 - 1}
+                    max={23}
                     value={sliderValue}
                     onChange={(e) => setSliderValue(parseInt(e.target.value))}
                     className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
@@ -888,7 +873,7 @@ export default function WeatherForecastPage({
                       color: FAO_BLUE,
                     }}
                   >
-                    {getMonthYear(sliderValue)}
+                    {getHourLabel(sliderValue)}
                   </span>
                 </div>
               </div>
