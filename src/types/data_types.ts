@@ -94,3 +94,8 @@ export interface WeatherSystemSummary {
   flood_monitor: FloodMonitorStats;
   weather_stations: WeatherStationStats;
 }
+
+export interface district {
+  id: number;
+  name: string;
+}

@@ -20,6 +20,7 @@ import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { overviewAPI, alertsAPI, weatherAPI } from "../services/api";
+import { FloodHourSlider } from "@/components/shared/FloodHourSlider";
 
 interface OverviewPageProps {
   onNavigate: (page: PageType) => void;
@@ -580,7 +581,7 @@ export default function OverviewPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-                <div
+                {/* <div
                   className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
                 >
                   <span className={`text-[10px] font-medium ${textMuted}`}>
@@ -607,7 +608,12 @@ export default function OverviewPage({
                   >
                     {getMonthYear(sliderValue)}
                   </span>
-                </div>
+                </div> */}
+                <FloodHourSlider
+                  isDarkMode={isDarkMode}
+                  borderColor={borderColor}
+                  textMuted={textMuted}
+                />
               </div>
             </div>
             {showMobileFilters && (
@@ -879,7 +885,7 @@ export default function OverviewPage({
                         legendItems={getOverviewLegendItems(selectedModule)}
                       />
                     </div>
-                    <div
+                    {/* <div
                       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
                     >
                       <span className={`text-xs font-medium ${textMuted}`}>
@@ -908,7 +914,12 @@ export default function OverviewPage({
                       >
                         {getMonthYear(sliderValue)}
                       </span>
-                    </div>
+                    </div> */}
+                    <FloodHourSlider
+                      isDarkMode={isDarkMode}
+                      borderColor={borderColor}
+                      textMuted={textMuted}
+                    />
                   </div>
                 </div>
               </div>
