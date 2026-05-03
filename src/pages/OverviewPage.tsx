@@ -289,7 +289,7 @@ export default function OverviewPage({
   const [selectedModule, setSelectedModule] = useState("all");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2);
+  // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2);
 
   // State
   const [statCards, setStatCards] = useState<StatCard[]>(getDefaultStatCards());
@@ -305,25 +305,25 @@ export default function OverviewPage({
   });
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const getMonthYear = (months: number) => {
-    const year = 2001 + Math.floor(months / 12);
-    const month = months % 12;
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${monthNames[month]} ${year}`;
-  };
+  // const getMonthYear = (months: number) => {
+  //   const year = 2001 + Math.floor(months / 12);
+  //   const month = months % 12;
+  //   const monthNames = [
+  //     "Jan",
+  //     "Feb",
+  //     "Mar",
+  //     "Apr",
+  //     "May",
+  //     "Jun",
+  //     "Jul",
+  //     "Aug",
+  //     "Sep",
+  //     "Oct",
+  //     "Nov",
+  //     "Dec",
+  //   ];
+  //   return `${monthNames[month]} ${year}`;
+  // };
 
   useEffect(() => {
     const fetchOverviewStats = async () => {

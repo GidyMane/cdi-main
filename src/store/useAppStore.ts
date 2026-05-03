@@ -76,6 +76,10 @@ export interface AppStoreState {
   setSelectedParameter: (parameter: string) => void;
   dateRange: string;
   setDateRange: (dateRange: string) => void;
+
+  //slider
+  sliderhourIndexValue: number;
+  setSliderhourIndexValue: (value: number) => void;
 }
 
 export const useAppStore = create<AppStoreState>()(
@@ -144,6 +148,11 @@ export const useAppStore = create<AppStoreState>()(
         set({ selectedParameter: parameter }),
       dateRange: "",
       setDateRange: (dateRange: any) => set({ dateRange: dateRange }),
+
+      //slider
+      sliderhourIndexValue: 0,
+      setSliderhourIndexValue: (value: number) =>
+        set({ sliderhourIndexValue: value }),
     }),
     {
       name: "app-store", // Name of the persisted store
