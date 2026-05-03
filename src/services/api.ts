@@ -3,6 +3,8 @@
  * Uses environment variables for endpoints
  */
 
+import type { district } from "@/types/data_types";
+
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   "https://multihazard.rosewillbome.com/api/v1/";
@@ -311,6 +313,15 @@ export const geoAPI = {
   },
 };
 
+// Districts API (for dropdowns, filters, etc.)
+export const DistrictsAPI = {
+  getAll: async () => {
+    const res = await fetchData<any>("boundaries/districts/autocomplete/");
+
+    console.log("Fetched districts:", res);
+    return res || []; // unwrap here so the query gets a clean array
+  },
+};
 export default {
   overviewAPI,
   alertsAPI,
@@ -319,4 +330,5 @@ export default {
   floodAPI,
   stationsAPI,
   geoAPI,
+  DistrictsAPI,
 };

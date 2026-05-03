@@ -79,107 +79,7 @@ const today = new Date().toLocaleDateString("en-GB", {
   year: "numeric",
 });
 
-// const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-//   {
-//     title: "BOUNDARIES",
-//     layers: [
-//       { id: "country", label: "Country", wms: "country" },
-//       { id: "districts", label: "Districts", wms: "districts" },
-//     ],
-//   },
-//   {
-//     title: "HYDROLOGY",
-//     layers: [
-//       { id: "rivers", label: "Rivers", wms: "rivers" },
-//       { id: "waterways", label: "Waterways", wms: "waterways" },
-//       { id: "water_bodies", label: "Water Bodies", wms: "water_bodies" },
-//     ],
-//   },
-//   {
-//     title: "INFRASTRUCTURE",
-//     layers: [
-//       { id: "roads", label: "Roads", wms: "roads" },
-//       { id: "places", label: "Places", wms: "places" },
-//       { id: "landuse", label: "Land Use", wms: "landuse" },
-//       { id: "buildings", label: "Buildings", wms: "buildings" },
-//     ],
-//   },
-//   {
-//     title: "POPULATION",
-//     layers: [{ id: "worldpop", label: "World Pop", wms: "worldpop" }],
-//   },
-//   {
-//     title: "FORECASTS",
-//     layers: [
-//       {
-//         id: "flood",
-//         label: "Flood Forecast",
-//         wms: "flood_20260301_24h",
-//         date: today,
-//       },
-//       {
-//         id: "rainfall",
-//         label: "Rainfall (CHIRPS-GEFS)",
-//         wms: "chirps_gefs",
-//         date: today,
-//       },
-//       {
-//         id: "heat_stress",
-//         label: "Heat Stress WBGT",
-//         wms: "wbgt",
-//         date: today,
-//       },
-//       {
-//         id: "tmax",
-//         label: "Max Temp (Tmax)",
-//         wms: "chirts_tmax_20260428",
-//         date: today,
-//       },
-//     ],
-//   },
-// ];
-
 const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-  {
-    title: "BOUNDARIES",
-    layers: [
-      { id: "country", label: "Country", wms: "country", pages: ["*"] },
-      { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
-    ],
-  },
-  {
-    title: "HYDROLOGY",
-    layers: [
-      { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
-      {
-        id: "waterways",
-        label: "Waterways",
-        wms: "waterways",
-        pages: ["flood"],
-      },
-      {
-        id: "water_bodies",
-        label: "Water Bodies",
-        wms: "water_bodies",
-        pages: ["flood"],
-      },
-    ],
-  },
-  {
-    title: "INFRASTRUCTURE",
-    layers: [
-      { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
-      { id: "places", label: "Places", wms: "places", pages: ["*"] },
-      { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
-      { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
-    ],
-  },
-  {
-    title: "POPULATION",
-    layers: [
-      { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
-    ],
-  },
   {
     title: "FORECASTS",
     layers: [
@@ -215,6 +115,46 @@ const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
       },
     ],
   },
+  {
+    title: "BOUNDARIES",
+    layers: [
+      { id: "country", label: "Country", wms: "country", pages: ["*"] },
+      { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
+    ],
+  },
+  {
+    title: "HYDROLOGY",
+    layers: [
+      { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
+      {
+        id: "waterways",
+        label: "Waterways",
+        wms: "waterways",
+        pages: ["flood"],
+      },
+      {
+        id: "water_bodies",
+        label: "Water Bodies",
+        wms: "water_bodies",
+        pages: ["flood"],
+      },
+    ],
+  },
+  {
+    title: "INFRASTRUCTURE",
+    layers: [
+      { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
+      { id: "places", label: "Places", wms: "places", pages: ["*"] },
+      { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
+      { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
+    ],
+  },
+  // {
+  //   title: "POPULATION",
+  //   layers: [
+  //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
+  //   ],
+  // },
 ];
 
 export default function UgandaBoundaryMap({

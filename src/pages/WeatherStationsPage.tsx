@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { 
+import { useState, useEffect } from "react";
+import {
   Radio,
   MapPin,
   Download,
@@ -15,57 +15,166 @@ import {
   Info,
   BarChart3,
   Filter,
-  X
-} from 'lucide-react';
-import UgandaBoundaryMap from '../components/map/UgandaBoundaryMap';
+  X,
+} from "lucide-react";
+import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import FloodHourSlider from "@/components/shared/FloodHourSlider";
 
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
 }
 
-const FAO_BLUE = '#318DDE';
+const FAO_BLUE = "#318DDE";
 
 const stationTabs = [
-  { id: 'all', label: 'All Stations', icon: Radio },
-  { id: 'readings', label: 'Recent Readings', icon: BarChart3 },
-  { id: 'alerts', label: 'Alerts', icon: AlertTriangle },
+  { id: "all", label: "All Stations", icon: Radio },
+  { id: "readings", label: "Recent Readings", icon: BarChart3 },
+  { id: "alerts", label: "Alerts", icon: AlertTriangle },
 ];
 
 const stations = [
-  { id: 'AWS001', name: 'Entebbe Airport', region: 'Central', status: 'online', temp: 26.5, humidity: 78, wind: 12, pressure: 1013, rain: 2.4, signal: 95, lastUpdate: '2 min ago' },
-  { id: 'AWS002', name: 'Kampala City', region: 'Central', status: 'online', temp: 25.8, humidity: 82, wind: 8, pressure: 1012, rain: 3.1, signal: 88, lastUpdate: '1 min ago' },
-  { id: 'AWS003', name: 'Jinja', region: 'Eastern', status: 'online', temp: 27.2, humidity: 75, wind: 10, pressure: 1011, rain: 1.8, signal: 92, lastUpdate: '5 min ago' },
-  { id: 'AWS004', name: 'Mbale', region: 'Eastern', status: 'online', temp: 23.4, humidity: 85, wind: 6, pressure: 1010, rain: 5.2, signal: 85, lastUpdate: '3 min ago' },
-  { id: 'AWS005', name: 'Mbarara', region: 'Western', status: 'online', temp: 24.1, humidity: 70, wind: 14, pressure: 1014, rain: 0.5, signal: 90, lastUpdate: '4 min ago' },
-  { id: 'AWS006', name: 'Gulu', region: 'Northern', status: 'online', temp: 28.5, humidity: 65, wind: 16, pressure: 1009, rain: 0, signal: 87, lastUpdate: '1 min ago' },
-  { id: 'AWS007', name: 'Fort Portal', region: 'Western', status: 'maintenance', temp: 22.8, humidity: 80, wind: 9, pressure: 1015, rain: 1.2, signal: 60, lastUpdate: '2 hours ago' },
-  { id: 'AWS008', name: 'Lira', region: 'Northern', status: 'offline', temp: 0, humidity: 0, wind: 0, pressure: 0, rain: 0, signal: 0, lastUpdate: '3 days ago' },
+  {
+    id: "AWS001",
+    name: "Entebbe Airport",
+    region: "Central",
+    status: "online",
+    temp: 26.5,
+    humidity: 78,
+    wind: 12,
+    pressure: 1013,
+    rain: 2.4,
+    signal: 95,
+    lastUpdate: "2 min ago",
+  },
+  {
+    id: "AWS002",
+    name: "Kampala City",
+    region: "Central",
+    status: "online",
+    temp: 25.8,
+    humidity: 82,
+    wind: 8,
+    pressure: 1012,
+    rain: 3.1,
+    signal: 88,
+    lastUpdate: "1 min ago",
+  },
+  {
+    id: "AWS003",
+    name: "Jinja",
+    region: "Eastern",
+    status: "online",
+    temp: 27.2,
+    humidity: 75,
+    wind: 10,
+    pressure: 1011,
+    rain: 1.8,
+    signal: 92,
+    lastUpdate: "5 min ago",
+  },
+  {
+    id: "AWS004",
+    name: "Mbale",
+    region: "Eastern",
+    status: "online",
+    temp: 23.4,
+    humidity: 85,
+    wind: 6,
+    pressure: 1010,
+    rain: 5.2,
+    signal: 85,
+    lastUpdate: "3 min ago",
+  },
+  {
+    id: "AWS005",
+    name: "Mbarara",
+    region: "Western",
+    status: "online",
+    temp: 24.1,
+    humidity: 70,
+    wind: 14,
+    pressure: 1014,
+    rain: 0.5,
+    signal: 90,
+    lastUpdate: "4 min ago",
+  },
+  {
+    id: "AWS006",
+    name: "Gulu",
+    region: "Northern",
+    status: "online",
+    temp: 28.5,
+    humidity: 65,
+    wind: 16,
+    pressure: 1009,
+    rain: 0,
+    signal: 87,
+    lastUpdate: "1 min ago",
+  },
+  {
+    id: "AWS007",
+    name: "Fort Portal",
+    region: "Western",
+    status: "maintenance",
+    temp: 22.8,
+    humidity: 80,
+    wind: 9,
+    pressure: 1015,
+    rain: 1.2,
+    signal: 60,
+    lastUpdate: "2 hours ago",
+  },
+  {
+    id: "AWS008",
+    name: "Lira",
+    region: "Northern",
+    status: "offline",
+    temp: 0,
+    humidity: 0,
+    wind: 0,
+    pressure: 0,
+    rain: 0,
+    signal: 0,
+    lastUpdate: "3 days ago",
+  },
 ];
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'online': return 'text-green-500';
-    case 'maintenance': return 'text-yellow-500';
-    case 'offline': return 'text-red-500';
-    default: return 'text-slate-400';
+    case "online":
+      return "text-green-500";
+    case "maintenance":
+      return "text-yellow-500";
+    case "offline":
+      return "text-red-500";
+    default:
+      return "text-slate-400";
   }
 };
 
 const getStatusBg = (status: string) => {
   switch (status) {
-    case 'online': return 'bg-green-500/20';
-    case 'maintenance': return 'bg-yellow-500/20';
-    case 'offline': return 'bg-red-500/20';
-    default: return 'bg-slate-500/20';
+    case "online":
+      return "bg-green-500/20";
+    case "maintenance":
+      return "bg-yellow-500/20";
+    case "offline":
+      return "bg-red-500/20";
+    default:
+      return "bg-slate-500/20";
   }
 };
 
 const getStatusIcon = (status: string) => {
   switch (status) {
-    case 'online': return <Wifi className="w-4 h-4" />;
-    case 'maintenance': return <Settings className="w-4 h-4" />;
-    case 'offline': return <WifiOff className="w-4 h-4" />;
-    default: return <WifiOff className="w-4 h-4" />;
+    case "online":
+      return <Wifi className="w-4 h-4" />;
+    case "maintenance":
+      return <Settings className="w-4 h-4" />;
+    case "offline":
+      return <WifiOff className="w-4 h-4" />;
+    default:
+      return <WifiOff className="w-4 h-4" />;
   }
 };
 
@@ -97,7 +206,11 @@ const FilterContent = ({
   <div className="space-y-3">
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Region</label>
-      <select value={selectedRegion} onChange={(e) => setSelectedRegion(e.target.value)} className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+      <select
+        value={selectedRegion}
+        onChange={(e) => setSelectedRegion(e.target.value)}
+        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
+      >
         <option value="All Regions">All Regions</option>
         <option value="Central">Central</option>
         <option value="Eastern">Eastern</option>
@@ -107,7 +220,11 @@ const FilterContent = ({
     </div>
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Status</label>
-      <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+      <select
+        value={selectedStatus}
+        onChange={(e) => setSelectedStatus(e.target.value)}
+        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
+      >
         <option value="All Status">All Status</option>
         <option value="online">Online</option>
         <option value="maintenance">Maintenance</option>
@@ -117,28 +234,59 @@ const FilterContent = ({
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Parameter</label>
       <div className="space-y-1.5">
-        {['Temperature', 'Humidity', 'Wind', 'Pressure', 'Rainfall'].map((param) => (
-          <label key={param} className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" className={`rounded ${isDarkMode ? 'bg-slate-700 border-slate-600' : 'bg-white border-slate-300'}`} defaultChecked />
-            <span className={textSecondary}>{param}</span>
-          </label>
-        ))}
+        {["Temperature", "Humidity", "Wind", "Pressure", "Rainfall"].map(
+          (param) => (
+            <label
+              key={param}
+              className="flex items-center gap-2 text-sm cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                className={`rounded ${isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-300"}`}
+                defaultChecked
+              />
+              <span className={textSecondary}>{param}</span>
+            </label>
+          ),
+        )}
       </div>
     </div>
     <div className={`pt-3 border-t ${borderColor}`}>
-      <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>Network Stats</h4>
+      <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>
+        Network Stats
+      </h4>
       <div className="space-y-1.5">
-        <div className="flex justify-between text-xs"><span className={textMuted}>Total Stations</span><span className={`font-medium ${headerText}`}>{stations.length}</span></div>
-        <div className="flex justify-between text-xs"><span className={textMuted}>Online</span><span className="text-green-500 font-medium">{onlineCount}</span></div>
-        <div className="flex justify-between text-xs"><span className={textMuted}>Offline</span><span className="text-red-500 font-medium">{offlineCount}</span></div>
-        <div className="flex justify-between text-xs"><span className={textMuted}>Data Quality</span><span className="font-medium" style={{ color: FAO_BLUE }}>94%</span></div>
+        <div className="flex justify-between text-xs">
+          <span className={textMuted}>Total Stations</span>
+          <span className={`font-medium ${headerText}`}>{stations.length}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className={textMuted}>Online</span>
+          <span className="text-green-500 font-medium">{onlineCount}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className={textMuted}>Offline</span>
+          <span className="text-red-500 font-medium">{offlineCount}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className={textMuted}>Data Quality</span>
+          <span className="font-medium" style={{ color: FAO_BLUE }}>
+            94%
+          </span>
+        </div>
       </div>
     </div>
   </div>
 );
 
 // Map Component with Legend
-const StationMap = ({ isDarkMode, className = "" }: { isDarkMode: boolean; className?: string }) => {
+const StationMap = ({
+  isDarkMode,
+  className = "",
+}: {
+  isDarkMode: boolean;
+  className?: string;
+}) => {
   return (
     <UgandaBoundaryMap
       isDarkMode={isDarkMode}
@@ -146,26 +294,41 @@ const StationMap = ({ isDarkMode, className = "" }: { isDarkMode: boolean; class
       badgeText="7 Active"
       legendTitle="Stations"
       legendItems={[
-        { label: 'Online', color: '#22c55e' },
-        { label: 'Maintenance', color: '#eab308' },
-        { label: 'Offline', color: '#ef4444' },
+        { label: "Online", color: "#22c55e" },
+        { label: "Maintenance", color: "#eab308" },
+        { label: "Offline", color: "#ef4444" },
       ]}
     />
   );
 };
 
-export default function WeatherStationsPage({ isDarkMode = true }: WeatherStationsPageProps) {
-  const [activeTab, setActiveTab] = useState('all');
-  const [selectedRegion, setSelectedRegion] = useState('All Regions');
-  const [selectedStatus, setSelectedStatus] = useState('All Status');
+export default function WeatherStationsPage({
+  isDarkMode = true,
+}: WeatherStationsPageProps) {
+  const [activeTab, setActiveTab] = useState("all");
+  const [selectedRegion, setSelectedRegion] = useState("All Regions");
+  const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [sliderValue, setSliderValue] = useState(((2026 - 2001) * 12) + 2); // Mar 2026
+  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
 
   const getMonthYear = (months: number) => {
     const year = 2001 + Math.floor(months / 12);
     const month = months % 12;
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     return `${monthNames[month]} ${year}`;
   };
 
@@ -174,23 +337,28 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
     return () => clearTimeout(timer);
   }, []);
 
-  const onlineCount = stations.filter(s => s.status === 'online').length;
-  const offlineCount = stations.filter(s => s.status === 'offline').length;
-  const maintenanceCount = stations.filter(s => s.status === 'maintenance').length;
+  const onlineCount = stations.filter((s) => s.status === "online").length;
+  const offlineCount = stations.filter((s) => s.status === "offline").length;
+  const maintenanceCount = stations.filter(
+    (s) => s.status === "maintenance",
+  ).length;
 
-  const cardBg = isDarkMode ? 'bg-slate-800/85' : 'bg-white/95';
-  const textMuted = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-  const textSecondary = isDarkMode ? 'text-slate-300' : 'text-slate-600';
-  const borderColor = isDarkMode ? 'border-slate-700/30' : 'border-slate-200';
-  const headerText = isDarkMode ? 'text-white' : 'text-slate-900';
+  const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
+  const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";
+  const textSecondary = isDarkMode ? "text-slate-300" : "text-slate-600";
+  const borderColor = isDarkMode ? "border-slate-700/30" : "border-slate-200";
+  const headerText = isDarkMode ? "text-white" : "text-slate-900";
 
   if (isLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <div
+        className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}
+      >
         <div className="text-center">
-          <div className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-4" 
-            style={{ borderColor: `${FAO_BLUE}30`, borderTopColor: FAO_BLUE }}>
-          </div>
+          <div
+            className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-4"
+            style={{ borderColor: `${FAO_BLUE}30`, borderTopColor: FAO_BLUE }}
+          ></div>
           <p className={textMuted}>Loading Weather Stations...</p>
         </div>
       </div>
@@ -203,53 +371,74 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
       {isDarkMode && (
         <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="absolute rounded-full border-2 border-blue-500/20" style={{ width: `${100 + i * 100}px`, height: `${100 + i * 100}px`, left: '10%', top: '30%', animation: `signalPulse ${3 + i * 0.5}s ease-out infinite`, animationDelay: `${i * 0.3}s` }} />
+            <div
+              key={i}
+              className="absolute rounded-full border-2 border-blue-500/20"
+              style={{
+                width: `${100 + i * 100}px`,
+                height: `${100 + i * 100}px`,
+                left: "10%",
+                top: "30%",
+                animation: `signalPulse ${3 + i * 0.5}s ease-out infinite`,
+                animationDelay: `${i * 0.3}s`,
+              }}
+            />
           ))}
         </div>
       )}
 
-
       <div className="relative z-10 max-w-[1600px] mx-auto">
         {/* Compact Header Banner - No alert buttons */}
-        <div 
+        <div
           className="relative overflow-hidden rounded-lg md:rounded-xl p-3 md:p-4 mb-3 animate-fade-in-up"
-          style={{ background: `linear-gradient(135deg, ${FAO_BLUE}e6 0%, ${FAO_BLUE}99 100%)` }}
+          style={{
+            background: `linear-gradient(135deg, ${FAO_BLUE}e6 0%, ${FAO_BLUE}99 100%)`,
+          }}
         >
           <div className="relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
               <div>
-                <h1 className="text-lg md:text-xl font-bold text-white">Weather Stations</h1>
-                <p className="text-slate-200 text-xs md:text-sm">AWS network monitoring</p>
+                <h1 className="text-lg md:text-xl font-bold text-white">
+                  Weather Stations
+                </h1>
+                <p className="text-slate-200 text-xs md:text-sm">
+                  AWS network monitoring
+                </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span 
+                  <span
                     className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                    style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
                   >
-                    <Wifi className="w-3 h-3" />{onlineCount} Online
+                    <Wifi className="w-3 h-3" />
+                    {onlineCount} Online
                   </span>
-                  <span 
+                  <span
                     className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
-                    style={{ backgroundColor: 'rgba(239, 68, 68, 0.4)' }}
+                    style={{ backgroundColor: "rgba(239, 68, 68, 0.4)" }}
                   >
-                    <WifiOff className="w-3 h-3" />{offlineCount} Offline
+                    <WifiOff className="w-3 h-3" />
+                    {offlineCount} Offline
                   </span>
-                  <span 
+                  <span
                     className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                    style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
                   >
-                    <BarChart3 className="w-3 h-3" />98.5% Uptime
+                    <BarChart3 className="w-3 h-3" />
+                    98.5% Uptime
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
                 <button className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
-                  <Download className="w-3 h-3" /><span className="hidden sm:inline">Export</span>
+                  <Download className="w-3 h-3" />
+                  <span className="hidden sm:inline">Export</span>
                 </button>
-                <button 
+                <button
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
                   style={{ backgroundColor: FAO_BLUE }}
                 >
-                  <RefreshCw className="w-3 h-3" /><span className="hidden sm:inline">Refresh</span>
+                  <RefreshCw className="w-3 h-3" />
+                  <span className="hidden sm:inline">Refresh</span>
                 </button>
               </div>
             </div>
@@ -260,16 +449,18 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
         <div className="hidden lg:grid lg:grid-cols-12 gap-4">
           {/* Left Sidebar - Filter next to map */}
           <div className="lg:col-span-3 flex flex-col">
-            <div 
+            <div
               className="flex-1 rounded-xl p-3 shadow-sm flex flex-col"
-              style={{ 
-                background: isDarkMode 
-                  ? `linear-gradient(180deg, ${FAO_BLUE}30 0%, ${FAO_BLUE}15 100%)` 
+              style={{
+                background: isDarkMode
+                  ? `linear-gradient(180deg, ${FAO_BLUE}30 0%, ${FAO_BLUE}15 100%)`
                   : `linear-gradient(180deg, ${FAO_BLUE}15 0%, ${FAO_BLUE}05 100%)`,
                 border: `1px solid ${isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}15`}`,
               }}
             >
-              <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-slate-800/80' : 'bg-white/90'} border ${isDarkMode ? 'border-slate-700/30' : 'border-slate-200'}`}>
+              <div
+                className={`p-3 rounded-xl ${isDarkMode ? "bg-slate-800/80" : "bg-white/90"} border ${isDarkMode ? "border-slate-700/30" : "border-slate-200"}`}
+              >
                 <FilterContent
                   selectedRegion={selectedRegion}
                   setSelectedRegion={setSelectedRegion}
@@ -287,12 +478,12 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
 
               {/* Illustration at bottom */}
               <div className="mt-3 flex-1 flex relative min-h-[140px]">
-                <div 
+                <div
                   className="absolute inset-0 rounded-xl overflow-hidden"
-                  style={{ 
-                    backgroundImage: 'url(/stations-illustration.png)',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
+                  style={{
+                    backgroundImage: "url(/stations-illustration.png)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
                   }}
                 />
               </div>
@@ -306,49 +497,70 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
               {stationTabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <button 
-                    key={tab.id} 
-                    onClick={() => setActiveTab(tab.id)} 
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                      activeTab === tab.id 
-                        ? 'text-white' 
-                        : `${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'}`
+                      activeTab === tab.id
+                        ? "text-white"
+                        : `${isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-200 text-slate-600"}`
                     }`}
-                    style={{ backgroundColor: activeTab === tab.id ? FAO_BLUE : undefined }}
+                    style={{
+                      backgroundColor:
+                        activeTab === tab.id ? FAO_BLUE : undefined,
+                    }}
                   >
-                    <Icon className="w-3.5 h-3.5" />{tab.label}
+                    <Icon className="w-3.5 h-3.5" />
+                    {tab.label}
                   </button>
                 );
               })}
             </div>
 
             {/* Map and Network Overview Row */}
-            <div className="grid grid-cols-12 gap-3" style={{ minHeight: '550px' }}>
+            <div
+              className="grid grid-cols-12 gap-3"
+              style={{ minHeight: "550px" }}
+            >
               {/* Map - 8 columns */}
               <div className="col-span-8 flex">
-                <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col`}>
-                  <div className={`flex items-center justify-between p-2 border-b ${borderColor}`}>
+                <div
+                  className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col`}
+                >
+                  <div
+                    className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                  >
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-4 h-4" style={{ color: FAO_BLUE }} />
-                      <h3 className={`text-sm font-semibold ${headerText}`}>Station Network Map</h3>
+                      <h3 className={`text-sm font-semibold ${headerText}`}>
+                        Station Network Map
+                      </h3>
                     </div>
-                    <span 
+                    <span
                       className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                      style={{ 
-                        backgroundColor: isDarkMode ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.15)',
-                        color: '#22c55e'
+                      style={{
+                        backgroundColor: isDarkMode
+                          ? "rgba(34, 197, 94, 0.2)"
+                          : "rgba(34, 197, 94, 0.15)",
+                        color: "#22c55e",
                       }}
                     >
                       {onlineCount} Active
                     </span>
                   </div>
-                  <div className="relative flex-1 flex flex-col" style={{ minHeight: '400px' }}>
+                  <div
+                    className="relative flex-1 flex flex-col"
+                    style={{ minHeight: "400px" }}
+                  >
                     <div className="flex-1 relative">
-                      <StationMap isDarkMode={isDarkMode} className="absolute inset-0 w-full h-full" />
+                      <StationMap
+                        isDarkMode={isDarkMode}
+                        className="absolute inset-0 w-full h-full"
+                      />
                     </div>
-                    
+
                     {/* Time Slider */}
-                    <div className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
+                    {/* <div className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
                       <span className={`text-xs font-medium ${textMuted}`}>2001</span>
                       <input 
                         type="range" 
@@ -362,75 +574,152 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
                       <span className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: `${FAO_BLUE}20`, color: FAO_BLUE }}>
                         {getMonthYear(sliderValue)}
                       </span>
-                    </div>
+                    </div> */}
+                    <FloodHourSlider
+                      isDarkMode={isDarkMode}
+                      borderColor={borderColor}
+                      textMuted={textMuted}
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Right Column - 4 columns */}
               <div className="col-span-4 flex flex-col gap-3">
-                <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm h-full`}>
-                  <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>Network Overview</h3>
+                <div
+                  className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm h-full`}
+                >
+                  <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>
+                    Network Overview
+                  </h3>
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2">
-                      <p className="text-xl font-bold text-green-500">{onlineCount}</p>
+                      <p className="text-xl font-bold text-green-500">
+                        {onlineCount}
+                      </p>
                       <p className={`text-[10px] ${textMuted}`}>Online</p>
                     </div>
                     <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2">
-                      <p className="text-xl font-bold text-red-500">{offlineCount}</p>
+                      <p className="text-xl font-bold text-red-500">
+                        {offlineCount}
+                      </p>
                       <p className={`text-[10px] ${textMuted}`}>Offline</p>
                     </div>
                     <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2">
-                      <p className="text-xl font-bold text-yellow-500">{maintenanceCount}</p>
+                      <p className="text-xl font-bold text-yellow-500">
+                        {maintenanceCount}
+                      </p>
                       <p className={`text-[10px] ${textMuted}`}>Maintenance</p>
                     </div>
-                    <div className="rounded-lg p-2 border" style={{ backgroundColor: `${FAO_BLUE}10`, borderColor: `${FAO_BLUE}30` }}>
-                      <p className="text-xl font-bold" style={{ color: FAO_BLUE }}>{stations.length}</p>
+                    <div
+                      className="rounded-lg p-2 border"
+                      style={{
+                        backgroundColor: `${FAO_BLUE}10`,
+                        borderColor: `${FAO_BLUE}30`,
+                      }}
+                    >
+                      <p
+                        className="text-xl font-bold"
+                        style={{ color: FAO_BLUE }}
+                      >
+                        {stations.length}
+                      </p>
                       <p className={`text-[10px] ${textMuted}`}>Total</p>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <div>
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-xs ${textMuted}`}>Data Quality</span>
-                        <span className="text-xs font-medium" style={{ color: FAO_BLUE }}>94%</span>
+                        <span className={`text-xs ${textMuted}`}>
+                          Data Quality
+                        </span>
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: FAO_BLUE }}
+                        >
+                          94%
+                        </span>
                       </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                        <div className="h-full rounded-full" style={{ width: '94%', backgroundColor: FAO_BLUE }}></div>
+                      <div
+                        className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? "bg-slate-700" : "bg-slate-200"}`}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: "94%", backgroundColor: FAO_BLUE }}
+                        ></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className={`text-xs ${textMuted}`}>Network Uptime</span>
-                        <span className="text-xs font-medium" style={{ color: FAO_BLUE }}>98.5%</span>
+                        <span className={`text-xs ${textMuted}`}>
+                          Network Uptime
+                        </span>
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: FAO_BLUE }}
+                        >
+                          98.5%
+                        </span>
                       </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>
-                        <div className="h-full rounded-full" style={{ width: '98.5%', backgroundColor: FAO_BLUE }}></div>
+                      <div
+                        className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? "bg-slate-700" : "bg-slate-200"}`}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: "98.5%", backgroundColor: FAO_BLUE }}
+                        ></div>
                       </div>
                     </div>
                   </div>
                 </div>
                 {/* Station Status - Mobile styling adopted for right column */}
-                <div className={`hidden lg:flex flex-col ${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm flex-1`}>
-                  <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>Station Status</h3>
-                  <div className="overflow-y-auto pr-1" style={{ maxHeight: '250px' }}>
+                <div
+                  className={`hidden lg:flex flex-col ${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm flex-1`}
+                >
+                  <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>
+                    Station Status
+                  </h3>
+                  <div
+                    className="overflow-y-auto pr-1"
+                    style={{ maxHeight: "250px" }}
+                  >
                     <div className="space-y-1.5">
                       {stations.map((station, idx) => (
-                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${isDarkMode ? 'bg-slate-700/30' : 'bg-slate-100'}`}>
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between p-2 rounded-lg ${isDarkMode ? "bg-slate-700/30" : "bg-slate-100"}`}
+                        >
                           <div className="flex items-center gap-2">
-                            <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(station.status).replace('text', 'bg')}`}></div>
+                            <div
+                              className={`w-2.5 h-2.5 rounded-full ${getStatusColor(station.status).replace("text", "bg")}`}
+                            ></div>
                             <div>
-                              <p className={`text-xs font-medium truncate max-w-[100px] ${headerText}`} title={station.name}>{station.name}</p>
-                              <p className={`text-[10px] ${textMuted}`}>{station.id}</p>
+                              <p
+                                className={`text-xs font-medium truncate max-w-[100px] ${headerText}`}
+                                title={station.name}
+                              >
+                                {station.name}
+                              </p>
+                              <p className={`text-[10px] ${textMuted}`}>
+                                {station.id}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right hidden xl:block">
-                              <p className={`text-[10px] ${textMuted}`}>Signal</p>
-                              <p className={`text-xs font-medium ${headerText}`}>{station.signal}%</p>
+                              <p className={`text-[10px] ${textMuted}`}>
+                                Signal
+                              </p>
+                              <p
+                                className={`text-xs font-medium ${headerText}`}
+                              >
+                                {station.signal}%
+                              </p>
                             </div>
                             <div className="w-14">
-                              <span className={`inline-block text-center text-[9px] px-1 py-0.5 rounded w-full ${getStatusBg(station.status)} ${getStatusColor(station.status)}`}>
+                              <span
+                                className={`inline-block text-center text-[9px] px-1 py-0.5 rounded w-full ${getStatusBg(station.status)} ${getStatusColor(station.status)}`}
+                              >
                                 {station.status}
                               </span>
                             </div>
@@ -444,23 +733,49 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
             </div>
 
             {/* About AWS Network */}
-            <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}>
-              <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headerText}`}>
-                <Info className="w-4 h-4" style={{ color: FAO_BLUE }} />About AWS Network
+            <div
+              className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
+            >
+              <h3
+                className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headerText}`}
+              >
+                <Info className="w-4 h-4" style={{ color: FAO_BLUE }} />
+                About AWS Network
               </h3>
-              <p className={`text-xs ${textMuted} mb-2`}>Automatic Weather Stations provide real-time meteorological data across Uganda.</p>
+              <p className={`text-xs ${textMuted} mb-2`}>
+                Automatic Weather Stations provide real-time meteorological data
+                across Uganda.
+              </p>
               <div className="space-y-1">
-                <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
-                  <Thermometer className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />Temperature & Humidity
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${textSecondary}`}
+                >
+                  <Thermometer
+                    className="w-3.5 h-3.5"
+                    style={{ color: FAO_BLUE }}
+                  />
+                  Temperature & Humidity
                 </div>
-                <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
-                  <Wind className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />Wind Speed & Direction
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${textSecondary}`}
+                >
+                  <Wind className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+                  Wind Speed & Direction
                 </div>
-                <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
-                  <CloudRain className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />Precipitation
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${textSecondary}`}
+                >
+                  <CloudRain
+                    className="w-3.5 h-3.5"
+                    style={{ color: FAO_BLUE }}
+                  />
+                  Precipitation
                 </div>
-                <div className={`flex items-center gap-1.5 text-xs ${textSecondary}`}>
-                  <Gauge className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />Barometric Pressure
+                <div
+                  className={`flex items-center gap-1.5 text-xs ${textSecondary}`}
+                >
+                  <Gauge className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+                  Barometric Pressure
                 </div>
               </div>
             </div>
@@ -470,11 +785,17 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
         {/* Mobile Layout */}
         <div className="block lg:hidden space-y-3">
           {/* Network Overview - Mobile (above map) */}
-          <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}>
-            <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>Network Overview</h3>
+          <div
+            className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
+          >
+            <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>
+              Network Overview
+            </h3>
             <div className="grid grid-cols-4 gap-2">
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-green-500">{onlineCount}</p>
+                <p className="text-lg font-bold text-green-500">
+                  {onlineCount}
+                </p>
                 <p className={`text-[10px] ${textMuted}`}>Online</p>
               </div>
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 text-center">
@@ -482,11 +803,21 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
                 <p className={`text-[10px] ${textMuted}`}>Offline</p>
               </div>
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-yellow-500">{maintenanceCount}</p>
+                <p className="text-lg font-bold text-yellow-500">
+                  {maintenanceCount}
+                </p>
                 <p className={`text-[10px] ${textMuted}`}>Maint</p>
               </div>
-              <div className="rounded-lg p-2 border" style={{ backgroundColor: `${FAO_BLUE}10`, borderColor: `${FAO_BLUE}30` }}>
-                <p className="text-lg font-bold" style={{ color: FAO_BLUE }}>{stations.length}</p>
+              <div
+                className="rounded-lg p-2 border"
+                style={{
+                  backgroundColor: `${FAO_BLUE}10`,
+                  borderColor: `${FAO_BLUE}30`,
+                }}
+              >
+                <p className="text-lg font-bold" style={{ color: FAO_BLUE }}>
+                  {stations.length}
+                </p>
                 <p className={`text-[10px] ${textMuted}`}>Total</p>
               </div>
             </div>
@@ -494,63 +825,100 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
 
           {/* Map Section with Filter Popup */}
           <div className="relative">
-            <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm`}>
-              <div className={`flex items-center justify-between p-2 border-b ${borderColor}`}>
+            <div
+              className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm`}
+            >
+              <div
+                className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+              >
                 <div className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4" style={{ color: FAO_BLUE }} />
-                  <h3 className={`text-sm font-semibold ${headerText}`}>Station Network Map</h3>
+                  <h3 className={`text-sm font-semibold ${headerText}`}>
+                    Station Network Map
+                  </h3>
                 </div>
-                <span 
+                <span
                   className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                  style={{ 
-                    backgroundColor: isDarkMode ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.15)',
-                    color: '#22c55e'
+                  style={{
+                    backgroundColor: isDarkMode
+                      ? "rgba(34, 197, 94, 0.2)"
+                      : "rgba(34, 197, 94, 0.15)",
+                    color: "#22c55e",
                   }}
                 >
                   {onlineCount} Active
                 </span>
               </div>
               <div className="aspect-video relative flex flex-col">
-              <div className="flex-1 relative">
-                <StationMap isDarkMode={isDarkMode} className="absolute inset-0 w-full h-full" />
-              </div>
-              {/* Filter button on map */}
-              <button
-                onClick={() => setShowMobileFilters(!showMobileFilters)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center shadow-md z-[1001] text-white"
-                style={{ backgroundColor: FAO_BLUE }}
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-              
-              {/* Time Slider */}
-              <div className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? 'bg-slate-800/80' : 'bg-slate-50'} z-[1001]`}>
-                <span className={`text-[10px] font-medium ${textMuted}`}>2001</span>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max={(2026 - 2001 + 1) * 12 - 1} 
-                  value={sliderValue}
-                  onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                  className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
-                  style={{ backgroundColor: isDarkMode ? '#334155' : '#cbd5e1', accentColor: FAO_BLUE }}
+                <div className="flex-1 relative">
+                  <StationMap
+                    isDarkMode={isDarkMode}
+                    className="absolute inset-0 w-full h-full"
+                  />
+                </div>
+                {/* Filter button on map */}
+                <button
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center shadow-md z-[1001] text-white"
+                  style={{ backgroundColor: FAO_BLUE }}
+                >
+                  <Filter className="w-4 h-4" />
+                </button>
+
+                {/* Time Slider */}
+                {/* <div
+                  className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
+                >
+                  <span className={`text-[10px] font-medium ${textMuted}`}>
+                    2001
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={(2026 - 2001 + 1) * 12 - 1}
+                    value={sliderValue}
+                    onChange={(e) => setSliderValue(parseInt(e.target.value))}
+                    className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
+                      accentColor: FAO_BLUE,
+                    }}
+                  />
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                    style={{
+                      backgroundColor: `${FAO_BLUE}20`,
+                      color: FAO_BLUE,
+                    }}
+                  >
+                    {getMonthYear(sliderValue)}
+                  </span>
+                </div> */}
+                <FloodHourSlider
+                  isDarkMode={isDarkMode}
+                  borderColor={borderColor}
+                  textMuted={textMuted}
                 />
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: `${FAO_BLUE}20`, color: FAO_BLUE }}>
-                  {getMonthYear(sliderValue)}
-                </span>
               </div>
-            </div>
             </div>
             {/* Filter Popup */}
             {showMobileFilters && (
               <>
-                <div className="fixed inset-0 z-[1002]" onClick={() => setShowMobileFilters(false)} />
-                <div 
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 z-[1003] w-64 rounded-xl shadow-lg border p-3 max-h-[70vh] overflow-y-auto ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
+                <div
+                  className="fixed inset-0 z-[1002]"
+                  onClick={() => setShowMobileFilters(false)}
+                />
+                <div
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 z-[1003] w-64 rounded-xl shadow-lg border p-3 max-h-[70vh] overflow-y-auto ${isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className={`text-xs font-semibold ${headerText}`}>Station Filters</h4>
-                    <button onClick={() => setShowMobileFilters(false)} className={`p-1 rounded-md ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}>
+                    <h4 className={`text-xs font-semibold ${headerText}`}>
+                      Station Filters
+                    </h4>
+                    <button
+                      onClick={() => setShowMobileFilters(false)}
+                      className={`p-1 rounded-md ${isDarkMode ? "hover:bg-slate-700" : "hover:bg-slate-100"}`}
+                    >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -573,22 +941,37 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
           </div>
 
           {/* Station Status - Mobile */}
-          <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}>
-            <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>Station Status</h3>
+          <div
+            className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
+          >
+            <h3 className={`text-sm font-semibold mb-2 ${headerText}`}>
+              Station Status
+            </h3>
             <div className="space-y-2">
               {stations.slice(0, 4).map((station, idx) => (
-                <div key={idx} className={`p-2 rounded-lg ${isDarkMode ? 'bg-slate-700/30' : 'bg-slate-100'}`}>
+                <div
+                  key={idx}
+                  className={`p-2 rounded-lg ${isDarkMode ? "bg-slate-700/30" : "bg-slate-100"}`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${getStatusBg(station.status)}`}>
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center ${getStatusBg(station.status)}`}
+                      >
                         {getStatusIcon(station.status)}
                       </div>
                       <div>
-                        <p className={`text-xs font-medium ${headerText}`}>{station.name}</p>
-                        <p className={`text-[10px] ${textMuted}`}>{station.id}</p>
+                        <p className={`text-xs font-medium ${headerText}`}>
+                          {station.name}
+                        </p>
+                        <p className={`text-[10px] ${textMuted}`}>
+                          {station.id}
+                        </p>
                       </div>
                     </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${getStatusBg(station.status)} ${getStatusColor(station.status)}`}>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${getStatusBg(station.status)} ${getStatusColor(station.status)}`}
+                    >
                       {station.status}
                     </span>
                   </div>
@@ -600,10 +983,15 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
 
         {/* Footer */}
         <footer className={`mt-6 pt-4 border-t ${borderColor}`}>
-          <div className={`flex flex-col md:flex-row items-center justify-between text-xs ${textMuted} gap-1`}>
+          <div
+            className={`flex flex-col md:flex-row items-center justify-between text-xs ${textMuted} gap-1`}
+          >
             <p>© 2025 FAO Uganda. All Rights Reserved.</p>
             <span className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: FAO_BLUE }}></div>
+              <div
+                className="w-1.5 h-1.5 rounded-full animate-pulse"
+                style={{ backgroundColor: FAO_BLUE }}
+              ></div>
               System Operational
             </span>
           </div>

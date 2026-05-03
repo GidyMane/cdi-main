@@ -19,9 +19,10 @@ import {
 import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
-import { weatherAPI } from "../services/api";
+import { weatherAPI, DistrictsAPI } from "../services/api";
 import type {
   DailyForecastResponse,
+  district,
   ForecastPerHour,
   WeatherData,
 } from "@/types/data_types";
@@ -40,6 +41,8 @@ import TabBar from "@/components/shared/TabBar";
 import HourlyCards from "@/components/shared/HourlyCards";
 import { DailyCards } from "@/components/shared/DailyCards";
 import { useAppStore } from "@/store/useAppStore";
+import { useQuery } from "@tanstack/react-query";
+import FloodHourSlider from "@/components/shared/FloodHourSlider";
 
 interface WeatherForecastPageProps {
   isDarkMode?: boolean;
@@ -194,6 +197,7 @@ const FilterContent = ({
   weatherData,
   dateRange,
   setDateRange,
+  district_list,
 }: {
   selectedRegion: string;
   setSelectedRegion: (v: string) => void;
@@ -206,20 +210,19 @@ const FilterContent = ({
   weatherData: WeatherData | null;
   dateRange: string;
   setDateRange: (dateRange: string) => void;
+  district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
     <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Region</label>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
       <select
         value={selectedRegion}
         onChange={(e) => setSelectedRegion(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        {["All Regions", "Central", "Eastern", "Western", "Northern"].map(
-          (r) => (
-            <option key={r}>{r}</option>
-          ),
-        )}
+        {district_list?.map((r) => (
+          <option key={r.id}>{r.name}</option>
+        ))}
       </select>
     </div>
     <div>
@@ -294,20 +297,25 @@ const FilterContent = ({
 export default function WeatherForecastPage({
   isDarkMode = true,
 }: WeatherForecastPageProps) {
+  // ── Data ────────────────────────────────────────────────────────────────────
+  const { data: district_list = [] } = useQuery<district[]>({
+    queryKey: ["districts"],
+    queryFn: DistrictsAPI.getAll,
+  });
+
   const { selectedParameter, setSelectedParameter, dateRange, setDateRange } =
     useAppStore((state) => state);
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  // const [selectedParameter, setSelectedParameter] = useState("temperature");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [sliderValue, setSliderValue] = useState(12);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
     null,
   );
+
   const [dailyForecasts, setDailyForecast] =
     useState<DailyForecastResponse | null>(null);
-  // const [weatherError, setWeatherError] = useState(null);
 
   const getHourLabel = (hour: number) => {
     const twoDigit = hour.toString().padStart(2, "0");
@@ -498,7 +506,9 @@ export default function WeatherForecastPage({
         {/* Stat cards */}
         <div className="flex items-center gap-2 mb-3">
           <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-          <span className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>
+          <span
+            className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+          >
             Kampala, Central Region
           </span>
           <span
@@ -592,6 +602,7 @@ export default function WeatherForecastPage({
                   weatherData={weatherData}
                   dateRange={dateRange}
                   setDateRange={setDateRange}
+                  district_list={district_list}
                 />
               </div>
               <div className="mt-auto pt-3">
@@ -656,7 +667,7 @@ export default function WeatherForecastPage({
                         legendItems={WEATHER_LEGEND_ITEMS}
                       />
                     </div>
-                    <div
+                    {/* <div
                       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
                     >
                       <span className={`text-xs font-medium ${textMuted}`}>
@@ -685,7 +696,12 @@ export default function WeatherForecastPage({
                       >
                         {getHourLabel(sliderValue)}
                       </span>
-                    </div>
+                    </div> */}
+                    <FloodHourSlider
+                      isDarkMode={isDarkMode}
+                      borderColor={borderColor}
+                      textMuted={textMuted}
+                    />
                   </div>
                 </div>
               </div>
@@ -864,7 +880,7 @@ export default function WeatherForecastPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-                <div
+                {/* <div
                   className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
                 >
                   <span className={`text-[10px] font-medium ${textMuted}`}>
@@ -891,7 +907,12 @@ export default function WeatherForecastPage({
                   >
                     {getHourLabel(sliderValue)}
                   </span>
-                </div>
+                </div> */}
+                <FloodHourSlider
+                  isDarkMode={isDarkMode}
+                  borderColor={borderColor}
+                  textMuted={textMuted}
+                />
               </div>
             </div>
             {showMobileFilters && (
@@ -926,6 +947,7 @@ export default function WeatherForecastPage({
                     weatherData={weatherData}
                     dateRange={dateRange}
                     setDateRange={setDateRange}
+                    district_list={district_list}
                   />
                 </div>
               </>

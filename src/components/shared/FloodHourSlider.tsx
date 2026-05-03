@@ -1,0 +1,64 @@
+import React, { useState } from "react";
+
+// ── Available flood hour steps from GeoServer ─────────────────────────────────
+export const FLOOD_HOURS = [24, 48, 72, 96, 120, 144, 168, 192];
+
+interface FloodHourSliderProps {
+  isDarkMode: boolean;
+  borderColor: string;
+  textMuted: string;
+  FAO_BLUE?: string;
+}
+
+const DEFAULT_FAO_BLUE = "#318DDE";
+
+export function FloodHourSlider({
+  isDarkMode,
+  borderColor,
+  textMuted,
+  FAO_BLUE = DEFAULT_FAO_BLUE,
+}: FloodHourSliderProps) {
+  const [hourIndex, setHourIndex] = useState(0);
+  const selectedHours = FLOOD_HOURS[hourIndex];
+
+  return (
+    <div
+      className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${
+        isDarkMode ? "bg-slate-800/80" : "bg-slate-50"
+      }`}
+    >
+      {/* Start label */}
+      <span className={`text-xs font-medium ${textMuted}`}>
+        {FLOOD_HOURS[0]}h
+      </span>
+
+      {/* Slider */}
+      <input
+        type="range"
+        min={0}
+        max={FLOOD_HOURS.length - 1}
+        step={1}
+        value={hourIndex}
+        onChange={(e) => setHourIndex(Number(e.target.value))}
+        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
+        style={{
+          backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
+          accentColor: FAO_BLUE,
+        }}
+      />
+
+      {/* Current value badgee */}
+      <span
+        className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
+        style={{
+          backgroundColor: `${FAO_BLUE}20`,
+          color: FAO_BLUE,
+        }}
+      >
+        +{selectedHours}h
+      </span>
+    </div>
+  );
+}
+
+export default FloodHourSlider;
