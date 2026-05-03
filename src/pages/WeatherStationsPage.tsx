@@ -310,27 +310,27 @@ export default function WeatherStationsPage({
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
+  // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
 
-  const getMonthYear = (months: number) => {
-    const year = 2001 + Math.floor(months / 12);
-    const month = months % 12;
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${monthNames[month]} ${year}`;
-  };
+  // const getMonthYear = (months: number) => {
+  //   const year = 2001 + Math.floor(months / 12);
+  //   const month = months % 12;
+  //   const monthNames = [
+  //     "Jan",
+  //     "Feb",
+  //     "Mar",
+  //     "Apr",
+  //     "May",
+  //     "Jun",
+  //     "Jul",
+  //     "Aug",
+  //     "Sep",
+  //     "Oct",
+  //     "Nov",
+  //     "Dec",
+  //   ];
+  //   return `${monthNames[month]} ${year}`;
+  // };
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);

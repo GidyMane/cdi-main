@@ -3,8 +3,6 @@
  * Uses environment variables for endpoints
  */
 
-import type { district } from "@/types/data_types";
-
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   "https://multihazard.rosewillbome.com/api/v1/";

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useAppStore } from "@/store/useAppStore";
 
 // ── Available flood hour steps from GeoServer ─────────────────────────────────
 export const FLOOD_HOURS = [24, 48, 72, 96, 120, 144, 168, 192];
@@ -18,8 +18,11 @@ export function FloodHourSlider({
   textMuted,
   FAO_BLUE = DEFAULT_FAO_BLUE,
 }: FloodHourSliderProps) {
-  const [hourIndex, setHourIndex] = useState(0);
-  const selectedHours = FLOOD_HOURS[hourIndex];
+  const { sliderhourIndexValue, setSliderhourIndexValue } = useAppStore(
+    (state) => state,
+  );
+  //   const [hourIndex, setHourIndex] = useState(0);
+  const selectedHours = FLOOD_HOURS[sliderhourIndexValue];
 
   return (
     <div
@@ -38,8 +41,8 @@ export function FloodHourSlider({
         min={0}
         max={FLOOD_HOURS.length - 1}
         step={1}
-        value={hourIndex}
-        onChange={(e) => setHourIndex(Number(e.target.value))}
+        value={sliderhourIndexValue}
+        onChange={(e) => setSliderhourIndexValue(Number(e.target.value))}
         className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
         style={{
           backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",

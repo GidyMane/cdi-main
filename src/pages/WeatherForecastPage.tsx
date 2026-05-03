@@ -308,7 +308,7 @@ export default function WeatherForecastPage({
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [sliderValue, setSliderValue] = useState(12);
+  // const [sliderValue, setSliderValue] = useState(12);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
     null,
@@ -317,10 +317,10 @@ export default function WeatherForecastPage({
   const [dailyForecasts, setDailyForecast] =
     useState<DailyForecastResponse | null>(null);
 
-  const getHourLabel = (hour: number) => {
-    const twoDigit = hour.toString().padStart(2, "0");
-    return `${twoDigit}:00`;
-  };
+  // const getHourLabel = (hour: number) => {
+  //   const twoDigit = hour.toString().padStart(2, "0");
+  //   return `${twoDigit}:00`;
+  // };
 
   // Parallel data fetch
   useEffect(() => {
