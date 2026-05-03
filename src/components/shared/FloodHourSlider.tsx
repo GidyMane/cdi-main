@@ -47,7 +47,7 @@ export function FloodHourSlider({
         }}
       />
 
-      {/* Current value badge */}
+      {/* Current value badgee */}
       <span
         className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
         style={{
