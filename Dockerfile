@@ -16,6 +16,23 @@ RUN echo 'server { \
   root /usr/share/nginx/html; \
   index index.html; \
   \
+  # Increase header buffer size \
+  large_client_header_buffers 4 16k; \
+  \
+  # Increase timeouts \
+  proxy_connect_timeout 60s; \
+  proxy_send_timeout 60s; \
+  proxy_read_timeout 60s; \
+  send_timeout 60s; \
+  \
+  # Enhance proxy buffering \
+  proxy_buffer_size 128k; \
+  proxy_buffers 4 256k; \
+  proxy_busy_buffers_size 256k; \
+  \
+  # Allow larger request sizes \
+  client_max_body_size 100M; \
+  \
   location /api/ { \
     proxy_pass http://host.docker.internal:8000; \
     proxy_set_header Host $host; \
@@ -30,6 +47,7 @@ RUN echo 'server { \
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
     proxy_set_header X-Forwarded-Proto $scheme; \
     proxy_set_header X-Forwarded-Host $host; \
+    proxy_set_header Cookie $http_cookie; \
     proxy_redirect http://192.168.100.104:8090/ /; \
   } \
   \
