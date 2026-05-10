@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
+import { FLOOD_HOURS } from "../shared/FloodHourSlider";
 
 interface LegendItem {
   label: string;
@@ -169,7 +170,7 @@ export default function UgandaBoundaryMap({
   zoom = 7,
   minZoom = 6,
 }: UgandaBoundaryMapProps) {
-  const { selectedParameter, dateRange, currentPage } = useAppStore(
+  const { selectedParameter, dateRange, currentPage,sliderhourIndexValue} = useAppStore(
     (state) => state,
   );
   // ── Refs ────────────────────────────────────────────────────────────────────
@@ -513,7 +514,7 @@ export default function UgandaBoundaryMap({
     const param = () => {
       switch (selectedParameter?.toLocaleLowerCase()) {
         case "temperature":
-          return "chirts_tmax";
+          return "gee_weather_temperature";
         case "precipitation":
           return "precip";
         case "drought":
@@ -525,7 +526,11 @@ export default function UgandaBoundaryMap({
       }
     };
 
-    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}`; // e.g. "wfews:flood_20260301_24h"
+    
+
+    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}_${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
+
+    console.log("layerName",layerName)
 
     rasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
@@ -536,7 +541,7 @@ export default function UgandaBoundaryMap({
         opacity: 1.0,
       })
       .addTo(mapRef.current);
-  }, [geoData, selectedParameter, dateRange]);
+  }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {

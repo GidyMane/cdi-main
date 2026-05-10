@@ -91,7 +91,7 @@ export default function DroughtMonitoringPage({
           </div>
         )}
         <iframe
-          src="https://cdi.rosewillbome.com"
+          src="https://droughtfrontend.rosewillbome.co.ke"
           className="w-full h-full border-0"
           title="CDI Drought Monitoring System"
           onLoad={() => setIframeLoaded(true)}

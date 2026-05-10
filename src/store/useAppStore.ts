@@ -78,8 +78,8 @@ export interface AppStoreState {
   setDateRange: (dateRange: string) => void;
 
   //slider
-  sliderhourIndexValue: number;
-  setSliderhourIndexValue: (value: number) => void;
+  sliderhourIndexValue: string;
+  setSliderhourIndexValue: (value: any) => void;
 }
 
 export const useAppStore = create<AppStoreState>()(
@@ -150,8 +150,8 @@ export const useAppStore = create<AppStoreState>()(
       setDateRange: (dateRange: any) => set({ dateRange: dateRange }),
 
       //slider
-      sliderhourIndexValue: 0,
-      setSliderhourIndexValue: (value: number) =>
+      sliderhourIndexValue: "00",
+      setSliderhourIndexValue: (value: string) =>
         set({ sliderhourIndexValue: value }),
     }),
     {
