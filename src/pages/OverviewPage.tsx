@@ -21,6 +21,7 @@ import { ThresholdScale } from "../components/shared/ThresholdScale";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { overviewAPI, alertsAPI, weatherAPI } from "../services/api";
 import { FloodHourSlider } from "@/components/shared/FloodHourSlider";
+import { useAppStore } from "@/store/useAppStore";
 
 interface OverviewPageProps {
   onNavigate: (page: PageType) => void;
@@ -286,6 +287,8 @@ export default function OverviewPage({
   onNavigate,
   isDarkMode = true,
 }: OverviewPageProps) {
+  const { selectedDistrictId } = useAppStore((state) => state);
+
   const [selectedModule, setSelectedModule] = useState("all");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -395,7 +398,7 @@ export default function OverviewPage({
     fetchOverviewStats();
     const interval = setInterval(fetchOverviewStats, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDistrictId]);
 
   const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";

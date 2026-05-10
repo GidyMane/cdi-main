@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
+import { useQuery } from "@tanstack/react-query";
+import type { district } from "@/types/data_types";
+import { DistrictsAPI } from "@/services/api";
 
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
@@ -190,6 +193,7 @@ const FilterContent = ({
   headerText,
   onlineCount,
   offlineCount,
+  district_list,
 }: {
   selectedRegion: string;
   setSelectedRegion: (val: string) => void;
@@ -202,9 +206,10 @@ const FilterContent = ({
   headerText: string;
   onlineCount: number;
   offlineCount: number;
+  district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Region</label>
       <select
         value={selectedRegion}
@@ -216,6 +221,18 @@ const FilterContent = ({
         <option value="Eastern">Eastern</option>
         <option value="Western">Western</option>
         <option value="Northern">Northern</option>
+      </select>
+    </div> */}
+    <div>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
+      <select
+        value={selectedRegion}
+        onChange={(e) => setSelectedRegion(e.target.value)}
+        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
+      >
+        {district_list?.map((r) => (
+          <option key={r.id}>{r.name}</option>
+        ))}
       </select>
     </div>
     <div>
@@ -305,6 +322,11 @@ const StationMap = ({
 export default function WeatherStationsPage({
   isDarkMode = true,
 }: WeatherStationsPageProps) {
+  // ── Data ────────────────────────────────────────────────────────────────────
+  const { data: district_list = [] } = useQuery<district[]>({
+    queryKey: ["districts"],
+    queryFn: DistrictsAPI.getAll,
+  });
   const [activeTab, setActiveTab] = useState("all");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [selectedStatus, setSelectedStatus] = useState("All Status");
@@ -473,6 +495,7 @@ export default function WeatherStationsPage({
                   headerText={headerText}
                   onlineCount={onlineCount}
                   offlineCount={offlineCount}
+                  district_list={district_list}
                 />
               </div>
 
@@ -934,6 +957,7 @@ export default function WeatherStationsPage({
                     headerText={headerText}
                     onlineCount={onlineCount}
                     offlineCount={offlineCount}
+                    district_list={district_list}
                   />
                 </div>
               </>
