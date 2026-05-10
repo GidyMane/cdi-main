@@ -24,7 +24,7 @@ export function ThresholdScale({
   return (
     <div className="mt-2">
       <div
-        className={`relative h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}
+        className={`relative h-1.5 rounded-full ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}
       >
         <div className="absolute inset-0 flex">
           {thresholds.map((t, i) => {
@@ -44,12 +44,11 @@ export function ThresholdScale({
           })}
         </div>
         <div
-          className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 shadow-sm transition-all duration-500 ${isDarkMode ? 'bg-white' : 'bg-black'}`}
+          className={`absolute top-1/2 w-0.5 h-4 rounded-sm shadow-sm transition-all duration-500 ${isDarkMode ? 'bg-white' : 'bg-slate-800'}`}
           style={{
             left: `${percentage}%`,
-            borderColor: isDarkMode ? '#334155' : 'white',
             transform: `translate(-50%, -50%)`,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
           }}
         />
       </div>
