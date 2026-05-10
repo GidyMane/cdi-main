@@ -1,3 +1,4 @@
+import type { district } from "@/types/data_types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -23,8 +24,8 @@ export interface AppStoreState {
   setCurrentPage: (page: AppStoreState["currentPage"]) => void;
 
   // Filters & Selection
-  selectedDistrictId: number;
-  setSelectedDistrictId: (id: number) => void;
+  selectedDistrictId: district | undefined;
+  setSelectedDistrictId: (id: district | undefined) => void;
   selectedRegionId?: string;
   setSelectedRegionId: (id: string) => void;
 
@@ -78,8 +79,8 @@ export interface AppStoreState {
   setDateRange: (dateRange: string) => void;
 
   //slider
-  sliderhourIndexValue: number;
-  setSliderhourIndexValue: (value: number) => void;
+  sliderhourIndexValue: string;
+  setSliderhourIndexValue: (value: any) => void;
 }
 
 export const useAppStore = create<AppStoreState>()(
@@ -94,7 +95,10 @@ export const useAppStore = create<AppStoreState>()(
       setCurrentPage: (page) => set({ currentPage: page }),
 
       // Filters
-      selectedDistrictId: 1,
+      selectedDistrictId: {
+        id: 3071,
+        name: "Apac",
+      },
       setSelectedDistrictId: (id) => set({ selectedDistrictId: id }),
       selectedRegionId: undefined,
       setSelectedRegionId: (id) => set({ selectedRegionId: id }),
@@ -150,8 +154,8 @@ export const useAppStore = create<AppStoreState>()(
       setDateRange: (dateRange: any) => set({ dateRange: dateRange }),
 
       //slider
-      sliderhourIndexValue: 0,
-      setSliderhourIndexValue: (value: number) =>
+      sliderhourIndexValue: "00",
+      setSliderhourIndexValue: (value: string) =>
         set({ sliderhourIndexValue: value }),
     }),
     {

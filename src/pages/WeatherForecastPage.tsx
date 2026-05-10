@@ -43,6 +43,7 @@ import { DailyCards } from "@/components/shared/DailyCards";
 import { useAppStore } from "@/store/useAppStore";
 import { useQuery } from "@tanstack/react-query";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
+import Districts_list from "@/components/shared/Districts_list";
 
 interface WeatherForecastPageProps {
   isDarkMode?: boolean;
@@ -186,8 +187,8 @@ const TemperatureTrendChart = ({
 // ── Filter Sidebar ────────────────────────────────────────────────────────────
 
 const FilterContent = ({
-  selectedRegion,
-  setSelectedRegion,
+ // selectedRegion,
+  //setSelectedRegion,
   selectedParameter,
   setSelectedParameter,
   isDarkMode,
@@ -213,7 +214,7 @@ const FilterContent = ({
   district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
       <select
         value={selectedRegion}
@@ -224,7 +225,12 @@ const FilterContent = ({
           <option key={r.id}>{r.name}</option>
         ))}
       </select>
-    </div>
+    </div> */}
+    <Districts_list
+      district_list={district_list}
+      isDarkMode={isDarkMode}
+      textMuted={textMuted}
+    />
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Parameter</label>
       <select
@@ -303,8 +309,13 @@ export default function WeatherForecastPage({
     queryFn: DistrictsAPI.getAll,
   });
 
-  const { selectedParameter, setSelectedParameter, dateRange, setDateRange } =
-    useAppStore((state) => state);
+  const {
+    selectedParameter,
+    setSelectedParameter,
+    dateRange,
+    setDateRange,
+    selectedDistrictId,
+  } = useAppStore((state) => state);
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -326,8 +337,12 @@ export default function WeatherForecastPage({
   useEffect(() => {
     (async () => {
       try {
+        console.log(
+          "Fetching weather data for district:",
+          selectedDistrictId?.id,
+        );
         const [dashboard, forecast, daily] = await Promise.all([
-          weatherAPI.getDashboard(1),
+          weatherAPI.getDashboard(selectedDistrictId?.id),
           weatherAPI.getForecastHourly(),
           weatherAPI.getForecastDaily(),
         ]);
@@ -338,7 +353,7 @@ export default function WeatherForecastPage({
         console.error("Failed to fetch weather data:", err);
       }
     })();
-  }, []);
+  }, [selectedDistrictId?.id]);
 
   // Safe normalisation — guards against null / undefined / empty arrays
   const hourlyForecast = forecastData?.hourly?.length
