@@ -232,7 +232,7 @@ export function FloodHourSlider({
         {FLOOD_HOURS[0]}h
       </span>
 
-      {/* Slider */}
+      {/* Sliders */}
       <input
         type="range"
         min={0}
