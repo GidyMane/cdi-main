@@ -87,7 +87,7 @@ RUN echo 'server {
 
         proxy_http_version 1.1;
 
-        # Forward headers
+        # Use internal host so Tomcat origin check passes
         proxy_set_header Host 192.168.100.104:8090;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -97,17 +97,20 @@ RUN echo 'server {
 
         # Preserve cookies/session
         proxy_set_header Cookie $http_cookie;
-        proxy_cookie_path / /;
+        proxy_cookie_path /geoserver /geoserver;
+        proxy_cookie_domain 192.168.100.104 multihazard.rosewillbome.com;
 
-        # Required for GeoServer/Wicket
+        # Required for GeoServer/Wicket AJAX
         proxy_set_header Connection "";
+        proxy_set_header Referer $http_referer;
+        proxy_set_header Origin "";
 
-        # Disable buffering
+        # Disable buffering for AJAX responses
         proxy_buffering off;
         proxy_request_buffering off;
 
         # Prevent redirect rewrite issues
-        proxy_redirect off;
+        proxy_redirect http://192.168.100.104:8090/geoserver/ /geoserver/;
 
         # Long-running requests
         proxy_connect_timeout 300;
