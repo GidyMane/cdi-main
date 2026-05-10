@@ -88,7 +88,7 @@ RUN echo 'server {
         proxy_http_version 1.1;
 
         # Forward headers
-        proxy_set_header Host $host;
+        proxy_set_header Host 192.168.100.104:8090;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
