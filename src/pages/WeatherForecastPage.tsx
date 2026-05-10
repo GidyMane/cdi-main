@@ -187,8 +187,8 @@ const TemperatureTrendChart = ({
 // ── Filter Sidebar ────────────────────────────────────────────────────────────
 
 const FilterContent = ({
-  selectedRegion,
-  setSelectedRegion,
+ // selectedRegion,
+  //setSelectedRegion,
   selectedParameter,
   setSelectedParameter,
   isDarkMode,
