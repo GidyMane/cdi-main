@@ -386,6 +386,26 @@ export default function WeatherForecastPage({
       ],
     },
     {
+      label: "Rainfall (24h)",
+      icon: CloudRain,
+      min: 0,
+      max: 100,
+      value: `${weatherData?.rainfall_24h ?? 0} mm`,
+      change: `${(weatherData?.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData?.rainfall_24h_delta ?? 0} mm`,
+      trend:
+        (weatherData?.rainfall_24h_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.rainfall_24h_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
+      thresholds: [
+        { value: 5, color: "#22c55e", label: "Dry" },
+        { value: 20, color: "#3b82f6", label: "Light" },
+        { value: 50, color: "#f97316", label: "Moderate" },
+        { value: 100, color: "#dc2626", label: "Heavy" },
+      ],
+    },
+    {
       label: "Humidity",
       icon: Droplets,
       min: 0,
@@ -423,26 +443,6 @@ export default function WeatherForecastPage({
         { value: 25, color: "#3b82f6", label: "Breezy" },
         { value: 40, color: "#f97316", label: "Windy" },
         { value: 60, color: "#dc2626", label: "Strong" },
-      ],
-    },
-    {
-      label: "Rainfall (24h)",
-      icon: CloudRain,
-      min: 0,
-      max: 100,
-      value: `${weatherData?.rainfall_24h ?? 0} mm`,
-      change: `${(weatherData?.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData?.rainfall_24h_delta ?? 0} mm`,
-      trend:
-        (weatherData?.rainfall_24h_delta ?? 0) > 0
-          ? "up"
-          : (weatherData?.rainfall_24h_delta ?? 0) < 0
-            ? "down"
-            : "neutral",
-      thresholds: [
-        { value: 5, color: "#22c55e", label: "Dry" },
-        { value: 20, color: "#3b82f6", label: "Light" },
-        { value: 50, color: "#f97316", label: "Moderate" },
-        { value: 100, color: "#dc2626", label: "Heavy" },
       ],
     },
   ];
