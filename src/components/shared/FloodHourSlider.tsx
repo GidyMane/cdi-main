@@ -259,6 +259,15 @@ export function FloodHourSlider({
       >
         +{selectedHours}h
       </span>
+       <button
+                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white cursor-pointer"
+                  style={{ backgroundColor: sliderhourIndexValue === "000" ? "rgba(255,255,255,0.2)" : "rgb(255,0,0)" }}
+
+                  onClick={() => setSliderhourIndexValue("000")}
+                >
+                  
+                  clear filter
+                </button>
     </div>
   );
 }

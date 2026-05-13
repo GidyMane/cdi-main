@@ -16,7 +16,7 @@ import {
   Map as MapIcon,
   TrendingUp,
 } from "lucide-react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import WeatherForcastMap from "../components/map/WeatherForcastMap";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
 import { weatherAPI, DistrictsAPI } from "../services/api";
@@ -674,7 +674,7 @@ export default function WeatherForecastPage({
                     style={{ minHeight: "350px" }}
                   >
                     <div className="flex-1 relative">
-                      <UgandaBoundaryMap
+                      <WeatherForcastMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full rounded-none"
                         badgeText="Uganda"
@@ -880,7 +880,7 @@ export default function WeatherForecastPage({
               </div>
               <div className="relative aspect-[16/10] flex flex-col">
                 <div className="flex-1 relative">
-                  <UgandaBoundaryMap
+                  <WeatherForcastMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
                     badgeText="Uganda"

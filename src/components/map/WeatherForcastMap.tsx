@@ -9,6 +9,7 @@ import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
 import { FLOOD_HOURS } from "../shared/FloodHourSlider";
+import { removeLastTwoDigits } from "@/utils/woker_fn";
 
 interface LegendItem {
   label: string;
@@ -158,7 +159,7 @@ const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
   // },
 ];
 
-export default function UgandaBoundaryMap({
+export default function WeatherForcastMap({
   className = "",
   isDarkMode,
   badgeText = "Uganda",
@@ -174,18 +175,19 @@ export default function UgandaBoundaryMap({
     (state) => state,
   );
   // ── Refs ────────────────────────────────────────────────────────────────────
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const districtLayerRef = useRef<L.GeoJSON | null>(null);
-  const boundaryLayerRef = useRef<L.GeoJSON | null>(null);
-  const riverLayerRef = useRef<L.GeoJSON | null>(null);
-  const tileLayerRef = useRef<L.TileLayer | null>(null);
-  const rasterLayerRef = useRef<L.TileLayer | null>(null);
-  const wmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
+  const mapWeatherforcastContainerRef = useRef<HTMLDivElement>(null);
+  const weatherforcastMapRef = useRef<L.Map | null>(null);
+  const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
+  const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
+  const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
+  const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
+  const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
+  const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [isRasterLoading, setRasterIsLoading] = useState(false);
 
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
@@ -205,15 +207,15 @@ export default function UgandaBoundaryMap({
 
   // Draw / replace the blue boundary highlight around a district
   const drawBoundary = (geojson: any, color: string) => {
-    if (!mapRef.current) return;
-    if (boundaryLayerRef.current) {
-      mapRef.current.removeLayer(boundaryLayerRef.current);
-      boundaryLayerRef.current = null;
+    if (!weatherforcastMapRef.current) return;
+    if (weatherforcastboundaryLayerRef.current) {
+      weatherforcastMapRef.current.removeLayer(weatherforcastboundaryLayerRef.current);
+      weatherforcastboundaryLayerRef.current = null;
     }
-    boundaryLayerRef.current = L.geoJSON(geojson, {
+    weatherforcastboundaryLayerRef.current = L.geoJSON(geojson, {
       style: { color, weight: 4, fill: false },
     })
-      .addTo(mapRef.current)
+      .addTo(weatherforcastMapRef.current)
       .bringToBack();
   };
 
@@ -226,10 +228,10 @@ export default function UgandaBoundaryMap({
     fontFamily = "sans-serif",
     padding = 5,
   ): boolean => {
-    if (!mapRef.current) return false;
+    if (!weatherforcastMapRef.current) return false;
     const bounds = layer.getBounds();
-    const topLeft = mapRef.current.latLngToLayerPoint(bounds.getNorthWest());
-    const bottomRight = mapRef.current.latLngToLayerPoint(
+    const topLeft = weatherforcastMapRef.current.latLngToLayerPoint(bounds.getNorthWest());
+    const bottomRight = weatherforcastMapRef.current.latLngToLayerPoint(
       bounds.getSouthEast(),
     );
     const availableWidth = bottomRight.x - topLeft.x;
@@ -253,12 +255,12 @@ export default function UgandaBoundaryMap({
 
   // Toggle a panel layer on/off
   const toggleLayer = (layerDef: LayerDef) => {
-    if (!mapRef.current) return;
+    if (!weatherforcastMapRef.current) return;
 
     if (activeLayers.has(layerDef.id)) {
-      if (wmsLayersRef.current[layerDef.id]) {
-        mapRef.current.removeLayer(wmsLayersRef.current[layerDef.id]);
-        delete wmsLayersRef.current[layerDef.id];
+      if (weatherforcastwmsLayersRef.current[layerDef.id]) {
+        weatherforcastMapRef.current.removeLayer(weatherforcastwmsLayersRef.current[layerDef.id]);
+        delete weatherforcastwmsLayersRef.current[layerDef.id];
       }
       setActiveLayers((prev) => {
         const next = new Set(prev);
@@ -274,25 +276,25 @@ export default function UgandaBoundaryMap({
           version: "1.1.0",
           opacity: 1.0,
         })
-        .addTo(mapRef.current);
+        .addTo(weatherforcastMapRef.current);
       wmsLayer.bringToFront();
-      wmsLayersRef.current[layerDef.id] = wmsLayer;
+      weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer;
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
 
   // ── Initialise map once geoData arrives ────────────────────────────────────
   useEffect(() => {
-    if (!mapContainerRef.current || !geoData) return;
+    if (!mapWeatherforcastContainerRef.current || !geoData) return;
     if (!isValidGeoJSON(geoData)) {
       console.error("UgandaBoundaryMap: invalid GeoJSON:", geoData);
       return;
     }
 
     // Destroy stale instance (StrictMode / hot-reload safetyy)
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
+    if (weatherforcastMapRef.current) {
+      weatherforcastMapRef.current.remove();
+      weatherforcastMapRef.current = null;
     }
 
     // ── Tile layer ────────────────────────────────────────────────────────
@@ -300,30 +302,30 @@ export default function UgandaBoundaryMap({
       ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 
-    tileLayerRef.current = L.tileLayer(tileUrl);
+    weatherforcasttileLayerRef.current = L.tileLayer(tileUrl);
 
-    mapRef.current = L.map(mapContainerRef.current, {
+    weatherforcastMapRef.current = L.map(mapWeatherforcastContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [tileLayerRef.current],
+      layers: [weatherforcasttileLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
 
     // ── District boundary polygons — gray thin borders ────────────────────
-    districtLayerRef.current = L.geoJSON(geoData, {
+    weatherforcastdistrictLayerRef.current = L.geoJSON(geoData, {
       style: { color: "gray", weight: 0.3, fill: false },
-    }).addTo(mapRef.current);
+    }).addTo(weatherforcastMapRef.current);
 
     // ── District name labels ──────────────────────────────────────────────
     // Exact port from reference: calls doesNameFitInLeafletBoundary,
     // binds tooltip, opens it, and calls bringToFront() — then chains
-    // .addTo(mapRef.current) at the end of eachLayer like the reference does.
+    // .addTo(weatherforcastMapRef.current) at the end of eachLayer like the reference does.
     const updateLabelVisibility = () => {
-      if (!mapRef.current || !districtLayerRef.current) return;
+      if (!weatherforcastMapRef.current || !weatherforcastdistrictLayerRef.current) return;
 
-      districtLayerRef.current.eachLayer((layer: any) => {
+      weatherforcastdistrictLayerRef.current.eachLayer((layer: any) => {
         layer.closeTooltip();
         const name = layer.feature?.properties?.name;
         if (!name) return;
@@ -342,16 +344,16 @@ export default function UgandaBoundaryMap({
       });
     };
 
-    mapRef.current.on("zoomend", updateLabelVisibility);
+    weatherforcastMapRef.current.on("zoomend", updateLabelVisibility);
     updateLabelVisibility();
 
     // ── Click → highlight clicked district (ray-casting, not bounding box) ─
     // Reference uses getBounds().contains() which gives rectangles.
     // We use isPointInPolygon() so the highlight matches the actual shape.
-    mapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
+    weatherforcastMapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
       let clickedFeature: any = null;
 
-      districtLayerRef.current?.eachLayer((layer: any) => {
+      weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
         if (clickedFeature) return; // stop after first match
 
         if (layer instanceof L.Polygon || (layer as any)) {
@@ -368,24 +370,24 @@ export default function UgandaBoundaryMap({
       }
 
       // Highlight only the clicked feature — pass the single Feature directly
-      if (boundaryLayerRef.current) {
-        mapRef.current!.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (weatherforcastboundaryLayerRef.current) {
+        weatherforcastMapRef.current!.removeLayer(weatherforcastboundaryLayerRef.current);
+        weatherforcastboundaryLayerRef.current = null;
       }
-      boundaryLayerRef.current = L.geoJSON(clickedFeature, {
+      weatherforcastboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
       })
-        .addTo(mapRef.current!)
+        .addTo(weatherforcastMapRef.current!)
         .bringToFront();
     });
 
     // ── Water / lake overlay (from reference) ─────────────────────────────
-    if (riverLayerRef.current) {
-      mapRef.current.removeLayer(riverLayerRef.current);
-      riverLayerRef.current = null;
+    if (weatherforcastriverLayerRef.current) {
+      weatherforcastMapRef.current.removeLayer(weatherforcastriverLayerRef.current);
+      weatherforcastriverLayerRef.current = null;
     }
     if (waterAreas) {
-      riverLayerRef.current = L.geoJSON(waterAreas as any, {
+      weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
         style: {
           color: "#d2efff",
           weight: 0.1,
@@ -403,44 +405,44 @@ export default function UgandaBoundaryMap({
             // layer.bringToFront();
           }
         },
-      }).addTo(mapRef.current);
-      riverLayerRef.current.bringToBack();
+      }).addTo(weatherforcastMapRef.current);
+      weatherforcastriverLayerRef.current.bringToBack();
     }
 
     // ── ResizeObserver ────────────────────────────────────────────────────
-    const ro = new ResizeObserver(() => mapRef.current?.invalidateSize());
-    ro.observe(mapContainerRef.current);
+    const ro = new ResizeObserver(() => weatherforcastMapRef.current?.invalidateSize());
+    ro.observe(mapWeatherforcastContainerRef.current);
 
     return () => {
       ro.disconnect();
-      mapRef.current?.remove();
-      mapRef.current = null;
+      weatherforcastMapRef.current?.remove();
+      weatherforcastMapRef.current = null;
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Swap tile layer on dark mode toggle ─────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || !tileLayerRef.current) return;
-    mapRef.current.removeLayer(tileLayerRef.current);
+    if (!weatherforcastMapRef.current || !weatherforcasttileLayerRef.current) return;
+    weatherforcastMapRef.current.removeLayer(weatherforcasttileLayerRef.current);
     const tileUrl = isDarkMode
       ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-    tileLayerRef.current = L.tileLayer(tileUrl).addTo(mapRef.current);
-    tileLayerRef.current.bringToBack();
+    weatherforcasttileLayerRef.current = L.tileLayer(tileUrl).addTo(weatherforcastMapRef.current);
+    weatherforcasttileLayerRef.current.bringToBack();
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
   useEffect(() => {
-    if (!mapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!weatherforcastMapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
 
     if (
       !district ||
       district.trim() === "" ||
       district.trim().toLowerCase() === "all"
     ) {
-      if (boundaryLayerRef.current) {
-        mapRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (weatherforcastboundaryLayerRef.current) {
+        weatherforcastMapRef.current.removeLayer(weatherforcastboundaryLayerRef.current);
+        weatherforcastboundaryLayerRef.current = null;
       }
       return;
     }
@@ -457,19 +459,19 @@ export default function UgandaBoundaryMap({
   // Mirrors the third useEffect in UgandaMap — fits map bounds to a district
   // and locks the viewport to it, or resets to full Uganda view when "all".
   useEffect(() => {
-    if (!mapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!weatherforcastMapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
     if (!getTheBounds || getTheBounds.trim().length === 0) return;
 
     if (
       getTheBounds.trim().toLowerCase() === "all" ||
       getTheBounds.trim() === ""
     ) {
-      if (boundaryLayerRef.current) {
-        mapRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (weatherforcastboundaryLayerRef.current) {
+        weatherforcastMapRef.current.removeLayer(weatherforcastboundaryLayerRef.current);
+        weatherforcastboundaryLayerRef.current = null;
       }
-      mapRef.current.setView([1.3733, 32.2903], zoom);
-      mapRef.current.setMinZoom(minZoom);
+      weatherforcastMapRef.current.setView([1.3733, 32.2903], zoom);
+      weatherforcastMapRef.current.setMinZoom(minZoom);
       return;
     }
 
@@ -481,33 +483,33 @@ export default function UgandaBoundaryMap({
 
     const updatedGeoJSON = { ...geoData, features: matched };
 
-    if (boundaryLayerRef.current) {
-      mapRef.current.removeLayer(boundaryLayerRef.current);
-      boundaryLayerRef.current = null;
+    if (weatherforcastboundaryLayerRef.current) {
+      weatherforcastMapRef.current.removeLayer(weatherforcastboundaryLayerRef.current);
+      weatherforcastboundaryLayerRef.current = null;
     }
 
-    boundaryLayerRef.current = L.geoJSON(updatedGeoJSON, {
+    weatherforcastboundaryLayerRef.current = L.geoJSON(updatedGeoJSON, {
       style: { color: "blue", weight: 4, fill: false },
     })
-      .addTo(mapRef.current)
+      .addTo(weatherforcastMapRef.current)
       .bringToBack();
 
-    const bounds = boundaryLayerRef.current.getBounds();
+    const bounds = weatherforcastboundaryLayerRef.current.getBounds();
     if (bounds.isValid()) {
-      mapRef.current.fitBounds(bounds);
-      mapRef.current.setMaxBounds(bounds);
+      weatherforcastMapRef.current.fitBounds(bounds);
+      weatherforcastMapRef.current.setMaxBounds(bounds);
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update the raster layer when indicator, month, or timerange changes
   // Replace your existing raster layer effect with this:
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!weatherforcastMapRef.current) return;
 
     // Remove old raster layer
-    if (rasterLayerRef.current) {
-      mapRef.current.removeLayer(rasterLayerRef.current);
-      rasterLayerRef.current = null;
+    if (weatherforcastrasterLayerRef.current) {
+      weatherforcastMapRef.current.removeLayer(weatherforcastrasterLayerRef.current);
+      weatherforcastrasterLayerRef.current = null;
     }
 
     //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
@@ -520,7 +522,7 @@ export default function UgandaBoundaryMap({
         case "drought":
           return "drought";
         case "rainfall":
-          return "chirps_rainfall";
+          return "gee_weather_rainfall";
         default:
           return null;
       }
@@ -528,11 +530,11 @@ export default function UgandaBoundaryMap({
 
     
 
-    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
+    const layerName = `wfews:${param()}_${removeLastTwoDigits(dateRange?.replace(/-/g, ""))}`; // e.g. "wfews:flood_20260301_24h"
 
     console.log("layerName",layerName)
 
-    rasterLayerRef.current = L.tileLayer
+    weatherforcastrasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
         layers: layerName,
         format: "image/png",
@@ -540,7 +542,69 @@ export default function UgandaBoundaryMap({
         version: "1.1.0",
         opacity: 1.0,
       })
-      .addTo(mapRef.current);
+      .on("loading", () => {
+    setRasterIsLoading(true);
+  })
+  .on("load", () => {
+    setRasterIsLoading(false);
+  })
+  .on("tileerror", () => {
+    setRasterIsLoading(false);
+  })
+      .addTo(weatherforcastMapRef.current);
+  }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
+
+  // hourly forcast
+   useEffect(() => {
+    if (!weatherforcastMapRef.current) return;
+    if (sliderhourIndexValue === "000") return
+
+    // Remove old raster layer
+    if (weatherforcastrasterLayerRef.current) {
+      weatherforcastMapRef.current.removeLayer(weatherforcastrasterLayerRef.current);
+      weatherforcastrasterLayerRef.current = null;
+    }
+
+    //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
+    const param = () => {
+      switch (selectedParameter?.toLocaleLowerCase()) {
+        case "temperature":
+          return "gee_weather_temperature";
+        case "precipitation":
+          return "precip";
+        case "drought":
+          return "drought";
+        case "rainfall":
+          return "gee_weather_rainfall";
+        default:
+          return null;
+      }
+    };
+
+    
+
+    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}_${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
+
+    console.log("layerName",layerName)
+
+    weatherforcastrasterLayerRef.current = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: layerName,
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      })
+       .on("loading", () => {
+    setRasterIsLoading(true);
+  })
+  .on("load", () => {
+    setRasterIsLoading(false);
+  })
+  .on("tileerror", () => {
+    setRasterIsLoading(false);
+  })
+      .addTo(weatherforcastMapRef.current);
   }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
@@ -555,242 +619,278 @@ export default function UgandaBoundaryMap({
   })).filter((group) => group.layers.length > 0);
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+
     <div className={`relative overflow-hidden ${className}`}>
-      {/* Map container — always in DOM, never conditionally rendered */}
+  {/* Map container */}
+  <div
+    ref={mapWeatherforcastContainerRef}
+    className="absolute inset-0 z-0"
+    style={{
+      background: isDarkMode ? "#0f172a" : "#f1f5f9",
+    }}
+  />
+
+  {/* Loading overlay */}
+  <div
+    className={`
+      absolute inset-0 z-[500]
+      flex items-center justify-center
+      transition-all duration-300
+      ${isLoading || !geoData || isRasterLoading
+        ? "opacity-100 visible"
+        : "opacity-0 invisible pointer-events-none"}
+      ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
+    `}
+  >
+    <div className="flex flex-col items-center gap-3">
+      {/* Spinner */}
       <div
-        ref={mapContainerRef}
+        className="w-8 h-8 rounded-full border-2 animate-spin"
         style={{
-          position: "absolute",
-          inset: 0,
-          background: isDarkMode ? "#0f172a" : "#f1f5f9",
+          borderColor: `${FAO_BLUE}30`,
+          borderTopColor: FAO_BLUE,
         }}
       />
 
-      {/* Loading overlay — sits on top until geoData arrivess */}
-      {(isLoading || !geoData) && (
-        <div
-          className={`absolute inset-0 z-[500] flex items-center justify-center ${
-            isDarkMode ? "bg-slate-900/80" : "bg-white/80"
-          }`}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="w-6 h-6 rounded-full border-2 animate-spin"
-              style={{
-                borderColor: `${FAO_BLUE}30`,
-                borderTopColor: FAO_BLUE,
-              }}
-            />
-            <span
-              className={`text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-            >
-              Loading map…
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Loading text */}
+      <span
+        className={`text-xs font-medium tracking-wide ${
+          isDarkMode ? "text-slate-300" : "text-slate-600"
+        }`}
+      >
+        Loading weather layers...
+      </span>
+    </div>
+  </div>
 
-      {/* Badge */}
-      <div className="absolute top-2 left-2 z-[400]">
-        <span
-          className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
-          style={{
-            backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
-            color: FAO_BLUE,
-          }}
-        >
-          {badgeText}
-        </span>
-      </div>
+  {/* Badge */}
+  <div className="absolute top-2 left-2 z-[400]">
+    <span
+      className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
+      style={{
+        backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
+        color: FAO_BLUE,
+      }}
+    >
+      {badgeText}
+    </span>
+  </div>
 
-      {/* MAP LAYERS toggle button */}
-      <button
-        onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+  {/* MAP LAYERS toggle button */}
+  <button
+    onClick={() => setShowLayerPanel((v) => !v)}
+    className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+    style={{
+      backgroundColor: showLayerPanel
+        ? FAO_BLUE
+        : isDarkMode
+          ? "#1e293b"
+          : "#ffffff",
+      color: showLayerPanel ? "#ffffff" : FAO_BLUE,
+      border: `1px solid ${FAO_BLUE}55`,
+    }}
+  >
+    <Layers className="w-3.5 h-3.5" />
+    MAP LAYERS
+  </button>
+
+  {/* Layer panel */}
+  {showLayerPanel && (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-[600]"
+        onClick={() => setShowLayerPanel(false)}
+      />
+
+      <div
+        className={`
+          absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
+          flex flex-col
+          ${
+            isDarkMode
+              ? "bg-slate-800 border border-slate-700"
+              : "bg-white border border-slate-200"
+          }
+        `}
         style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
-          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
+          maxHeight: "90%",
         }}
       >
-        <Layers className="w-3.5 h-3.5" />
-        MAP LAYERS
-      </button>
-
-      {/* Layer panel */}
-      {showLayerPanel && (
-        <>
-          {/* Backdrop — closes panel on outside click */}
-          <div
-            className="fixed inset-0 z-1"
-            onClick={() => setShowLayerPanel(false)}
-          />
-
-          <div
-            className={`
-              absolute top-10 right-2 z-[700] w-64 overflow-y-auto  rounded-xl shadow-xl
-              flex flex-col
-              ${isDarkMode ? "bg-slate-800 border border-slate-700" : "bg-white border border-slate-200"}
-            `}
-            style={{
-              // Panel grows with content but never exceeds 70% of viewport height
-              maxHeight: "90%",
-            }}
-          >
-            {/* Panel header — always visible */}
-            <div
-              className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
-              style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
-            >
-              <span
-                className={`text-xs font-bold tracking-wide ${isDarkMode ? "text-white" : "text-slate-800"}`}
-              >
-                MAP LAYERS
-              </span>
-              <button
-                onClick={() => setShowLayerPanel(false)}
-                className={`p-0.5 rounded transition-colors ${isDarkMode ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Scrollable layer list */}
-            <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-              {visibleGroups?.map((group) => (
-                <div key={group.title} className="mb-1">
-                  {/* Group heading */}
-                  <p
-                    className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                    style={{ color: FAO_BLUE }}
-                  >
-                    {group.title}
-                  </p>
-
-                  {/* Layer rows */}
-                  {group.layers.map((layerDef) => {
-                    const isActive = activeLayers.has(layerDef.id);
-                    return (
-                      <div
-                        key={layerDef.id}
-                        onClick={() => toggleLayer(layerDef)}
-                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${isDarkMode ? "hover:bg-slate-700/50" : "hover:bg-slate-50"}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {/* Checkbox */}
-                          <div
-                            className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                            style={{
-                              backgroundColor: isActive
-                                ? FAO_BLUE
-                                : "transparent",
-                              borderColor: isActive
-                                ? FAO_BLUE
-                                : isDarkMode
-                                  ? "#475569"
-                                  : "#cbd5e1",
-                            }}
-                          >
-                            {isActive && (
-                              <svg
-                                className="w-2.5 h-2.5 text-white"
-                                viewBox="0 0 10 10"
-                                fill="none"
-                              >
-                                <path
-                                  d="M1.5 5L4 7.5L8.5 2.5"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                          </div>
-                          <span
-                            className={`text-xs ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
-                          >
-                            {layerDef.label}
-                          </span>
-                        </div>
-
-                        {/* Date badge */}
-                        {layerDef.date && (
-                          <span
-                            className={`text-[10px] ml-2 flex-shrink-0 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                          >
-                            {layerDef.date}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Legend */}
-      {legendTitle && legendItems.length > 0 && (
+        {/* Panel header */}
         <div
-          className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
-            isDarkMode ? "bg-slate-800/90" : "bg-white/90"
-          }`}
+          className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
+          style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
         >
-          <div
-            className={`mb-1 text-[10px] font-medium ${
-              isDarkMode ? "text-slate-300" : "text-slate-700"
+          <span
+            className={`text-xs font-bold tracking-wide ${
+              isDarkMode ? "text-white" : "text-slate-800"
             }`}
           >
-            {legendTitle}
-          </div>
-          <div className="space-y-1">
-            {legendItems.map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5">
-                <div
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span
-                  className={`text-[9px] ${
-                    isDarkMode ? "text-slate-400" : "text-slate-600"
-                  }`}
-                >
-                  {item.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+            MAP LAYERS
+          </span>
 
-      {/* Leaflet label styles */}
-      <style>{`
-        .district-label {
-          background:     transparent !important;
-          border:         none !important;
-          box-shadow:     none !important;
-          font-size:      11px;
-          font-weight:    500;
-          color:          ${isDarkMode ? "#94a3b8" : "#475569"};
-          white-space:    nowrap;
-          pointer-events: none;
-        }
-        .waterAreas-label {
-          background:     transparent !important;
-          border:         none !important;
-          box-shadow:     none !important;
-          font-size:      10px;
-          color:          #5b9bd5;
-          pointer-events: none;
-        }
-      `}</style>
+          <button
+            onClick={() => setShowLayerPanel(false)}
+            className={`p-0.5 rounded transition-colors ${
+              isDarkMode
+                ? "hover:bg-slate-700 text-slate-400"
+                : "hover:bg-slate-100 text-slate-500"
+            }`}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Scrollable layer list */}
+        <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
+          {visibleGroups?.map((group) => (
+            <div key={group.title} className="mb-1">
+              {/* Group heading */}
+              <p
+                className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                style={{ color: FAO_BLUE }}
+              >
+                {group.title}
+              </p>
+
+              {/* Layer rows */}
+              {group.layers.map((layerDef) => {
+                const isActive = activeLayers.has(layerDef.id);
+
+                return (
+                  <div
+                    key={layerDef.id}
+                    onClick={() => toggleLayer(layerDef)}
+                    className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                      isDarkMode
+                        ? "hover:bg-slate-700/50"
+                        : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {/* Checkbox */}
+                      <div
+                        className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                        style={{
+                          backgroundColor: isActive
+                            ? FAO_BLUE
+                            : "transparent",
+                          borderColor: isActive
+                            ? FAO_BLUE
+                            : isDarkMode
+                              ? "#475569"
+                              : "#cbd5e1",
+                        }}
+                      >
+                        {isActive && (
+                          <svg
+                            className="w-2.5 h-2.5 text-white"
+                            viewBox="0 0 10 10"
+                            fill="none"
+                          >
+                            <path
+                              d="M1.5 5L4 7.5L8.5 2.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
+                      </div>
+
+                      <span
+                        className={`text-xs ${
+                          isDarkMode
+                            ? "text-slate-300"
+                            : "text-slate-700"
+                        }`}
+                      >
+                        {layerDef.label}
+                      </span>
+                    </div>
+
+                    {/* Date badge */}
+                    {layerDef.date && (
+                      <span
+                        className={`text-[10px] ml-2 flex-shrink-0 ${
+                          isDarkMode
+                            ? "text-slate-500"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {layerDef.date}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )}
+
+  {/* Legend */}
+  {legendTitle && legendItems.length > 0 && (
+    <div
+      className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
+        isDarkMode ? "bg-slate-800/90" : "bg-white/90"
+      }`}
+    >
+      <div
+        className={`mb-1 text-[10px] font-medium ${
+          isDarkMode ? "text-slate-300" : "text-slate-700"
+        }`}
+      >
+        {legendTitle}
+      </div>
+
+      <div className="space-y-1">
+        {legendItems.map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <div
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+
+            <span
+              className={`text-[9px] ${
+                isDarkMode ? "text-slate-400" : "text-slate-600"
+              }`}
+            >
+              {item.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
+  )}
+
+  {/* Leaflet label styles */}
+  <style>{`
+    .district-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      font-size: 11px;
+      font-weight: 500;
+      color: ${isDarkMode ? "#94a3b8" : "#475569"};
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .waterAreas-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      font-size: 10px;
+      color: #5b9bd5;
+      pointer-events: none;
+    }
+  `}</style>
+</div>
   );
 }
