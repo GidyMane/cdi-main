@@ -154,7 +154,7 @@ export const useAppStore = create<AppStoreState>()(
       setDateRange: (dateRange: any) => set({ dateRange: dateRange }),
 
       //slider
-      sliderhourIndexValue: "00",
+      sliderhourIndexValue: "000",
       setSliderhourIndexValue: (value: string) =>
         set({ sliderhourIndexValue: value }),
     }),

@@ -71,3 +71,9 @@ export const normaliseDaily = (raw: DailyEntry[]) => {
     };
   });
 };
+
+export function removeLastTwoDigits(value:string) {
+  let data = value.toString().slice(0, -2);
+  console.log("removeLastTwoDigits",data)
+  return data
+}
