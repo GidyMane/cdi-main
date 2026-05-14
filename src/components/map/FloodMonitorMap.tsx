@@ -32,7 +32,7 @@ interface UgandaBoundaryMapProps {
 const FAO_BLUE = "#318DDE";
 
 // ── Ray-casting point-in-polygon ──────────────────────────────────────────────
-// Tests whether a LatLng lies inside the actual polygon shape (not bounding box).
+// Test whether a LatLng lies inside the actual polygon shape (not bounding box).
 // Handles both Polygon and MultiPolygon by flattening nested LatLng arrays.
 const isPointInPolygon = (latlng: L.LatLng, polyLatLngs: any): boolean => {
   const rings: L.LatLng[][] = [];
