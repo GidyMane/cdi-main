@@ -16,7 +16,7 @@ import {
   Clock,
   RefreshCw,
 } from "lucide-react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 
@@ -265,7 +265,7 @@ const FloodMap = ({
   className?: string;
 }) => {
   return (
-    <UgandaBoundaryMap
+    <FloodMonitorMap
       isDarkMode={isDarkMode}
       className={`rounded-lg md:rounded-xl ${className}`}
       badgeText="2 Critical"
@@ -563,17 +563,14 @@ export default function FloodMonitoringPage({
           {/* Main Content */}
           <div className="lg:col-span-9 space-y-3">
             {/* Map and Charts Row */}
-            <div
-              className="grid grid-cols-12 gap-3"
-              style={{ minHeight: "550px" }}
-            >
+            <div className="grid grid-cols-12 gap-3 h-[550px] xl:h-[620px] 2xl:h-[700px]">
               {/* Map - 7 columns */}
-              <div className="col-span-7 flex">
+              <div className="col-span-7 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
                   <div
-                    className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                    className={`flex items-center justify-between p-2 border-b ${borderColor} flex-shrink-0`}
                   >
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-4 h-4" style={{ color: FAO_BLUE }} />
@@ -585,11 +582,8 @@ export default function FloodMonitoringPage({
                       2 Critical
                     </span>
                   </div>
-                  <div
-                    className="relative flex-1 flex flex-col"
-                    style={{ minHeight: "400px" }}
-                  >
-                    <div className="flex-1 relative">
+                  <div className="relative flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 relative min-h-0">
                       <FloodMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"

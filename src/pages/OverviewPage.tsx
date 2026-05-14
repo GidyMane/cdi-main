@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { PageType } from "../App";
 import { useState, useEffect } from "react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import OverviewMap from "../components/map/OverviewMap";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { overviewAPI, alertsAPI, weatherAPI } from "../services/api";
@@ -566,7 +566,7 @@ export default function OverviewPage({
               </div>
               <div className="relative aspect-[4/3] flex flex-col">
                 <div className="flex-1 relative">
-                  <UgandaBoundaryMap
+                  <OverviewMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full rounded-xl md:rounded-2xl"
                     badgeText={getOverviewBadgeText(
@@ -837,9 +837,9 @@ export default function OverviewPage({
             </div>
 
             {/* Map and Alerts Row */}
-            <div className="lg:col-span-9 grid grid-cols-12 gap-4">
+            <div className="lg:col-span-9 grid grid-cols-12 gap-4 h-[520px] xl:h-[600px] 2xl:h-[680px]">
               {/* Map */}
-              <div className="col-span-9">
+              <div className="col-span-9 h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-xl overflow-hidden shadow-sm h-full flex flex-col`}
                 >
@@ -875,9 +875,9 @@ export default function OverviewPage({
                       </span>
                     </div>
                   </div>
-                  <div className="relative flex-1 min-h-[450px] flex flex-col">
-                    <div className="flex-1 relative">
-                      <UgandaBoundaryMap
+                  <div className="relative flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 relative min-h-0">
+                      <OverviewMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full rounded-xl md:rounded-2xl"
                         badgeText={getOverviewBadgeText(
