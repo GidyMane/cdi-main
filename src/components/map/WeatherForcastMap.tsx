@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { geoAPI } from "../../services/api";
+// import { geoAPI } from "../../services/api";
 import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
-import { useQuery } from "@tanstack/react-query";
+// import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
 import { FLOOD_HOURS } from "../shared/FloodHourSlider";
 import { removeLastTwoDigits } from "@/utils/woker_fn";
+import { geoData } from "@/utils/geodata";
+
+
 
 interface LegendItem {
   label: string;
@@ -168,8 +171,8 @@ export default function WeatherForcastMap({
   district,
   setDistrict,
   getTheBounds,
-  zoom = 7,
-  minZoom = 6,
+  zoom = 6.8,
+  minZoom = 6.8,
 }: UgandaBoundaryMapProps) {
   const { selectedParameter, dateRange, currentPage,sliderhourIndexValue} = useAppStore(
     (state) => state,
@@ -192,10 +195,10 @@ export default function WeatherForcastMap({
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
   // ── Data ────────────────────────────────────────────────────────────────────
-  const { data: geoData, isLoading } = useQuery<FeatureCollection>({
-    queryKey: ["ugandaBoundary"],
-    queryFn: geoAPI.getUgandaBoundary,
-  });
+  // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({
+  //   queryKey: ["ugandaBoundary"],
+  //   queryFn: geoAPI.getUgandaBoundary,
+  // });
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -392,7 +395,7 @@ export default function WeatherForcastMap({
           color: "#d2efff",
           weight: 0.1,
           fillColor: "#d2efff",
-          fillOpacity: 1.0,
+          fillOpacity: 0.8,
         },
         onEachFeature(feature, layer: any) {
           const waterName = feature.properties?.NAME;
@@ -452,7 +455,7 @@ export default function WeatherForcastMap({
     );
     if (!matched.length) return;
 
-    drawBoundary({ type: "FeatureCollection", features: matched }, FAO_BLUE);
+    drawBoundary({ type: "FeatureCollection", features: matched } as FeatureCollection, FAO_BLUE);
   }, [district, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── getTheBounds: fit viewport to a named district (from reference) ─────────
@@ -481,7 +484,7 @@ export default function WeatherForcastMap({
     );
     if (!matched.length) return;
 
-    const updatedGeoJSON = { ...geoData, features: matched };
+    const updatedGeoJSON = { ...geoData, features: matched } as FeatureCollection;
 
     if (weatherforcastboundaryLayerRef.current) {
       weatherforcastMapRef.current.removeLayer(weatherforcastboundaryLayerRef.current);
@@ -636,7 +639,7 @@ export default function WeatherForcastMap({
       absolute inset-0 z-[500]
       flex items-center justify-center
       transition-all duration-300
-      ${isLoading || !geoData || isRasterLoading
+      ${!geoData || isRasterLoading
         ? "opacity-100 visible"
         : "opacity-0 invisible pointer-events-none"}
       ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
@@ -653,13 +656,13 @@ export default function WeatherForcastMap({
       />
 
       {/* Loading text */}
-      <span
+      {/* <span
         className={`text-xs font-medium tracking-wide ${
           isDarkMode ? "text-slate-300" : "text-slate-600"
         }`}
       >
         Loading weather layers...
-      </span>
+      </span> */}
     </div>
   </div>
 

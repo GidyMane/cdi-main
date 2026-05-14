@@ -541,17 +541,14 @@ export default function WeatherStationsPage({
             </div>
 
             {/* Map and Network Overview Row */}
-            <div
-              className="grid grid-cols-12 gap-3"
-              style={{ minHeight: "550px" }}
-            >
+            <div className="grid grid-cols-12 gap-3 h-[550px] xl:h-[620px] 2xl:h-[700px]">
               {/* Map - 8 columns */}
-              <div className="col-span-8 flex">
+              <div className="col-span-8 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
                   <div
-                    className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                    className={`flex items-center justify-between p-2 border-b ${borderColor} flex-shrink-0`}
                   >
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-4 h-4" style={{ color: FAO_BLUE }} />
@@ -571,11 +568,8 @@ export default function WeatherStationsPage({
                       {onlineCount} Active
                     </span>
                   </div>
-                  <div
-                    className="relative flex-1 flex flex-col"
-                    style={{ minHeight: "400px" }}
-                  >
-                    <div className="flex-1 relative">
+                  <div className="relative flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 relative min-h-0">
                       <StationMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"

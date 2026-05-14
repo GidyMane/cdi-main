@@ -636,17 +636,14 @@ export default function WeatherForecastPage({
 
           {/* Main */}
           <div className="lg:col-span-9 space-y-3">
-            <div
-              className="grid grid-cols-12 gap-3"
-              style={{ minHeight: "520px" }}
-            >
+            <div className="grid grid-cols-12 gap-3 h-[520px] xl:h-[600px] 2xl:h-[680px]">
               {/* Map */}
-              <div className="col-span-7 flex">
+              <div className="col-span-7 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
                   <div
-                    className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                    className={`flex items-center justify-between p-2 border-b ${borderColor} flex-shrink-0`}
                   >
                     <div className="flex items-center gap-1.5">
                       <MapIcon
@@ -669,11 +666,8 @@ export default function WeatherForecastPage({
                       Live
                     </span>
                   </div>
-                  <div
-                    className="relative flex-1 flex flex-col"
-                    style={{ minHeight: "350px" }}
-                  >
-                    <div className="flex-1 relative">
+                  <div className="relative flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 relative min-h-0">
                       <WeatherForcastMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full rounded-none"
@@ -722,7 +716,7 @@ export default function WeatherForecastPage({
               </div>
 
               {/* Right col */}
-              <div className="col-span-5 flex flex-col gap-3">
+              <div className="col-span-5 flex flex-col gap-3 h-full min-h-0">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg shadow-sm overflow-hidden`}
                 >

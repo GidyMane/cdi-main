@@ -159,7 +159,7 @@ const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
   // },
 ];
 
-export default function UgandaBoundaryMap({
+export default function FloodMonitorMap({
   className = "",
   isDarkMode,
   badgeText = "Uganda",
@@ -175,18 +175,19 @@ export default function UgandaBoundaryMap({
     (state) => state,
   );
   // ── Refs ────────────────────────────────────────────────────────────────────
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const districtLayerRef = useRef<L.GeoJSON | null>(null);
-  const boundaryLayerRef = useRef<L.GeoJSON | null>(null);
-  const riverLayerRef = useRef<L.GeoJSON | null>(null);
-  const tileLayerRef = useRef<L.TileLayer | null>(null);
-  const rasterLayerRef = useRef<L.TileLayer | null>(null);
-  const wmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
+  const FloodMonitormapContainerRef = useRef<HTMLDivElement>(null);
+  const FloodMonitormapRef = useRef<L.Map | null>(null);
+  const FloodMonitordistrictLayerRef = useRef<L.GeoJSON | null>(null);
+  const FloodMonitorboundaryLayerRef = useRef<L.GeoJSON | null>(null);
+  const FloodMonitorriverLayerRef = useRef<L.GeoJSON | null>(null);
+  const FloodMonitortileLayerRef = useRef<L.TileLayer | null>(null);
+  const FloodMonitorrasterLayerRef = useRef<L.TileLayer | null>(null);
+  const FloodMonitorwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [isRasterLoading, setRasterIsLoading] = useState(false);
 
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
@@ -206,15 +207,15 @@ export default function UgandaBoundaryMap({
 
   // Draw / replace the blue boundary highlight around a district
   const drawBoundary = (geojson: any, color: string) => {
-    if (!mapRef.current) return;
-    if (boundaryLayerRef.current) {
-      mapRef.current.removeLayer(boundaryLayerRef.current);
-      boundaryLayerRef.current = null;
+    if (!FloodMonitormapRef.current) return;
+    if (FloodMonitorboundaryLayerRef.current) {
+      FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+      FloodMonitorboundaryLayerRef.current = null;
     }
-    boundaryLayerRef.current = L.geoJSON(geojson, {
+    FloodMonitorboundaryLayerRef.current = L.geoJSON(geojson, {
       style: { color, weight: 4, fill: false },
     })
-      .addTo(mapRef.current)
+      .addTo(FloodMonitormapRef.current)
       .bringToBack();
   };
 
@@ -227,10 +228,10 @@ export default function UgandaBoundaryMap({
     fontFamily = "sans-serif",
     padding = 5,
   ): boolean => {
-    if (!mapRef.current) return false;
+    if (!FloodMonitormapRef.current) return false;
     const bounds = layer.getBounds();
-    const topLeft = mapRef.current.latLngToLayerPoint(bounds.getNorthWest());
-    const bottomRight = mapRef.current.latLngToLayerPoint(
+    const topLeft = FloodMonitormapRef.current.latLngToLayerPoint(bounds.getNorthWest());
+    const bottomRight = FloodMonitormapRef.current.latLngToLayerPoint(
       bounds.getSouthEast(),
     );
     const availableWidth = bottomRight.x - topLeft.x;
@@ -254,12 +255,12 @@ export default function UgandaBoundaryMap({
 
   // Toggle a panel layer on/off
   const toggleLayer = (layerDef: LayerDef) => {
-    if (!mapRef.current) return;
+    if (!FloodMonitormapRef.current) return;
 
     if (activeLayers.has(layerDef.id)) {
-      if (wmsLayersRef.current[layerDef.id]) {
-        mapRef.current.removeLayer(wmsLayersRef.current[layerDef.id]);
-        delete wmsLayersRef.current[layerDef.id];
+      if (FloodMonitorwmsLayersRef.current[layerDef.id]) {
+        FloodMonitormapRef.current.removeLayer(FloodMonitorwmsLayersRef.current[layerDef.id]);
+        delete FloodMonitorwmsLayersRef.current[layerDef.id];
       }
       setActiveLayers((prev) => {
         const next = new Set(prev);
@@ -275,25 +276,25 @@ export default function UgandaBoundaryMap({
           version: "1.1.0",
           opacity: 1.0,
         })
-        .addTo(mapRef.current);
+        .addTo(FloodMonitormapRef.current);
       wmsLayer.bringToFront();
-      wmsLayersRef.current[layerDef.id] = wmsLayer;
+      FloodMonitorwmsLayersRef.current[layerDef.id] = wmsLayer;
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
 
   // ── Initialise map once geoData arrives ────────────────────────────────────
   useEffect(() => {
-    if (!mapContainerRef.current || !geoData) return;
+    if (!FloodMonitormapContainerRef.current || !geoData) return;
     if (!isValidGeoJSON(geoData)) {
       console.error("UgandaBoundaryMap: invalid GeoJSON:", geoData);
       return;
     }
 
     // Destroy stale instance (StrictMode / hot-reload safetyy)
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
+    if (FloodMonitormapRef.current) {
+      FloodMonitormapRef.current.remove();
+      FloodMonitormapRef.current = null;
     }
 
     // ── Tile layer ────────────────────────────────────────────────────────
@@ -301,30 +302,30 @@ export default function UgandaBoundaryMap({
       ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 
-    tileLayerRef.current = L.tileLayer(tileUrl);
+    FloodMonitortileLayerRef.current = L.tileLayer(tileUrl);
 
-    mapRef.current = L.map(mapContainerRef.current, {
+    FloodMonitormapRef.current = L.map(FloodMonitormapContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [tileLayerRef.current],
+      layers: [FloodMonitortileLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
 
     // ── District boundary polygons — gray thin borders ────────────────────
-    districtLayerRef.current = L.geoJSON(geoData, {
+    FloodMonitordistrictLayerRef.current = L.geoJSON(geoData, {
       style: { color: "gray", weight: 0.3, fill: false },
-    }).addTo(mapRef.current);
+    }).addTo(FloodMonitormapRef.current);
 
     // ── District name labels ──────────────────────────────────────────────
     // Exact port from reference: calls doesNameFitInLeafletBoundary,
     // binds tooltip, opens it, and calls bringToFront() — then chains
-    // .addTo(mapRef.current) at the end of eachLayer like the reference does.
+    // .addTo(FloodMonitormapRef.current) at the end of eachLayer like the reference does.
     const updateLabelVisibility = () => {
-      if (!mapRef.current || !districtLayerRef.current) return;
+      if (!FloodMonitormapRef.current || !FloodMonitordistrictLayerRef.current) return;
 
-      districtLayerRef.current.eachLayer((layer: any) => {
+      FloodMonitordistrictLayerRef.current.eachLayer((layer: any) => {
         layer.closeTooltip();
         const name = layer.feature?.properties?.name;
         if (!name) return;
@@ -343,16 +344,16 @@ export default function UgandaBoundaryMap({
       });
     };
 
-    mapRef.current.on("zoomend", updateLabelVisibility);
+    FloodMonitormapRef.current.on("zoomend", updateLabelVisibility);
     updateLabelVisibility();
 
     // ── Click → highlight clicked district (ray-casting, not bounding box) ─
     // Reference uses getBounds().contains() which gives rectangles.
     // We use isPointInPolygon() so the highlight matches the actual shape.
-    mapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
+    FloodMonitormapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
       let clickedFeature: any = null;
 
-      districtLayerRef.current?.eachLayer((layer: any) => {
+      FloodMonitordistrictLayerRef.current?.eachLayer((layer: any) => {
         if (clickedFeature) return; // stop after first match
 
         if (layer instanceof L.Polygon || (layer as any)) {
@@ -369,24 +370,24 @@ export default function UgandaBoundaryMap({
       }
 
       // Highlight only the clicked feature — pass the single Feature directly
-      if (boundaryLayerRef.current) {
-        mapRef.current!.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (FloodMonitorboundaryLayerRef.current) {
+        FloodMonitormapRef.current!.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitorboundaryLayerRef.current = null;
       }
-      boundaryLayerRef.current = L.geoJSON(clickedFeature, {
+      FloodMonitorboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
       })
-        .addTo(mapRef.current!)
+        .addTo(FloodMonitormapRef.current!)
         .bringToFront();
     });
 
     // ── Water / lake overlay (from reference) ─────────────────────────────
-    if (riverLayerRef.current) {
-      mapRef.current.removeLayer(riverLayerRef.current);
-      riverLayerRef.current = null;
+    if (FloodMonitorriverLayerRef.current) {
+      FloodMonitormapRef.current.removeLayer(FloodMonitorriverLayerRef.current);
+      FloodMonitorriverLayerRef.current = null;
     }
     if (waterAreas) {
-      riverLayerRef.current = L.geoJSON(waterAreas as any, {
+      FloodMonitorriverLayerRef.current = L.geoJSON(waterAreas as any, {
         style: {
           color: "#d2efff",
           weight: 0.1,
@@ -404,44 +405,44 @@ export default function UgandaBoundaryMap({
             // layer.bringToFront();
           }
         },
-      }).addTo(mapRef.current);
-      riverLayerRef.current.bringToBack();
+      }).addTo(FloodMonitormapRef.current);
+      FloodMonitorriverLayerRef.current.bringToBack();
     }
 
     // ── ResizeObserver ────────────────────────────────────────────────────
-    const ro = new ResizeObserver(() => mapRef.current?.invalidateSize());
-    ro.observe(mapContainerRef.current);
+    const ro = new ResizeObserver(() => FloodMonitormapRef.current?.invalidateSize());
+    ro.observe(FloodMonitormapContainerRef.current);
 
     return () => {
       ro.disconnect();
-      mapRef.current?.remove();
-      mapRef.current = null;
+      FloodMonitormapRef.current?.remove();
+      FloodMonitormapRef.current = null;
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Swap tile layer on dark mode toggle ─────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || !tileLayerRef.current) return;
-    mapRef.current.removeLayer(tileLayerRef.current);
+    if (!FloodMonitormapRef.current || !FloodMonitortileLayerRef.current) return;
+    FloodMonitormapRef.current.removeLayer(FloodMonitortileLayerRef.current);
     const tileUrl = isDarkMode
       ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-    tileLayerRef.current = L.tileLayer(tileUrl).addTo(mapRef.current);
-    tileLayerRef.current.bringToBack();
+    FloodMonitortileLayerRef.current = L.tileLayer(tileUrl).addTo(FloodMonitormapRef.current);
+    FloodMonitortileLayerRef.current.bringToBack();
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
   useEffect(() => {
-    if (!mapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
 
     if (
       !district ||
       district.trim() === "" ||
       district.trim().toLowerCase() === "all"
     ) {
-      if (boundaryLayerRef.current) {
-        mapRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (FloodMonitorboundaryLayerRef.current) {
+        FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitorboundaryLayerRef.current = null;
       }
       return;
     }
@@ -458,19 +459,19 @@ export default function UgandaBoundaryMap({
   // Mirrors the third useEffect in UgandaMap — fits map bounds to a district
   // and locks the viewport to it, or resets to full Uganda view when "all".
   useEffect(() => {
-    if (!mapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
     if (!getTheBounds || getTheBounds.trim().length === 0) return;
 
     if (
       getTheBounds.trim().toLowerCase() === "all" ||
       getTheBounds.trim() === ""
     ) {
-      if (boundaryLayerRef.current) {
-        mapRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (FloodMonitorboundaryLayerRef.current) {
+        FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitorboundaryLayerRef.current = null;
       }
-      mapRef.current.setView([1.3733, 32.2903], zoom);
-      mapRef.current.setMinZoom(minZoom);
+      FloodMonitormapRef.current.setView([1.3733, 32.2903], zoom);
+      FloodMonitormapRef.current.setMinZoom(minZoom);
       return;
     }
 
@@ -482,33 +483,33 @@ export default function UgandaBoundaryMap({
 
     const updatedGeoJSON = { ...geoData, features: matched };
 
-    if (boundaryLayerRef.current) {
-      mapRef.current.removeLayer(boundaryLayerRef.current);
-      boundaryLayerRef.current = null;
+    if (FloodMonitorboundaryLayerRef.current) {
+      FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+      FloodMonitorboundaryLayerRef.current = null;
     }
 
-    boundaryLayerRef.current = L.geoJSON(updatedGeoJSON, {
+    FloodMonitorboundaryLayerRef.current = L.geoJSON(updatedGeoJSON, {
       style: { color: "blue", weight: 4, fill: false },
     })
-      .addTo(mapRef.current)
+      .addTo(FloodMonitormapRef.current)
       .bringToBack();
 
-    const bounds = boundaryLayerRef.current.getBounds();
+    const bounds = FloodMonitorboundaryLayerRef.current.getBounds();
     if (bounds.isValid()) {
-      mapRef.current.fitBounds(bounds);
-      mapRef.current.setMaxBounds(bounds);
+      FloodMonitormapRef.current.fitBounds(bounds);
+      FloodMonitormapRef.current.setMaxBounds(bounds);
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update the raster layer when indicator, month, or timerange changes
   // Replace your existing raster layer effect with this:
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!FloodMonitormapRef.current) return;
 
     // Remove old raster layer
-    if (rasterLayerRef.current) {
-      mapRef.current.removeLayer(rasterLayerRef.current);
-      rasterLayerRef.current = null;
+    if (FloodMonitorrasterLayerRef.current) {
+      FloodMonitormapRef.current.removeLayer(FloodMonitorrasterLayerRef.current);
+      FloodMonitorrasterLayerRef.current = null;
     }
 
     //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
@@ -533,7 +534,7 @@ export default function UgandaBoundaryMap({
 
     console.log("layerName",layerName)
 
-    rasterLayerRef.current = L.tileLayer
+    FloodMonitorrasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
         layers: layerName,
         format: "image/png",
@@ -541,7 +542,16 @@ export default function UgandaBoundaryMap({
         version: "1.1.0",
         opacity: 1.0,
       })
-      .addTo(mapRef.current);
+      .on("loading", () => {
+    setRasterIsLoading(true);
+  })
+  .on("load", () => {
+    setRasterIsLoading(false);
+  })
+  .on("tileerror", () => {
+    setRasterIsLoading(false);
+  })
+      .addTo(FloodMonitormapRef.current);
   }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
@@ -556,242 +566,277 @@ export default function UgandaBoundaryMap({
   })).filter((group) => group.layers.length > 0);
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {/* Map container — always in DOM, never conditionally rendered */}
-      <div
-        ref={mapContainerRef}
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: isDarkMode ? "#0f172a" : "#f1f5f9",
-        }}
-      />
-
-      {/* Loading overlay — sits on top until geoData arrivess */}
-      {(!geoData) && (
-        <div
-          className={`absolute inset-0 z-[500] flex items-center justify-center ${
-            isDarkMode ? "bg-slate-900/80" : "bg-white/80"
-          }`}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="w-6 h-6 rounded-full border-2 animate-spin"
-              style={{
-                borderColor: `${FAO_BLUE}30`,
-                borderTopColor: FAO_BLUE,
-              }}
-            />
-            <span
-              className={`text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-            >
-              Loading map…
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Badge */}
-      <div className="absolute top-2 left-2 z-[400]">
-        <span
-          className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
-          style={{
-            backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
-            color: FAO_BLUE,
-          }}
-        >
-          {badgeText}
-        </span>
-      </div>
-
-      {/* MAP LAYERS toggle button */}
-      <button
-        onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
-        style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
-          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
-        }}
-      >
-        <Layers className="w-3.5 h-3.5" />
-        MAP LAYERS
-      </button>
-
-      {/* Layer panel */}
-      {showLayerPanel && (
-        <>
-          {/* Backdrop — closes panel on outside click */}
-          <div
-            className="fixed inset-0 z-1"
-            onClick={() => setShowLayerPanel(false)}
-          />
-
-          <div
-            className={`
-              absolute top-10 right-2 z-[700] w-64 overflow-y-auto  rounded-xl shadow-xl
-              flex flex-col
-              ${isDarkMode ? "bg-slate-800 border border-slate-700" : "bg-white border border-slate-200"}
-            `}
-            style={{
-              // Panel grows with content but never exceeds 70% of viewport height
-              maxHeight: "90%",
-            }}
-          >
-            {/* Panel header — always visible */}
-            <div
-              className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
-              style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
-            >
-              <span
-                className={`text-xs font-bold tracking-wide ${isDarkMode ? "text-white" : "text-slate-800"}`}
-              >
-                MAP LAYERS
-              </span>
-              <button
-                onClick={() => setShowLayerPanel(false)}
-                className={`p-0.5 rounded transition-colors ${isDarkMode ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Scrollable layer list */}
-            <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-              {visibleGroups?.map((group) => (
-                <div key={group.title} className="mb-1">
-                  {/* Group heading */}
-                  <p
-                    className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                    style={{ color: FAO_BLUE }}
-                  >
-                    {group.title}
-                  </p>
-
-                  {/* Layer rows */}
-                  {group.layers.map((layerDef) => {
-                    const isActive = activeLayers.has(layerDef.id);
-                    return (
-                      <div
-                        key={layerDef.id}
-                        onClick={() => toggleLayer(layerDef)}
-                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${isDarkMode ? "hover:bg-slate-700/50" : "hover:bg-slate-50"}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {/* Checkbox */}
-                          <div
-                            className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                            style={{
-                              backgroundColor: isActive
-                                ? FAO_BLUE
-                                : "transparent",
-                              borderColor: isActive
-                                ? FAO_BLUE
-                                : isDarkMode
-                                  ? "#475569"
-                                  : "#cbd5e1",
-                            }}
-                          >
-                            {isActive && (
-                              <svg
-                                className="w-2.5 h-2.5 text-white"
-                                viewBox="0 0 10 10"
-                                fill="none"
-                              >
-                                <path
-                                  d="M1.5 5L4 7.5L8.5 2.5"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
-                          </div>
-                          <span
-                            className={`text-xs ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
-                          >
-                            {layerDef.label}
-                          </span>
-                        </div>
-
-                        {/* Date badge */}
-                        {layerDef.date && (
-                          <span
-                            className={`text-[10px] ml-2 flex-shrink-0 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                          >
-                            {layerDef.date}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Legend */}
-      {legendTitle && legendItems.length > 0 && (
-        <div
-          className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
-            isDarkMode ? "bg-slate-800/90" : "bg-white/90"
-          }`}
-        >
-          <div
-            className={`mb-1 text-[10px] font-medium ${
-              isDarkMode ? "text-slate-300" : "text-slate-700"
-            }`}
-          >
-            {legendTitle}
-          </div>
-          <div className="space-y-1">
-            {legendItems.map((item) => (
-              <div key={item.label} className="flex items-center gap-1.5">
-                <div
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                <span
-                  className={`text-[9px] ${
-                    isDarkMode ? "text-slate-400" : "text-slate-600"
-                  }`}
-                >
-                  {item.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Leaflet label styles */}
-      <style>{`
-        .district-label {
-          background:     transparent !important;
-          border:         none !important;
-          box-shadow:     none !important;
-          font-size:      11px;
-          font-weight:    500;
-          color:          ${isDarkMode ? "#94a3b8" : "#475569"};
-          white-space:    nowrap;
-          pointer-events: none;
-        }
-        .waterAreas-label {
-          background:     transparent !important;
-          border:         none !important;
-          box-shadow:     none !important;
-          font-size:      10px;
-          color:          #5b9bd5;
-          pointer-events: none;
-        }
-      `}</style>
-    </div>
+       <div className={`relative overflow-hidden ${className}`}>
+     {/* Map container */}
+     <div
+       ref={FloodMonitormapContainerRef}
+       className="absolute inset-0 z-0"
+       style={{
+         background: isDarkMode ? "#0f172a" : "#f1f5f9",
+       }}
+     />
+   
+     {/* Loading overlay */}
+     <div
+       className={`
+         absolute inset-0 z-[500]
+         flex items-center justify-center
+         transition-all duration-300
+         ${!geoData || isRasterLoading
+           ? "opacity-100 visible"
+           : "opacity-0 invisible pointer-events-none"}
+         ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
+       `}
+     >
+       <div className="flex flex-col items-center gap-3">
+         {/* Spinner */}
+         <div
+           className="w-8 h-8 rounded-full border-2 animate-spin"
+           style={{
+             borderColor: `${FAO_BLUE}30`,
+             borderTopColor: FAO_BLUE,
+           }}
+         />
+   
+         {/* Loading text */}
+         {/* <span
+           className={`text-xs font-medium tracking-wide ${
+             isDarkMode ? "text-slate-300" : "text-slate-600"
+           }`}
+         >
+           Loading weather layers...
+         </span> */}
+       </div>
+     </div>
+   
+     {/* Badge */}
+     <div className="absolute top-2 left-2 z-[400]">
+       <span
+         className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
+         style={{
+           backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
+           color: FAO_BLUE,
+         }}
+       >
+         {badgeText}
+       </span>
+     </div>
+   
+     {/* MAP LAYERS toggle button */}
+     <button
+       onClick={() => setShowLayerPanel((v) => !v)}
+       className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+       style={{
+         backgroundColor: showLayerPanel
+           ? FAO_BLUE
+           : isDarkMode
+             ? "#1e293b"
+             : "#ffffff",
+         color: showLayerPanel ? "#ffffff" : FAO_BLUE,
+         border: `1px solid ${FAO_BLUE}55`,
+       }}
+     >
+       <Layers className="w-3.5 h-3.5" />
+       MAP LAYERS
+     </button>
+   
+     {/* Layer panel */}
+     {showLayerPanel && (
+       <>
+         {/* Backdrop */}
+         <div
+           className="fixed inset-0 z-[600]"
+           onClick={() => setShowLayerPanel(false)}
+         />
+   
+         <div
+           className={`
+             absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
+             flex flex-col
+             ${
+               isDarkMode
+                 ? "bg-slate-800 border border-slate-700"
+                 : "bg-white border border-slate-200"
+             }
+           `}
+           style={{
+             maxHeight: "90%",
+           }}
+         >
+           {/* Panel header */}
+           <div
+             className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
+             style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
+           >
+             <span
+               className={`text-xs font-bold tracking-wide ${
+                 isDarkMode ? "text-white" : "text-slate-800"
+               }`}
+             >
+               MAP LAYERS
+             </span>
+   
+             <button
+               onClick={() => setShowLayerPanel(false)}
+               className={`p-0.5 rounded transition-colors ${
+                 isDarkMode
+                   ? "hover:bg-slate-700 text-slate-400"
+                   : "hover:bg-slate-100 text-slate-500"
+               }`}
+             >
+               <X className="w-3.5 h-3.5" />
+             </button>
+           </div>
+   
+           {/* Scrollable layer list */}
+           <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
+             {visibleGroups?.map((group) => (
+               <div key={group.title} className="mb-1">
+                 {/* Group heading */}
+                 <p
+                   className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                   style={{ color: FAO_BLUE }}
+                 >
+                   {group.title}
+                 </p>
+   
+                 {/* Layer rows */}
+                 {group.layers.map((layerDef) => {
+                   const isActive = activeLayers.has(layerDef.id);
+   
+                   return (
+                     <div
+                       key={layerDef.id}
+                       onClick={() => toggleLayer(layerDef)}
+                       className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                         isDarkMode
+                           ? "hover:bg-slate-700/50"
+                           : "hover:bg-slate-50"
+                       }`}
+                     >
+                       <div className="flex items-center gap-2">
+                         {/* Checkbox */}
+                         <div
+                           className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                           style={{
+                             backgroundColor: isActive
+                               ? FAO_BLUE
+                               : "transparent",
+                             borderColor: isActive
+                               ? FAO_BLUE
+                               : isDarkMode
+                                 ? "#475569"
+                                 : "#cbd5e1",
+                           }}
+                         >
+                           {isActive && (
+                             <svg
+                               className="w-2.5 h-2.5 text-white"
+                               viewBox="0 0 10 10"
+                               fill="none"
+                             >
+                               <path
+                                 d="M1.5 5L4 7.5L8.5 2.5"
+                                 stroke="currentColor"
+                                 strokeWidth="1.5"
+                                 strokeLinecap="round"
+                                 strokeLinejoin="round"
+                               />
+                             </svg>
+                           )}
+                         </div>
+   
+                         <span
+                           className={`text-xs ${
+                             isDarkMode
+                               ? "text-slate-300"
+                               : "text-slate-700"
+                           }`}
+                         >
+                           {layerDef.label}
+                         </span>
+                       </div>
+   
+                       {/* Date badge */}
+                       {layerDef.date && (
+                         <span
+                           className={`text-[10px] ml-2 flex-shrink-0 ${
+                             isDarkMode
+                               ? "text-slate-500"
+                               : "text-slate-400"
+                           }`}
+                         >
+                           {layerDef.date}
+                         </span>
+                       )}
+                     </div>
+                   );
+                 })}
+               </div>
+             ))}
+           </div>
+         </div>
+       </>
+     )}
+   
+     {/* Legend */}
+     {legendTitle && legendItems.length > 0 && (
+       <div
+         className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
+           isDarkMode ? "bg-slate-800/90" : "bg-white/90"
+         }`}
+       >
+         <div
+           className={`mb-1 text-[10px] font-medium ${
+             isDarkMode ? "text-slate-300" : "text-slate-700"
+           }`}
+         >
+           {legendTitle}
+         </div>
+   
+         <div className="space-y-1">
+           {legendItems.map((item) => (
+             <div key={item.label} className="flex items-center gap-1.5">
+               <div
+                 className="h-2.5 w-2.5 rounded-full"
+                 style={{ backgroundColor: item.color }}
+               />
+   
+               <span
+                 className={`text-[9px] ${
+                   isDarkMode ? "text-slate-400" : "text-slate-600"
+                 }`}
+               >
+                 {item.label}
+               </span>
+             </div>
+           ))}
+         </div>
+       </div>
+     )}
+   
+     {/* Leaflet label styles */}
+     <style>{`
+       .district-label {
+         background: transparent !important;
+         border: none !important;
+         box-shadow: none !important;
+         font-size: 11px;
+         font-weight: 500;
+         color: ${isDarkMode ? "#94a3b8" : "#475569"};
+         white-space: nowrap;
+         pointer-events: none;
+       }
+   
+       .waterAreas-label {
+         background: transparent !important;
+         border: none !important;
+         box-shadow: none !important;
+         font-size: 10px;
+         color: #5b9bd5;
+         pointer-events: none;
+       }
+     `}</style>
+   </div>
   );
 }
