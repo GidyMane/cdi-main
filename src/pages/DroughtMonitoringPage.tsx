@@ -95,7 +95,7 @@ export default function DroughtMonitoringPage({
           className="w-full h-full border-0"
           title="CDI Drought Monitoring System"
           onLoad={() => setIframeLoaded(true)}
-          sandbox="allow-scripts allow-same-origin allow-popups"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-downloads"
         />
       </div>
     </div>
