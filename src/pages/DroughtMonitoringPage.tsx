@@ -72,12 +72,7 @@ export default function DroughtMonitoringPage({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
-                  <Download className="w-3 h-3" />
-                  <span className="hidden sm:inline">Export CDI Data</span>
-                </button>
-              </div>
+              
             </div>
           </div>
         </div>
