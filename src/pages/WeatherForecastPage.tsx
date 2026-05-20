@@ -100,26 +100,26 @@ export const EmptyState = ({
   </div>
 );
 
-// ── Custom Tooltip ────────────────────────────────────────────────────────────
+// ── Custom Tooltip for Metrics ────────────────────────────────────────────────
 
-const CustomTooltip = ({ active, payload, label, isDarkMode }: any) => {
+const CustomMetricTooltip = ({
+  active,
+  payload,
+  label,
+  isDarkMode,
+  metric,
+  unit,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  isDarkMode: boolean;
+  metric: "temp" | "rain" | "wind";
+  unit: string;
+}) => {
   if (!active || !payload?.length) return null;
-  return (
-    <div
-      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"}`}
-    >
-      <p className="font-semibold mb-0.5">{label ?? ""}</p>
-      <p style={{ color: FAO_BLUE }}>{payload[0]?.value ?? 0}°C</p>
-    </div>
-  );
-};
 
-// ── Custom Tooltip for Metrics ──────────────────────────────────────────────────
-
-const CustomMetricTooltip = ({ active, payload, label, isDarkMode, metric, unit }: any) => {
-  if (!active || !payload?.length) return null;
-
-  const metricLabels = {
+  const metricLabels: Record<"temp" | "rain" | "wind", string> = {
     temp: "Temperature",
     rain: "Rainfall",
     wind: "Wind Speed",
@@ -232,8 +232,6 @@ const WeatherTrendChart = ({
 // ── Filter Sidebar ────────────────────────────────────────────────────────────
 
 const FilterContent = ({
- // selectedRegion,
-  //setSelectedRegion,
   selectedParameter,
   setSelectedParameter,
   isDarkMode,
@@ -259,18 +257,6 @@ const FilterContent = ({
   district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
-    {/* <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
-      <select
-        value={selectedRegion}
-        onChange={(e) => setSelectedRegion(e.target.value)}
-        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
-      >
-        {district_list?.map((r) => (
-          <option key={r.id}>{r.name}</option>
-        ))}
-      </select>
-    </div> */}
     <Districts_list
       district_list={district_list}
       isDarkMode={isDarkMode}
@@ -364,21 +350,11 @@ export default function WeatherForecastPage({
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  // const [sliderValue, setSliderValue] = useState(12);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-  const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
-    null,
-  );
-
-  const [dailyForecasts, setDailyForecast] =
-    useState<DailyForecastResponse | null>(null);
+  const [forecastData, setForecastData] = useState<ForecastPerHour | null>(null);
+  const [dailyForecasts, setDailyForecast] = useState<DailyForecastResponse | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">("temp");
-
-  // const getHourLabel = (hour: number) => {
-  //   const twoDigit = hour.toString().padStart(2, "0");
-  //   return `${twoDigit}:00`;
-  // };
 
   // Parallel data fetch
   useEffect(() => {
@@ -415,16 +391,22 @@ export default function WeatherForecastPage({
     ? normaliseDaily(dailyForecasts.daily)
     : [];
 
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+
   // Get chart data based on active tab, selected card, and metric
   const getChartData = () => {
     if (activeTab === "nowcast") {
-      const sliced = selectedCardIndex !== null && hourlyForecast[selectedCardIndex]
-        ? (() => {
-            const startIdx = Math.max(0, selectedCardIndex - 2);
-            const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
-            return hourlyForecast.slice(startIdx, endIdx);
-          })()
-        : hourlyForecast;
+      const sliced =
+        selectedCardIndex !== null && hourlyForecast[selectedCardIndex]
+          ? (() => {
+              const startIdx = Math.max(0, selectedCardIndex - 2);
+              const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
+              return hourlyForecast.slice(startIdx, endIdx);
+            })()
+          : hourlyForecast;
 
       return sliced.map((h) => {
         const displayTime = h.rawDate
@@ -442,13 +424,14 @@ export default function WeatherForecastPage({
         };
       });
     } else {
-      const sliced = selectedCardIndex !== null && dailyForecast[selectedCardIndex]
-        ? (() => {
-            const startIdx = Math.max(0, selectedCardIndex - 1);
-            const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
-            return dailyForecast.slice(startIdx, endIdx);
-          })()
-        : dailyForecast;
+      const sliced =
+        selectedCardIndex !== null && dailyForecast[selectedCardIndex]
+          ? (() => {
+              const startIdx = Math.max(0, selectedCardIndex - 1);
+              const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
+              return dailyForecast.slice(startIdx, endIdx);
+            })()
+          : dailyForecast;
 
       return sliced.map((d) => {
         const displayDate = d.rawDate
@@ -463,21 +446,6 @@ export default function WeatherForecastPage({
       });
     }
   };
-
-  const MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
 
   const chartData = getChartData();
 
@@ -627,14 +595,6 @@ export default function WeatherForecastPage({
             <ExportData />
           </div>
         </div>
-
-        {/* Error banner */}
-        {/* {weatherError && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-            <X className="w-3.5 h-3.5 flex-shrink-0" />
-            {weatherError} Showing zero state.
-          </div>
-        )} */}
 
         {/* Stat cards */}
         <div className="flex items-center gap-2 mb-3">
@@ -794,36 +754,6 @@ export default function WeatherForecastPage({
                         legendItems={WEATHER_LEGEND_ITEMS}
                       />
                     </div>
-                    {/* <div
-                      className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
-                    >
-                      <span className={`text-xs font-medium ${textMuted}`}>
-                        00:00
-                      </span>
-                      <input
-                        type="range"
-                        min="0"
-                        max={23}
-                        value={sliderValue}
-                        onChange={(e) =>
-                          setSliderValue(parseInt(e.target.value))
-                        }
-                        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
-                        style={{
-                          backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
-                          accentColor: FAO_BLUE,
-                        }}
-                      />
-                      <span
-                        className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
-                        style={{
-                          backgroundColor: `${FAO_BLUE}20`,
-                          color: FAO_BLUE,
-                        }}
-                      >
-                        {getHourLabel(sliderValue)}
-                      </span>
-                    </div> */}
                     <FloodHourSlider
                       isDarkMode={isDarkMode}
                       borderColor={borderColor}
@@ -854,7 +784,6 @@ export default function WeatherForecastPage({
                         >
                           Hourly Forecast
                         </h4>
-
                         <HourlyCards
                           hourlyForecast={hourlyForecast}
                           isDarkMode={isDarkMode}
@@ -872,7 +801,6 @@ export default function WeatherForecastPage({
                         >
                           7-Day Forecast
                         </h4>
-
                         <DailyCards
                           dailyForecast={dailyForecast}
                           isDarkMode={isDarkMode}
@@ -964,7 +892,6 @@ export default function WeatherForecastPage({
                     <Clock className="w-4 h-4" style={{ color: FAO_BLUE }} />
                     Hourly Forecast
                   </h3>
-
                   <HourlyCards
                     hourlyForecast={hourlyForecast}
                     isDarkMode={isDarkMode}
@@ -983,7 +910,6 @@ export default function WeatherForecastPage({
                     <Calendar className="w-4 h-4" style={{ color: FAO_BLUE }} />
                     7-Day Forecast
                   </h3>
-
                   <DailyCards
                     dailyForecast={dailyForecast}
                     isDarkMode={isDarkMode}
@@ -1042,34 +968,6 @@ export default function WeatherForecastPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-                {/* <div
-                  className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
-                >
-                  <span className={`text-[10px] font-medium ${textMuted}`}>
-                    00:00
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max={23}
-                    value={sliderValue}
-                    onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                    className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
-                      accentColor: FAO_BLUE,
-                    }}
-                  />
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
-                    style={{
-                      backgroundColor: `${FAO_BLUE}20`,
-                      color: FAO_BLUE,
-                    }}
-                  >
-                    {getHourLabel(sliderValue)}
-                  </span>
-                </div> */}
                 <FloodHourSlider
                   isDarkMode={isDarkMode}
                   borderColor={borderColor}
