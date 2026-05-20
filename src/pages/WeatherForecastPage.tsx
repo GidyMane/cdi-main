@@ -114,9 +114,32 @@ const CustomTooltip = ({ active, payload, label, isDarkMode }: any) => {
   );
 };
 
-// ── Temperature Trend (reused on desktop + mobile) ────────────────────────────
+// ── Custom Tooltip for Metrics ──────────────────────────────────────────────────
 
-const TemperatureTrendChart = ({
+const CustomMetricTooltip = ({ active, payload, label, isDarkMode, metric, unit }: any) => {
+  if (!active || !payload?.length) return null;
+
+  const metricLabels = {
+    temp: "Temperature",
+    rain: "Rainfall",
+    wind: "Wind Speed",
+  };
+
+  return (
+    <div
+      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"}`}
+    >
+      <p className="font-semibold mb-0.5">{label ?? ""}</p>
+      <p style={{ color: FAO_BLUE }}>
+        {metricLabels[metric]}: {payload[0]?.value ?? 0}{unit}
+      </p>
+    </div>
+  );
+};
+
+// ── Weather Trend Chart (supports multiple metrics) ────────────────────────────
+
+const WeatherTrendChart = ({
   hourlyForecast,
   isDarkMode,
   gradientId,
@@ -124,6 +147,7 @@ const TemperatureTrendChart = ({
   margin,
   fontSize,
   chartData,
+  metric = "temp",
 }: {
   hourlyForecast: any[];
   isDarkMode: boolean;
@@ -132,25 +156,35 @@ const TemperatureTrendChart = ({
   margin: object;
   fontSize: number;
   chartData?: any[];
+  metric?: "temp" | "rain" | "wind";
 }) => {
   const dataToDisplay = chartData || hourlyForecast;
   if (!dataToDisplay || dataToDisplay.length < 2) {
     return (
       <EmptyState
         icon={TrendingUp}
-        message="No temperature data available"
+        message="No data available"
         isDarkMode={isDarkMode}
         className="h-full"
       />
     );
   }
+
+  const metricConfig = {
+    temp: { label: "Temperature", unit: "°C", color: FAO_BLUE, key: "temp" },
+    rain: { label: "Rainfall", unit: "mm", color: "#3b82f6", key: "rain" },
+    wind: { label: "Wind Speed", unit: "km/h", color: "#f97316", key: "wind" },
+  };
+
+  const config = metricConfig[metric];
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={dataToDisplay} margin={margin}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={FAO_BLUE} stopOpacity={0.25} />
-            <stop offset="95%" stopColor={FAO_BLUE} stopOpacity={0} />
+            <stop offset="5%" stopColor={config.color} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={config.color} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid
@@ -159,28 +193,36 @@ const TemperatureTrendChart = ({
           vertical={false}
         />
         <XAxis
-          dataKey="time"
+          dataKey="label"
           tick={{ fontSize, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
           tickLine={false}
           axisLine={false}
-          interval={Math.max(0, Math.floor(hourlyForecast.length / 5))}
+          interval={Math.max(0, Math.floor(dataToDisplay.length / 5))}
         />
         <YAxis
           domain={["auto", "auto"]}
           tick={{ fontSize, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v) => `${v}°`}
+          tickFormatter={(v) => `${v}${config.unit}`}
         />
-        <Tooltip content={<CustomTooltip isDarkMode={isDarkMode} />} />
+        <Tooltip
+          content={
+            <CustomMetricTooltip
+              isDarkMode={isDarkMode}
+              metric={metric}
+              unit={config.unit}
+            />
+          }
+        />
         <Area
           type="monotone"
-          dataKey="temp"
-          stroke={FAO_BLUE}
+          dataKey={config.key}
+          stroke={config.color}
           strokeWidth={1.5}
           fill={`url(#${gradientId})`}
           dot={false}
-          activeDot={{ r: 3, fill: FAO_BLUE, strokeWidth: 0 }}
+          activeDot={{ r: 3, fill: config.color, strokeWidth: 0 }}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -331,6 +373,7 @@ export default function WeatherForecastPage({
   const [dailyForecasts, setDailyForecast] =
     useState<DailyForecastResponse | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
+  const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">("temp");
 
   // const getHourLabel = (hour: number) => {
   //   const twoDigit = hour.toString().padStart(2, "0");
@@ -372,29 +415,69 @@ export default function WeatherForecastPage({
     ? normaliseDaily(dailyForecasts.daily)
     : [];
 
-  // Get chart data based on active tab and selected card
+  // Get chart data based on active tab, selected card, and metric
   const getChartData = () => {
     if (activeTab === "nowcast") {
-      if (selectedCardIndex !== null && hourlyForecast[selectedCardIndex]) {
-        const selectedHour = hourlyForecast[selectedCardIndex];
-        const startIdx = Math.max(0, selectedCardIndex - 2);
-        const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
-        return hourlyForecast.slice(startIdx, endIdx);
-      }
-      return hourlyForecast;
+      const sliced = selectedCardIndex !== null && hourlyForecast[selectedCardIndex]
+        ? (() => {
+            const startIdx = Math.max(0, selectedCardIndex - 2);
+            const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
+            return hourlyForecast.slice(startIdx, endIdx);
+          })()
+        : hourlyForecast;
+
+      return sliced.map((h) => {
+        const displayTime = h.rawDate
+          ? h.rawDate.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
+          : h.time;
+        return {
+          label: displayTime,
+          temp: h.temp,
+          rain: h.rain,
+          wind: h.windSpeed || 0,
+        };
+      });
     } else {
-      const dailyData = dailyForecast.map((d) => ({
-        time: d.day,
-        temp: d.high,
-      }));
-      if (selectedCardIndex !== null && dailyForecast[selectedCardIndex]) {
-        const startIdx = Math.max(0, selectedCardIndex - 1);
-        const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
-        return dailyData.slice(startIdx, endIdx);
-      }
-      return dailyData;
+      const sliced = selectedCardIndex !== null && dailyForecast[selectedCardIndex]
+        ? (() => {
+            const startIdx = Math.max(0, selectedCardIndex - 1);
+            const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
+            return dailyForecast.slice(startIdx, endIdx);
+          })()
+        : dailyForecast;
+
+      return sliced.map((d) => {
+        const displayDate = d.rawDate
+          ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+          : d.date;
+        return {
+          label: displayDate,
+          temp: d.high,
+          rain: d.rain,
+          wind: d.windSpeed || 0,
+        };
+      });
     }
   };
+
+  const MONTHS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
 
   const chartData = getChartData();
 
@@ -807,17 +890,42 @@ export default function WeatherForecastPage({
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm flex-1 flex flex-col`}
                 >
-                  <h3
-                    className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headerText}`}
-                  >
-                    <TrendingUp
-                      className="w-4 h-4"
-                      style={{ color: FAO_BLUE }}
-                    />
-                    Temperature Trend
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3
+                      className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}
+                    >
+                      <TrendingUp
+                        className="w-4 h-4"
+                        style={{ color: FAO_BLUE }}
+                      />
+                      Weather Trend
+                    </h3>
+                    <div className="flex gap-1.5">
+                      {(["temp", "rain", "wind"] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setChartMetric(m)}
+                          className={`text-xs px-2 py-1 rounded transition-all ${
+                            chartMetric === m
+                              ? "font-semibold text-white"
+                              : textMuted
+                          }`}
+                          style={{
+                            backgroundColor:
+                              chartMetric === m ? FAO_BLUE : "transparent",
+                          }}
+                        >
+                          {m === "temp"
+                            ? "Temp"
+                            : m === "rain"
+                              ? "Rain"
+                              : "Wind"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="flex-1" style={{ minHeight: "200px" }}>
-                    <TemperatureTrendChart
+                    <WeatherTrendChart
                       hourlyForecast={hourlyForecast}
                       isDarkMode={isDarkMode}
                       gradientId="tempFillDesktop"
@@ -825,6 +933,7 @@ export default function WeatherForecastPage({
                       margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
                       fontSize={9}
                       chartData={chartData}
+                      metric={chartMetric}
                     />
                   </div>
                 </div>
@@ -1011,14 +1120,33 @@ export default function WeatherForecastPage({
           <div
             className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
           >
-            <h3
-              className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${headerText}`}
-            >
-              <TrendingUp className="w-4 h-4" style={{ color: FAO_BLUE }} />
-              Temperature Trend
-            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3
+                className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}
+              >
+                <TrendingUp className="w-4 h-4" style={{ color: FAO_BLUE }} />
+                Weather Trend
+              </h3>
+              <div className="flex gap-1">
+                {(["temp", "rain", "wind"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setChartMetric(m)}
+                    className={`text-xs px-1.5 py-0.5 rounded transition-all ${
+                      chartMetric === m ? "font-semibold text-white" : textMuted
+                    }`}
+                    style={{
+                      backgroundColor:
+                        chartMetric === m ? FAO_BLUE : "transparent",
+                    }}
+                  >
+                    {m === "temp" ? "°C" : m === "rain" ? "mm" : "km/h"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="h-36">
-              <TemperatureTrendChart
+              <WeatherTrendChart
                 hourlyForecast={hourlyForecast}
                 isDarkMode={isDarkMode}
                 gradientId="tempFillMobile"
@@ -1026,6 +1154,7 @@ export default function WeatherForecastPage({
                 margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
                 fontSize={8}
                 chartData={chartData}
+                metric={chartMetric}
               />
             </div>
           </div>
