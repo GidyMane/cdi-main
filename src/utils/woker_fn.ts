@@ -15,16 +15,23 @@ const getIconFromCode = (code: number): string => {
 // Normalise API data → component shape
 export const normaliseHourly = (raw: HourlyForecast[]) => {
   if (!raw || raw?.length === 0) return [];
-  return raw.map((h: HourlyForecast) => ({
-    time: new Date(h.time).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }),
-    temp: Math.round(h.temp),
-    rain: h.precip,
-    icon: getIconFromCode(h.weather_code),
-  }));
+  return raw.map((h: HourlyForecast) => {
+    const date = new Date(h.time);
+    return {
+      time: date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      rawTime: h.time,
+      rawDate: date,
+      temp: Math.round(h.temp),
+      humidity: 0,
+      rain: h.precip,
+      windSpeed: 0,
+      icon: getIconFromCode(h.weather_code),
+    };
+  });
 };
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -63,9 +70,11 @@ export const normaliseDaily = (raw: DailyEntry[]) => {
     return {
       day: DAYS[date.getUTCDay()],
       date: `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`,
+      rawDate: date,
       high: Math.round(d.temp_max),
       low: Math.round(d.temp_min),
       rain: d.precip_sum,
+      windSpeed: d.wind_speed_max,
       icon: getIconFromCode(d.weather_code),
       confidence: 90,
     };
