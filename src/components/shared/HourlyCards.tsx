@@ -7,12 +7,16 @@ function HourlyCards({
   textMuted,
   headerText,
   FAO_BLUE,
+  selectedIndex,
+  onSelectCard,
 }: {
   hourlyForecast: any[];
   isDarkMode: boolean;
   textMuted: string;
   headerText: string;
   FAO_BLUE: string;
+  selectedIndex?: number | null;
+  onSelectCard?: (index: number) => void;
 }) {
   return hourlyForecast?.length === 0 ? (
     <EmptyState
@@ -25,16 +29,17 @@ function HourlyCards({
       {hourlyForecast.slice(0, 8).map((hour, idx) => (
         <div
           key={idx}
-          className={`flex-shrink-0 w-14 p-2 rounded-lg text-center transition-all hover:scale-105 ${
-            idx === 0
+          onClick={() => onSelectCard?.(idx)}
+          className={`flex-shrink-0 w-14 p-2 rounded-lg text-center transition-all hover:scale-105 cursor-pointer ${
+            selectedIndex === idx || idx === 0
               ? "border"
               : isDarkMode
                 ? "bg-slate-700/30"
                 : "bg-slate-100"
           }`}
           style={{
-            borderColor: idx === 0 ? FAO_BLUE : undefined,
-            backgroundColor: idx === 0 ? `${FAO_BLUE}20` : undefined,
+            borderColor: selectedIndex === idx || idx === 0 ? FAO_BLUE : undefined,
+            backgroundColor: selectedIndex === idx || idx === 0 ? `${FAO_BLUE}20` : undefined,
           }}
         >
           <p className={`text-[10px] ${textMuted} mb-1`}>{hour.time ?? "—"}</p>
