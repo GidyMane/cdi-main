@@ -1,201 +1,17 @@
-// import { useAppStore } from "@/store/useAppStore";
-
-// // ── Available flood hour steps from GeoServer ─────────────────────────────────
-// // export const FLOOD_HOURS = [24, 48, 72, 96, 120, 144, 168, 192];
-// export const FLOOD_HOURS = [
-//   "00",
-//   "01",
-//   "02",
-//   "03",
-//   "04",
-//   "05",
-//   "06",
-//   "07",
-//   "08",
-//   "09",
-//   "10",
-//   "11",
-//   "12",
-//   "13",
-//   "14",
-//   "15",
-//   "16",
-//   "17",
-//   "18",
-//   "19",
-//   "20",
-//   "21",
-//   "22",
-//   "23",
-//   "24",
-// ];
-
-// interface FloodHourSliderProps {
-//   isDarkMode: boolean;
-//   borderColor: string;
-//   textMuted: string;
-//   FAO_BLUE?: string;
-// }
-
-// const DEFAULT_FAO_BLUE = "#318DDE";
-
-// export function FloodHourSlider({
-//   isDarkMode,
-//   borderColor,
-//   textMuted,
-//   FAO_BLUE = DEFAULT_FAO_BLUE,
-// }: FloodHourSliderProps) {
-//   const { sliderhourIndexValue, setSliderhourIndexValue } = useAppStore(
-//     (state) => state,
-//   );
-//   //   const [hourIndex, setHourIndex] = useState(0);
-//   const selectedHours = FLOOD_HOURS[sliderhourIndexValue];
-
-//   return (
-//     <div
-//       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${
-//         isDarkMode ? "bg-slate-800/80" : "bg-slate-50"
-//       }`}
-//     >
-//       {/* Start label */}
-//       <span className={`text-xs font-medium ${textMuted}`}>
-//         {FLOOD_HOURS[0]}h
-//       </span>
-
-//       {/* Slider */}
-//       <input
-//         type="range"
-//         min={0}
-//         max={FLOOD_HOURS.length - 1}
-//         step={1}
-//         value={sliderhourIndexValue}
-//         // onChange={(e) => setSliderhourIndexValue(Number(e.target.value))}
-//         onChange={(e) => setSliderhourIndexValue(e.target.value)}
-//         className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
-//         style={{
-//           backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
-//           accentColor: FAO_BLUE,
-//         }}
-//       />
-
-//       {/* Current value badgee */}
-//       <span
-//         className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
-//         style={{
-//           backgroundColor: `${FAO_BLUE}20`,
-//           color: FAO_BLUE,
-//         }}
-//       >
-//         +{selectedHours}h
-//       </span>
-//     </div>
-//   );
-// }
-
-// export default FloodHourSlider;
-
-// import { useAppStore } from "@/store/useAppStore";
-
-// // ── Hour steps (00 → 11) ────────────────────────────────────────────────
-// export const FLOOD_HOURS = Array.from({ length: 192 }, (_, i) =>
-//   String(i).padStart(2, "0"),
-// );
-
-// interface FloodHourSliderProps {
-//   isDarkMode: boolean;
-//   borderColor: string;
-//   textMuted: string;
-//   FAO_BLUE?: string;
-// }
-
-// const DEFAULT_FAO_BLUE = "#318DDE";
-
-// export function FloodHourSlider({
-//   isDarkMode,
-//   borderColor,
-//   textMuted,
-//   FAO_BLUE = DEFAULT_FAO_BLUE,
-// }: FloodHourSliderProps) {
-//   const { sliderhourIndexValue, setSliderhourIndexValue } = useAppStore(
-//     (state) => state,
-//   );
-
-//   const selectedHour = FLOOD_HOURS[sliderhourIndexValue] ?? "00";
-
-//   console.log("sliderhourIndexValue",sliderhourIndexValue)
-
-//   return (
-//     <div
-//       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${
-//         isDarkMode ? "bg-slate-800/80" : "bg-slate-50"
-//       }`}
-//     >
-//       {/* Start label */}
-//       <span className={`text-xs font-medium ${textMuted}`}>
-//         {FLOOD_HOURS[0]}
-//       </span>
-
-//       {/* Slider */}
-//       <input
-//         type="range"
-//         min={0}
-//         max={FLOOD_HOURS.length - 1}
-//         step={1}
-//         value={sliderhourIndexValue}
-//         onChange={(e) => setSliderhourIndexValue(Number(e.target.value))}
-//         className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
-//         style={{
-//           backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
-//           accentColor: FAO_BLUE,
-//         }}
-//       />
-
-//       {/* Current value badge */}
-//       <span
-//         className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
-//         style={{
-//           backgroundColor: `${FAO_BLUE}20`,
-//           color: FAO_BLUE,
-//         }}
-//       >
-//         {selectedHour}
-//       </span>
-//     </div>
-//   );
-// }
-
-// export default FloodHourSlider;
-
-
+import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { ChevronUp, ChevronDown, Play, Pause, SkipForward } from "lucide-react";
 
-// ── Available flood hour steps from GeoServer ───────────────────────────────
-export const FLOOD_HOURS:any = [
-  "00",
-  "01",
-  "02",
-  "03",
-  "04",
-  "05",
-  "06",
-  "07",
-  "08",
-  "09",
-  "10",
-  "11",
-  "12",
-  "13",
-  "14",
-  "15",
-  "16",
-  "17",
-  "18",
-  "19",
-  "20",
-  "21",
-  "22",
-  "23",
-  "24",
+// ── Hour steps exported for map layer name construction ──────────────────────
+export const FLOOD_HOURS: any = [
+  "00","01","02","03","04","05","06","07","08","09","10","11",
+  "12","13","14","15","16","17","18","19","20","21","22","23","24",
+];
+
+// ── Month names ───────────────────────────────────────────────────────────────
+const MONTHS = [
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec",
 ];
 
 interface FloodHourSliderProps {
@@ -205,69 +21,154 @@ interface FloodHourSliderProps {
   FAO_BLUE?: string;
 }
 
-const DEFAULT_FAO_BLUE = "#318DDE";
-
 export function FloodHourSlider({
   isDarkMode,
   borderColor,
-  textMuted,
-  FAO_BLUE = DEFAULT_FAO_BLUE,
 }: FloodHourSliderProps) {
-  const { sliderhourIndexValue, setSliderhourIndexValue } = useAppStore(
+  const { setSliderhourIndexValue } = useAppStore(
     (state) => state,
   );
 
-  // Ensure safe fallback
-  const selectedHours = FLOOD_HOURS[sliderhourIndexValue] ?? "00";
-  console.log("sliderhourIndexValue",sliderhourIndexValue)
+  // Initialise from today
+  const today = new Date();
+  const [day,    setDay]    = useState(today.getDate());
+  const [month,  setMonth]  = useState(today.getMonth()); // 0-based
+  const [hour,   setHour]   = useState(today.getHours());
+  const [minute, setMinute] = useState(Math.floor(today.getMinutes() / 10) * 10);
+  const [playing, setPlaying] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Keep store in sync with hour
+  useEffect(() => {
+    setSliderhourIndexValue(hour);
+  }, [hour, setSliderhourIndexValue]);
+
+  // Auto-play: advance hour every 1.5 s
+  useEffect(() => {
+    if (playing) {
+      intervalRef.current = setInterval(() => {
+        setHour((h) => {
+          const next = (h + 1) % 24;
+          return next;
+        });
+      }, 1500);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [playing]);
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const daysInMonth = new Date(today.getFullYear(), month + 1, 0).getDate();
+
+  const spin = (
+    setter: React.Dispatch<React.SetStateAction<number>>,
+    delta: number,
+    min: number,
+    max: number,
+  ) => setter((v) => Math.min(max, Math.max(min, v + delta)));
+
+  const skipToEnd = () => {
+    setHour(23);
+    setMinute(50);
+    setPlaying(false);
+  };
+
+  // ── Spinner column ───────────────────────────────────────────────────────────
+  const Spinner = ({
+    
+    display,
+    onUp,
+    onDown,
+  }: {
+    value: number;
+    display: string;
+    onUp: () => void;
+    onDown: () => void;
+  }) => (
+    <div className="flex flex-col items-center select-none">
+      <button
+        onClick={onUp}
+        className="p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+      >
+        <ChevronUp className="w-3.5 h-3.5 text-white" />
+      </button>
+      <span className="text-white font-bold text-sm w-8 text-center leading-5">
+        {display}
+      </span>
+      <button
+        onClick={onDown}
+        className="p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+      >
+        <ChevronDown className="w-3.5 h-3.5 text-white" />
+      </button>
+    </div>
+  );
+
+  const bg = isDarkMode ? "bg-slate-700/90" : "bg-slate-600/90";
 
   return (
-    <div
-      className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${
-        isDarkMode ? "bg-slate-800/80" : "bg-slate-50"
-      }`}
-    >
-      {/* Start label */}
-      <span className={`text-xs font-medium ${textMuted}`}>
-        {FLOOD_HOURS[0]}h
-      </span>
-
-      {/* Slider */}
-      <input
-        type="range"
-        min={0}
-        max={FLOOD_HOURS.length - 1}
-        step={1}
-        value={sliderhourIndexValue}
-        onChange={(e) =>
-          setSliderhourIndexValue(Number(e.target.value))
-        }
-        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
-        style={{
-          backgroundColor: isDarkMode ? "#334155" : "#cbd5e1",
-          accentColor: FAO_BLUE,
-        }}
-      />
-
-      {/* Current value badge */}
-      <span
-        className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap"
-        style={{
-          backgroundColor: `${FAO_BLUE}20`,
-          color: FAO_BLUE,
-        }}
+    <div className={`border-t ${borderColor} flex items-center justify-center py-2 px-3`}>
+      <div
+        className={`${bg} backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg`}
       >
-        +{selectedHours}h
-      </span>
-       <button
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white cursor-pointer"
-                  style={{ backgroundColor: sliderhourIndexValue === "000" ? "rgba(255,255,255,0.2)" : "rgb(255,0,0)" }}
+        {/* Play / Pause */}
+        <button
+          onClick={() => setPlaying((p) => !p)}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
+        >
+          {playing
+            ? <Pause  className="w-3.5 h-3.5 text-white" />
+            : <Play   className="w-3.5 h-3.5 text-white fill-white" />
+          }
+        </button>
 
-                  onClick={() => setSliderhourIndexValue("000")}
-                >
-                  
-                  clear filter
-                </button>
+        {/* Day */}
+        <Spinner
+          value={day}
+          display={String(day).padStart(2, "0")}
+          onUp={()   => spin(setDay, +1, 1, daysInMonth)}
+          onDown={()  => spin(setDay, -1, 1, daysInMonth)}
+        />
+
+        {/* Month */}
+        <Spinner
+          value={month}
+          display={MONTHS[month]}
+          onUp={()   => setMonth((m) => (m + 1) % 12)}
+          onDown={()  => setMonth((m) => (m + 11) % 12)}
+        />
+
+        {/* Separator */}
+        <span className="text-white/60 font-bold text-sm">·</span>
+
+        {/* Hour */}
+        <Spinner
+          value={hour}
+          display={String(hour).padStart(2, "0")}
+          onUp={()   => spin(setHour,   +1, 0, 23)}
+          onDown={()  => spin(setHour,   -1, 0, 23)}
+        />
+
+        {/* Colon */}
+        <span className="text-white font-bold text-sm -mx-1">:</span>
+
+        {/* Minute */}
+        <Spinner
+          value={minute}
+          display={String(minute).padStart(2, "0")}
+          onUp={()   => setMinute((m) => (m + 10) % 60)}
+          onDown={()  => setMinute((m) => (m - 10 + 60) % 60)}
+        />
+
+        {/* Skip to end */}
+        <button
+          onClick={skipToEnd}
+          className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
+        >
+          <SkipForward className="w-3.5 h-3.5 text-white" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sun, Download, AlertTriangle } from "lucide-react";
+import { Sun,  AlertTriangle } from "lucide-react";
 
 interface DroughtMonitoringPageProps {
   isDarkMode?: boolean;
@@ -38,7 +38,7 @@ export default function DroughtMonitoringPage({
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Compact Header Banner - Ribbon only */}
+      {/* Compact Header Banner - Ribbons only */}
       <div className="px-4 md:px-6 py-3">
         <div
           className="relative overflow-hidden rounded-lg md:rounded-xl p-3 md:p-4 animate-fade-in-up"
