@@ -17,6 +17,8 @@ interface DailyCardsProps {
   headerText: string;
   FAO_BLUE: string;
   mobile?: boolean;
+  selectedIndex?: number | null;
+  onSelectCard?: (index: number) => void;
 }
 
 export const DailyCards = ({
@@ -26,6 +28,8 @@ export const DailyCards = ({
   headerText,
   FAO_BLUE,
   mobile = false,
+  selectedIndex,
+  onSelectCard,
 }: DailyCardsProps) => {
   if (dailyForecast.length === 0) {
     return (
@@ -44,9 +48,14 @@ export const DailyCards = ({
           // ── Mobile card ───────────────────────────────────────────────────
           <div
             key={idx}
-            className={`flex-shrink-0 w-24 rounded-lg p-2 text-center transition-all hover:scale-105 ${
-              isDarkMode ? "bg-slate-700/30" : "bg-slate-100"
+            onClick={() => onSelectCard?.(idx)}
+            className={`flex-shrink-0 w-24 rounded-lg p-2 text-center transition-all hover:scale-105 cursor-pointer ${
+              selectedIndex === idx ? "border" : isDarkMode ? "bg-slate-700/30" : "bg-slate-100"
             }`}
+            style={{
+              borderColor: selectedIndex === idx ? FAO_BLUE : undefined,
+              backgroundColor: selectedIndex === idx ? `${FAO_BLUE}20` : undefined,
+            }}
           >
             <p className={`text-xs ${textMuted}`}>{day.day ?? "—"}</p>
             <p className="text-[10px] text-slate-500 mb-1">{day.date ?? "—"}</p>
@@ -69,9 +78,14 @@ export const DailyCards = ({
           // ── Desktop card ──────────────────────────────────────────────────
           <div
             key={idx}
-            className={`flex-shrink-0 w-20 p-2 rounded-lg text-center transition-all hover:scale-105 ${
-              isDarkMode ? "bg-slate-700/30" : "bg-slate-100"
+            onClick={() => onSelectCard?.(idx)}
+            className={`flex-shrink-0 w-20 p-2 rounded-lg text-center transition-all hover:scale-105 cursor-pointer ${
+              selectedIndex === idx ? "border" : isDarkMode ? "bg-slate-700/30" : "bg-slate-100"
             }`}
+            style={{
+              borderColor: selectedIndex === idx ? FAO_BLUE : undefined,
+              backgroundColor: selectedIndex === idx ? `${FAO_BLUE}20` : undefined,
+            }}
           >
             <p className={`text-[10px] ${textMuted}`}>{day.day ?? "—"}</p>
             {getWeatherIcon(day.icon, "w-5 h-5 mx-auto my-1")}

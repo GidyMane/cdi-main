@@ -117,6 +117,7 @@ const TemperatureTrendChart = ({
   height,
   margin,
   fontSize,
+  chartData,
 }: {
   hourlyForecast: any[];
   isDarkMode: boolean;
@@ -124,8 +125,10 @@ const TemperatureTrendChart = ({
   height: string | number;
   margin: object;
   fontSize: number;
+  chartData?: any[];
 }) => {
-  if (!hourlyForecast || hourlyForecast.length < 2) {
+  const dataToDisplay = chartData || hourlyForecast;
+  if (!dataToDisplay || dataToDisplay.length < 2) {
     return (
       <EmptyState
         icon={TrendingUp}
@@ -137,7 +140,7 @@ const TemperatureTrendChart = ({
   }
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={hourlyForecast} margin={margin}>
+      <AreaChart data={dataToDisplay} margin={margin}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor={FAO_BLUE} stopOpacity={0.25} />
@@ -297,6 +300,7 @@ export default function WeatherForecastPage({
   );
   const [dailyForecasts, setDailyForecast] =
     useState<DailyForecastResponse | null>(null);
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   // const [weatherError, setWeatherError] = useState(null);
 
   const getMonthYear = (months: number) => {
@@ -337,6 +341,11 @@ export default function WeatherForecastPage({
     })();
   }, []);
 
+  // Reset selected card when switching tabs
+  useEffect(() => {
+    setSelectedCardIndex(null);
+  }, [activeTab]);
+
   // Safe normalisation — guards against null / undefined / empty arrays
   const hourlyForecast = forecastData?.hourly?.length
     ? normaliseHourly(forecastData.hourly)
@@ -344,6 +353,32 @@ export default function WeatherForecastPage({
   const dailyForecast = dailyForecasts?.daily?.length
     ? normaliseDaily(dailyForecasts.daily)
     : [];
+
+  // Get chart data based on active tab and selected card
+  const getChartData = () => {
+    if (activeTab === "nowcast") {
+      if (selectedCardIndex !== null && hourlyForecast[selectedCardIndex]) {
+        const selectedHour = hourlyForecast[selectedCardIndex];
+        const startIdx = Math.max(0, selectedCardIndex - 2);
+        const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
+        return hourlyForecast.slice(startIdx, endIdx);
+      }
+      return hourlyForecast;
+    } else {
+      const dailyData = dailyForecast.map((d) => ({
+        time: d.day,
+        temp: d.high,
+      }));
+      if (selectedCardIndex !== null && dailyForecast[selectedCardIndex]) {
+        const startIdx = Math.max(0, selectedCardIndex - 1);
+        const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
+        return dailyData.slice(startIdx, endIdx);
+      }
+      return dailyData;
+    }
+  };
+
+  const chartData = getChartData();
 
   // Stat cards with ?? 0 on every field
   const statCards = [
@@ -706,6 +741,8 @@ export default function WeatherForecastPage({
                           textMuted={textMuted}
                           headerText={headerText}
                           FAO_BLUE={FAO_BLUE}
+                          selectedIndex={selectedCardIndex}
+                          onSelectCard={setSelectedCardIndex}
                         />
                       </>
                     ) : (
@@ -722,6 +759,8 @@ export default function WeatherForecastPage({
                           textMuted={textMuted}
                           headerText={headerText}
                           FAO_BLUE={FAO_BLUE}
+                          selectedIndex={selectedCardIndex}
+                          onSelectCard={setSelectedCardIndex}
                         />
                       </>
                     )}
@@ -748,6 +787,7 @@ export default function WeatherForecastPage({
                       height="100%"
                       margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
                       fontSize={9}
+                      chartData={chartData}
                     />
                   </div>
                 </div>
@@ -785,6 +825,8 @@ export default function WeatherForecastPage({
                     textMuted={textMuted}
                     headerText={headerText}
                     FAO_BLUE={FAO_BLUE}
+                    selectedIndex={selectedCardIndex}
+                    onSelectCard={setSelectedCardIndex}
                   />
                 </>
               ) : (
@@ -803,6 +845,8 @@ export default function WeatherForecastPage({
                     headerText={headerText}
                     FAO_BLUE={FAO_BLUE}
                     mobile
+                    selectedIndex={selectedCardIndex}
+                    onSelectCard={setSelectedCardIndex}
                   />
                 </>
               )}
@@ -936,6 +980,7 @@ export default function WeatherForecastPage({
                 height="100%"
                 margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
                 fontSize={8}
+                chartData={chartData}
               />
             </div>
           </div>
