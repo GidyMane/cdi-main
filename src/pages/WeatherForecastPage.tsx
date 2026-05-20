@@ -12,15 +12,17 @@ import {
   Navigation,
   Filter,
   X,
+  MapPin,
   Map as MapIcon,
   TrendingUp,
 } from "lucide-react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import WeatherForcastMap from "../components/map/WeatherForcastMap";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
-import { weatherAPI } from "../services/api";
+import { weatherAPI, DistrictsAPI } from "../services/api";
 import type {
   DailyForecastResponse,
+  district,
   ForecastPerHour,
   WeatherData,
 } from "@/types/data_types";
@@ -38,6 +40,10 @@ import {
 import TabBar from "@/components/shared/TabBar";
 import HourlyCards from "@/components/shared/HourlyCards";
 import { DailyCards } from "@/components/shared/DailyCards";
+import { useAppStore } from "@/store/useAppStore";
+import { useQuery } from "@tanstack/react-query";
+import FloodHourSlider from "@/components/shared/FloodHourSlider";
+import Districts_list from "@/components/shared/Districts_list";
 
 interface WeatherForecastPageProps {
   isDarkMode?: boolean;
@@ -184,8 +190,8 @@ const TemperatureTrendChart = ({
 // ── Filter Sidebar ────────────────────────────────────────────────────────────
 
 const FilterContent = ({
-  selectedRegion,
-  setSelectedRegion,
+ // selectedRegion,
+  //setSelectedRegion,
   selectedParameter,
   setSelectedParameter,
   isDarkMode,
@@ -193,6 +199,9 @@ const FilterContent = ({
   textSecondary,
   borderColor,
   weatherData,
+  dateRange,
+  setDateRange,
+  district_list,
 }: {
   selectedRegion: string;
   setSelectedRegion: (v: string) => void;
@@ -203,22 +212,28 @@ const FilterContent = ({
   textSecondary: string;
   borderColor: string;
   weatherData: WeatherData | null;
+  dateRange: string;
+  setDateRange: (dateRange: string) => void;
+  district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
-    <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Region</label>
+    {/* <div>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
       <select
         value={selectedRegion}
         onChange={(e) => setSelectedRegion(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        {["All Regions", "Central", "Eastern", "Western", "Northern"].map(
-          (r) => (
-            <option key={r}>{r}</option>
-          ),
-        )}
+        {district_list?.map((r) => (
+          <option key={r.id}>{r.name}</option>
+        ))}
       </select>
-    </div>
+    </div> */}
+    <Districts_list
+      district_list={district_list}
+      isDarkMode={isDarkMode}
+      textMuted={textMuted}
+    />
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Parameter</label>
       <select
@@ -239,9 +254,11 @@ const FilterContent = ({
       </select>
     </div>
     <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Date Range</label>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
       <input
         type="date"
+        value={dateRange}
+        onChange={(e) => setDateRange(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       />
     </div>
@@ -289,46 +306,47 @@ const FilterContent = ({
 export default function WeatherForecastPage({
   isDarkMode = true,
 }: WeatherForecastPageProps) {
+  // ── Data ────────────────────────────────────────────────────────────────────
+  const { data: district_list = [] } = useQuery<district[]>({
+    queryKey: ["districts"],
+    queryFn: DistrictsAPI.getAll,
+  });
+
+  const {
+    selectedParameter,
+    setSelectedParameter,
+    dateRange,
+    setDateRange,
+    selectedDistrictId,
+  } = useAppStore((state) => state);
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  const [selectedParameter, setSelectedParameter] = useState("temperature");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2);
+  // const [sliderValue, setSliderValue] = useState(12);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
     null,
   );
+
   const [dailyForecasts, setDailyForecast] =
     useState<DailyForecastResponse | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
-  // const [weatherError, setWeatherError] = useState(null);
 
-  const getMonthYear = (months: number) => {
-    const year = 2001 + Math.floor(months / 12);
-    const month = months % 12;
-    const names = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${names[month]} ${year}`;
-  };
+  // const getHourLabel = (hour: number) => {
+  //   const twoDigit = hour.toString().padStart(2, "0");
+  //   return `${twoDigit}:00`;
+  // };
 
   // Parallel data fetch
   useEffect(() => {
     (async () => {
       try {
+        console.log(
+          "Fetching weather data for district:",
+          selectedDistrictId?.id,
+        );
         const [dashboard, forecast, daily] = await Promise.all([
-          weatherAPI.getDashboard(1),
+          weatherAPI.getDashboard(selectedDistrictId?.id),
           weatherAPI.getForecastHourly(),
           weatherAPI.getForecastDaily(),
         ]);
@@ -339,7 +357,7 @@ export default function WeatherForecastPage({
         console.error("Failed to fetch weather data:", err);
       }
     })();
-  }, []);
+  }, [selectedDistrictId?.id]);
 
   // Reset selected card when switching tabs
   useEffect(() => {
@@ -403,6 +421,26 @@ export default function WeatherForecastPage({
       ],
     },
     {
+      label: "Rainfall (24h)",
+      icon: CloudRain,
+      min: 0,
+      max: 100,
+      value: `${weatherData?.rainfall_24h ?? 0} mm`,
+      change: `${(weatherData?.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData?.rainfall_24h_delta ?? 0} mm`,
+      trend:
+        (weatherData?.rainfall_24h_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.rainfall_24h_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
+      thresholds: [
+        { value: 5, color: "#22c55e", label: "Dry" },
+        { value: 20, color: "#3b82f6", label: "Light" },
+        { value: 50, color: "#f97316", label: "Moderate" },
+        { value: 100, color: "#dc2626", label: "Heavy" },
+      ],
+    },
+    {
       label: "Humidity",
       icon: Droplets,
       min: 0,
@@ -440,26 +478,6 @@ export default function WeatherForecastPage({
         { value: 25, color: "#3b82f6", label: "Breezy" },
         { value: 40, color: "#f97316", label: "Windy" },
         { value: 60, color: "#dc2626", label: "Strong" },
-      ],
-    },
-    {
-      label: "Rainfall (24h)",
-      icon: CloudRain,
-      min: 0,
-      max: 100,
-      value: `${weatherData?.rainfall_24h ?? 0} mm`,
-      change: `${(weatherData?.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData?.rainfall_24h_delta ?? 0} mm`,
-      trend:
-        (weatherData?.rainfall_24h_delta ?? 0) > 0
-          ? "up"
-          : (weatherData?.rainfall_24h_delta ?? 0) < 0
-            ? "down"
-            : "neutral",
-      thresholds: [
-        { value: 5, color: "#22c55e", label: "Dry" },
-        { value: 20, color: "#3b82f6", label: "Light" },
-        { value: 50, color: "#f97316", label: "Moderate" },
-        { value: 100, color: "#dc2626", label: "Heavy" },
       ],
     },
   ];
@@ -536,6 +554,23 @@ export default function WeatherForecastPage({
         )} */}
 
         {/* Stat cards */}
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+          <span
+            className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
+          >
+            Kampala, Central Region
+          </span>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded-full"
+            style={{
+              backgroundColor: isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}20`,
+              color: FAO_BLUE,
+            }}
+          >
+            Live
+          </span>
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
           {statCards.map((card, index) => {
             const Icon = card.icon;
@@ -615,6 +650,9 @@ export default function WeatherForecastPage({
                   textSecondary={textSecondary}
                   borderColor={borderColor}
                   weatherData={weatherData}
+                  dateRange={dateRange}
+                  setDateRange={setDateRange}
+                  district_list={district_list}
                 />
               </div>
               <div className="mt-auto pt-3">
@@ -633,17 +671,14 @@ export default function WeatherForecastPage({
 
           {/* Main */}
           <div className="lg:col-span-9 space-y-3">
-            <div
-              className="grid grid-cols-12 gap-3"
-              style={{ minHeight: "520px" }}
-            >
+            <div className="grid grid-cols-12 gap-3 h-[520px] xl:h-[600px] 2xl:h-[680px]">
               {/* Map */}
-              <div className="col-span-7 flex">
+              <div className="col-span-7 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
                   <div
-                    className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                    className={`flex items-center justify-between p-2 border-b ${borderColor} flex-shrink-0`}
                   >
                     <div className="flex items-center gap-1.5">
                       <MapIcon
@@ -666,12 +701,9 @@ export default function WeatherForecastPage({
                       Live
                     </span>
                   </div>
-                  <div
-                    className="relative flex-1 flex flex-col"
-                    style={{ minHeight: "350px" }}
-                  >
-                    <div className="flex-1 relative">
-                      <UgandaBoundaryMap
+                  <div className="relative flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 relative min-h-0">
+                      <WeatherForcastMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full rounded-none"
                         badgeText="Uganda"
@@ -679,16 +711,16 @@ export default function WeatherForecastPage({
                         legendItems={WEATHER_LEGEND_ITEMS}
                       />
                     </div>
-                    <div
+                    {/* <div
                       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
                     >
                       <span className={`text-xs font-medium ${textMuted}`}>
-                        2001
+                        00:00
                       </span>
                       <input
                         type="range"
                         min="0"
-                        max={(2026 - 2001 + 1) * 12 - 1}
+                        max={23}
                         value={sliderValue}
                         onChange={(e) =>
                           setSliderValue(parseInt(e.target.value))
@@ -706,15 +738,20 @@ export default function WeatherForecastPage({
                           color: FAO_BLUE,
                         }}
                       >
-                        {getMonthYear(sliderValue)}
+                        {getHourLabel(sliderValue)}
                       </span>
-                    </div>
+                    </div> */}
+                    <FloodHourSlider
+                      isDarkMode={isDarkMode}
+                      borderColor={borderColor}
+                      textMuted={textMuted}
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Right col */}
-              <div className="col-span-5 flex flex-col gap-3">
+              <div className="col-span-5 flex flex-col gap-3 h-full min-h-0">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg shadow-sm overflow-hidden`}
                 >
@@ -881,7 +918,7 @@ export default function WeatherForecastPage({
               </div>
               <div className="relative aspect-[16/10] flex flex-col">
                 <div className="flex-1 relative">
-                  <UgandaBoundaryMap
+                  <WeatherForcastMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
                     badgeText="Uganda"
@@ -896,16 +933,16 @@ export default function WeatherForecastPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-                <div
+                {/* <div
                   className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
                 >
                   <span className={`text-[10px] font-medium ${textMuted}`}>
-                    2001
+                    00:00
                   </span>
                   <input
                     type="range"
                     min="0"
-                    max={(2026 - 2001 + 1) * 12 - 1}
+                    max={23}
                     value={sliderValue}
                     onChange={(e) => setSliderValue(parseInt(e.target.value))}
                     className="flex-1 h-1 rounded-lg appearance-none cursor-pointer"
@@ -921,9 +958,14 @@ export default function WeatherForecastPage({
                       color: FAO_BLUE,
                     }}
                   >
-                    {getMonthYear(sliderValue)}
+                    {getHourLabel(sliderValue)}
                   </span>
-                </div>
+                </div> */}
+                <FloodHourSlider
+                  isDarkMode={isDarkMode}
+                  borderColor={borderColor}
+                  textMuted={textMuted}
+                />
               </div>
             </div>
             {showMobileFilters && (
@@ -956,6 +998,9 @@ export default function WeatherForecastPage({
                     textSecondary={textSecondary}
                     borderColor={borderColor}
                     weatherData={weatherData}
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
+                    district_list={district_list}
                   />
                 </div>
               </>

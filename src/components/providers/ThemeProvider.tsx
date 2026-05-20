@@ -13,10 +13,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="dark"
+      defaultTheme="system"
       enableSystem
       disableTransitionOnChange={false}
-      storageKey="app-theme"
+      storageKey="app-theme-v2"
       themes={['light', 'dark']}
     >
       {children}

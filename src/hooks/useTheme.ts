@@ -12,15 +12,16 @@ export function useTheme() {
 
   // Sync next-themes with Zustand when theme changes
   useEffect(() => {
-    if (nextTheme.theme) {
-      setIsDarkMode(nextTheme.theme === 'dark');
+    if (nextTheme.resolvedTheme) {
+      setIsDarkMode(nextTheme.resolvedTheme === 'dark');
     }
-  }, [nextTheme.theme, setIsDarkMode]);
+  }, [nextTheme.resolvedTheme, setIsDarkMode]);
 
   // Return combined interface
   return {
     // From next-themes
     theme: nextTheme.theme,
+    resolvedTheme: nextTheme.resolvedTheme,
     setTheme: nextTheme.setTheme,
     themes: nextTheme.themes,
     systemTheme: nextTheme.systemTheme,

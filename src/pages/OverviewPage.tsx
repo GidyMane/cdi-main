@@ -16,10 +16,12 @@ import {
 } from "lucide-react";
 import type { PageType } from "../App";
 import { useState, useEffect } from "react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import OverviewMap from "../components/map/OverviewMap";
 import { ThresholdScale } from "../components/shared/ThresholdScale";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
 import { overviewAPI, alertsAPI, weatherAPI } from "../services/api";
+import { FloodHourSlider } from "@/components/shared/FloodHourSlider";
+import { useAppStore } from "@/store/useAppStore";
 
 interface OverviewPageProps {
   onNavigate: (page: PageType) => void;
@@ -30,7 +32,7 @@ interface StatCard {
   label: string;
   value: string;
   change: string;
-  trend: "up" | "down";
+  trend: "up" | "down" | "neutral";
   icon: any;
   color: string;
   min: number;
@@ -59,17 +61,25 @@ interface AlertItem {
 // FAO Blue color matching the logo
 const FAO_BLUE = "#318DDE";
 
-// Default stat cards template
-const getDefaultStatCards = (): StatCard[] => [
+// Helper: derive trend from delta
+const trendOf = (delta: number): "up" | "down" | "neutral" =>
+  delta > 0 ? "up" : delta < 0 ? "down" : "neutral";
+
+// Helper: format delta with sign and suffix
+const fmtDelta = (delta: number, suffix: string) =>
+  `${delta > 0 ? "+" : ""}${delta}${suffix}`;
+
+// Build stat cards directly from API weather data — mirrors WeatherForecastPage exactly
+const buildStatCards = (weatherData: any): StatCard[] => [
   {
     label: "Temperature",
-    value: "--°C",
-    change: "---",
-    trend: "up",
     icon: Thermometer,
     color: FAO_BLUE,
     min: 15,
     max: 40,
+    value: `${weatherData?.temperature ?? 0}°C`,
+    change: fmtDelta(weatherData?.temperature_delta ?? 0, "°C"),
+    trend: trendOf(weatherData?.temperature_delta ?? 0),
     thresholds: [
       { value: 20, color: "#3b82f6", label: "Cool" },
       { value: 28, color: "#22c55e", label: "Normal" },
@@ -78,14 +88,30 @@ const getDefaultStatCards = (): StatCard[] => [
     ],
   },
   {
+    label: "Rainfall (24h)",
+    icon: CloudRain,
+    color: FAO_BLUE,
+    min: 0,
+    max: 100,
+    value: `${weatherData?.rainfall_24h ?? 0} mm`,
+    change: fmtDelta(weatherData?.rainfall_24h_delta ?? 0, " mm"),
+    trend: trendOf(weatherData?.rainfall_24h_delta ?? 0),
+    thresholds: [
+      { value: 5, color: "#22c55e", label: "Dry" },
+      { value: 20, color: "#3b82f6", label: "Light" },
+      { value: 50, color: "#f97316", label: "Moderate" },
+      { value: 100, color: "#dc2626", label: "Heavy" },
+    ],
+  },
+  {
     label: "Humidity",
-    value: "--%",
-    change: "---",
-    trend: "down",
     icon: Droplets,
     color: FAO_BLUE,
     min: 0,
     max: 100,
+    value: `${weatherData?.humidity ?? 0}%`,
+    change: fmtDelta(weatherData?.humidity_delta ?? 0, "%"),
+    trend: trendOf(weatherData?.humidity_delta ?? 0),
     thresholds: [
       { value: 30, color: "#dc2626", label: "Dry" },
       { value: 50, color: "#fbbf24", label: "Low" },
@@ -95,13 +121,13 @@ const getDefaultStatCards = (): StatCard[] => [
   },
   {
     label: "Wind Speed",
-    value: "-- km/h",
-    change: "---",
-    trend: "up",
     icon: Wind,
     color: FAO_BLUE,
     min: 0,
     max: 60,
+    value: `${weatherData?.wind_speed ?? 0} km/h`,
+    change: fmtDelta(weatherData?.wind_speed_delta ?? 0, " km/h"),
+    trend: trendOf(weatherData?.wind_speed_delta ?? 0),
     thresholds: [
       { value: 10, color: "#22c55e", label: "Calm" },
       { value: 25, color: "#3b82f6", label: "Breezy" },
@@ -109,23 +135,10 @@ const getDefaultStatCards = (): StatCard[] => [
       { value: 60, color: "#dc2626", label: "Strong" },
     ],
   },
-  {
-    label: "Rainfall (24h)",
-    value: "-- mm",
-    change: "---",
-    trend: "up",
-    icon: CloudRain,
-    color: FAO_BLUE,
-    min: 0,
-    max: 100,
-    thresholds: [
-      { value: 5, color: "#22c55e", label: "Dry" },
-      { value: 20, color: "#3b82f6", label: "Light" },
-      { value: 50, color: "#f97316", label: "Moderate" },
-      { value: 100, color: "#dc2626", label: "Heavy" },
-    ],
-  },
 ];
+
+// Loading placeholder cards — neutral until real data arrives
+const getDefaultStatCards = (): StatCard[] => buildStatCards(null);
 
 const getDefaultMonitoringModules = (): MonitoringModule[] => [
   {
@@ -224,7 +237,7 @@ const MapFilters = ({
   const modules = [
     { id: "all", label: "All Modules", icon: Filter, color: FAO_BLUE },
     { id: "weather", label: "Weather Forecast", icon: Cloud, color: FAO_BLUE },
-    { id: "drought", label: "Drought Monitor", icon: Sun, color: FAO_BLUE },
+    // { id: "drought", label: "Drought Monitor", icon: Sun, color: FAO_BLUE },
     { id: "flood", label: "Flood Monitor", icon: Waves, color: FAO_BLUE },
     { id: "stations", label: "Weather Stations", icon: Radio, color: FAO_BLUE },
   ];
@@ -274,12 +287,14 @@ export default function OverviewPage({
   onNavigate,
   isDarkMode = true,
 }: OverviewPageProps) {
+  const { selectedDistrictId } = useAppStore((state) => state);
+
   const [selectedModule, setSelectedModule] = useState("all");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
+  // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2);
 
-  // API State
+  // State
   const [statCards, setStatCards] = useState<StatCard[]>(getDefaultStatCards());
   const [monitoringModules, setMonitoringModules] = useState(
     getDefaultMonitoringModules(),
@@ -293,27 +308,26 @@ export default function OverviewPage({
   });
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const getMonthYear = (months: number) => {
-    const year = 2001 + Math.floor(months / 12);
-    const month = months % 12;
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${monthNames[month]} ${year}`;
-  };
+  // const getMonthYear = (months: number) => {
+  //   const year = 2001 + Math.floor(months / 12);
+  //   const month = months % 12;
+  //   const monthNames = [
+  //     "Jan",
+  //     "Feb",
+  //     "Mar",
+  //     "Apr",
+  //     "May",
+  //     "Jun",
+  //     "Jul",
+  //     "Aug",
+  //     "Sep",
+  //     "Oct",
+  //     "Nov",
+  //     "Dec",
+  //   ];
+  //   return `${monthNames[month]} ${year}`;
+  // };
 
-  // Fetch overview module stats
   useEffect(() => {
     const fetchOverviewStats = async () => {
       try {
@@ -327,12 +341,14 @@ export default function OverviewPage({
 
         // Update monitoring modules with API data
         if (moduleStats && moduleStats.weather_forecast) {
-          const updated = [...monitoringModules];
-          updated[0].metric = `Accuracy: ${moduleStats.weather_forecast.accuracy_pct || "--"}%`;
-          updated[1].metric = `Districts at Risk: ${moduleStats.drought_monitor?.districts_at_risk || "--"}`;
-          updated[2].metric = `Alert Areas: ${moduleStats.flood_monitor?.alert_areas || "--"}`;
-          updated[3].metric = `Online: ${moduleStats.weather_stations?.online || "--"}/${moduleStats.weather_stations?.total || "--"}`;
-          setMonitoringModules(updated);
+          setMonitoringModules((prev) => {
+            const updated = [...prev];
+            updated[0].metric = `Accuracy: ${moduleStats.weather_forecast.accuracy_pct || "--"}%`;
+            updated[1].metric = `Districts at Risk: ${moduleStats.drought_monitor?.districts_at_risk || "--"}`;
+            updated[2].metric = `Alert Areas: ${moduleStats.flood_monitor?.alert_areas || "--"}`;
+            updated[3].metric = `Online: ${moduleStats.weather_stations?.online || "--"}/${moduleStats.weather_stations?.total || "--"}`;
+            return updated;
+          });
         }
 
         // Update quick stats
@@ -347,30 +363,11 @@ export default function OverviewPage({
           });
         }
 
-        // Update weather stat cards - using exact same data as WeatherForecastPage
+        // ── KEY FIX: Build fresh stat cards from API data ──────────────────
+        // Never spread stale state. Always build new objects from weatherData
+        // so deltas and trends are correct on every fetch.
         if (weatherData) {
-          const updated = [...statCards];
-          if (weatherData.temperature !== undefined) {
-            updated[0].value = `${weatherData.temperature}°C`;
-            updated[0].change = `${(weatherData.temperature_delta ?? 0) > 0 ? "+" : ""}${weatherData.temperature_delta ?? 0}°C`;
-            updated[0].trend = (weatherData.temperature_delta ?? 0) > 0 ? "up" : (weatherData.temperature_delta ?? 0) < 0 ? "down" : "neutral";
-          }
-          if (weatherData.humidity !== undefined) {
-            updated[1].value = `${weatherData.humidity}%`;
-            updated[1].change = `${(weatherData.humidity_delta ?? 0) > 0 ? "+" : ""}${weatherData.humidity_delta ?? 0}%`;
-            updated[1].trend = (weatherData.humidity_delta ?? 0) > 0 ? "up" : (weatherData.humidity_delta ?? 0) < 0 ? "down" : "neutral";
-          }
-          if (weatherData.wind_speed !== undefined) {
-            updated[2].value = `${weatherData.wind_speed} km/h`;
-            updated[2].change = `${(weatherData.wind_speed_delta ?? 0) > 0 ? "+" : ""}${weatherData.wind_speed_delta ?? 0} km/h`;
-            updated[2].trend = (weatherData.wind_speed_delta ?? 0) > 0 ? "up" : (weatherData.wind_speed_delta ?? 0) < 0 ? "down" : "neutral";
-          }
-          if (weatherData.rainfall_24h !== undefined) {
-            updated[3].value = `${weatherData.rainfall_24h} mm`;
-            updated[3].change = `${(weatherData.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData.rainfall_24h_delta ?? 0} mm`;
-            updated[3].trend = (weatherData.rainfall_24h_delta ?? 0) > 0 ? "up" : (weatherData.rainfall_24h_delta ?? 0) < 0 ? "down" : "neutral";
-          }
-          setStatCards(updated);
+          setStatCards(buildStatCards(weatherData));
         }
 
         // Update recent alerts
@@ -399,10 +396,9 @@ export default function OverviewPage({
     };
 
     fetchOverviewStats();
-    // Refresh data every 5 minutes
     const interval = setInterval(fetchOverviewStats, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDistrictId]);
 
   const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";
@@ -465,7 +461,7 @@ export default function OverviewPage({
           </p>
         </div>
 
-        {/* Stat Cards */}
+        {/* Stat Cards — identical structure to WeatherForecastPage */}
         <div className="mb-4 md:mb-6">
           <div className="flex items-center gap-2 mb-2">
             <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
@@ -475,7 +471,7 @@ export default function OverviewPage({
               Kampala, Central Region
             </span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full`}
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
               style={{
                 backgroundColor: isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}20`,
                 color: FAO_BLUE,
@@ -488,9 +484,8 @@ export default function OverviewPage({
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
             {statCards.map((card, index) => {
               const Icon = card.icon;
-              const numericValue = parseFloat(
-                card.value.replace(/[^0-9.]/g, ""),
-              );
+              const numericValue =
+                parseFloat(card.value.replace(/[^0-9.]/g, "")) || 0;
               return (
                 <div
                   key={index}
@@ -539,9 +534,8 @@ export default function OverviewPage({
           </div>
         </div>
 
-        {/* MOBILE LAYOUT - Hidden monitoring modules and alerts */}
+        {/* MOBILE LAYOUT */}
         <div className="block lg:hidden space-y-3">
-          {/* Map Section - Mobile with Overlay Filter */}
           <div className="relative">
             <div
               className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg overflow-hidden shadow-sm`}
@@ -559,7 +553,7 @@ export default function OverviewPage({
                   </h2>
                 </div>
                 <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium`}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                   style={{
                     backgroundColor: isDarkMode
                       ? `${FAO_BLUE}30`
@@ -572,7 +566,7 @@ export default function OverviewPage({
               </div>
               <div className="relative aspect-[4/3] flex flex-col">
                 <div className="flex-1 relative">
-                  <UgandaBoundaryMap
+                  <OverviewMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full rounded-xl md:rounded-2xl"
                     badgeText={getOverviewBadgeText(
@@ -583,7 +577,6 @@ export default function OverviewPage({
                     legendItems={getOverviewLegendItems(selectedModule)}
                   />
                 </div>
-                {/* Filter button on map */}
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center shadow-md z-[1001] text-white"
@@ -591,9 +584,7 @@ export default function OverviewPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-
-                {/* Time Slider */}
-                <div
+                {/* <div
                   className={`px-2 py-2 border-t ${borderColor} flex items-center gap-2 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"} z-[1001]`}
                 >
                   <span className={`text-[10px] font-medium ${textMuted}`}>
@@ -620,10 +611,14 @@ export default function OverviewPage({
                   >
                     {getMonthYear(sliderValue)}
                   </span>
-                </div>
+                </div> */}
+                <FloodHourSlider
+                  isDarkMode={isDarkMode}
+                  borderColor={borderColor}
+                  textMuted={textMuted}
+                />
               </div>
             </div>
-            {/* Filter Popup */}
             {showMobileFilters && (
               <>
                 <div
@@ -660,7 +655,7 @@ export default function OverviewPage({
 
         {/* DESKTOP LAYOUT */}
         <div className="hidden lg:flex lg:flex-col gap-4">
-          {/* Monitoring Modules Section - Now above the grid and full width */}
+          {/* Monitoring Modules */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -703,7 +698,6 @@ export default function OverviewPage({
                         style={{ color: module.color }}
                       />
                     </div>
-
                     <div className="relative z-10 flex-1 flex flex-col justify-between w-full">
                       <div className="flex items-center justify-between mb-3">
                         <div
@@ -766,7 +760,7 @@ export default function OverviewPage({
 
           {/* Map and Sidebar Grid */}
           <div className="grid lg:grid-cols-12 gap-4">
-            {/* Left Sidebar - Filters perfectly aligned with map row */}
+            {/* Left Sidebar */}
             <div className="lg:col-span-3 flex flex-col">
               <div
                 className="flex-1 rounded-xl p-3 shadow-sm flex flex-col"
@@ -828,7 +822,6 @@ export default function OverviewPage({
                   </div>
                 </div>
 
-                {/* Illustration at bottom */}
                 <div className="mt-auto pt-3">
                   <div
                     className="rounded-xl overflow-hidden"
@@ -844,9 +837,9 @@ export default function OverviewPage({
             </div>
 
             {/* Map and Alerts Row */}
-            <div className="lg:col-span-9 grid grid-cols-12 gap-4">
-              {/* Map Section - 9 columns */}
-              <div className="col-span-9">
+            <div className="lg:col-span-9 grid grid-cols-12 gap-4 h-[520px] xl:h-[600px] 2xl:h-[680px]">
+              {/* Map */}
+              <div className="col-span-9 h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-xl overflow-hidden shadow-sm h-full flex flex-col`}
                 >
@@ -870,7 +863,7 @@ export default function OverviewPage({
                         Long: 32.2903° E
                       </span>
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium`}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                         style={{
                           backgroundColor: isDarkMode
                             ? `${FAO_BLUE}30`
@@ -882,9 +875,9 @@ export default function OverviewPage({
                       </span>
                     </div>
                   </div>
-                  <div className="relative flex-1 min-h-[450px] flex flex-col">
-                    <div className="flex-1 relative">
-                      <UgandaBoundaryMap
+                  <div className="relative flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 relative min-h-0">
+                      <OverviewMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full rounded-xl md:rounded-2xl"
                         badgeText={getOverviewBadgeText(
@@ -895,8 +888,7 @@ export default function OverviewPage({
                         legendItems={getOverviewLegendItems(selectedModule)}
                       />
                     </div>
-                    {/* Time Slider */}
-                    <div
+                    {/* <div
                       className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? "bg-slate-800/80" : "bg-slate-50"}`}
                     >
                       <span className={`text-xs font-medium ${textMuted}`}>
@@ -925,12 +917,17 @@ export default function OverviewPage({
                       >
                         {getMonthYear(sliderValue)}
                       </span>
-                    </div>
+                    </div> */}
+                    <FloodHourSlider
+                      isDarkMode={isDarkMode}
+                      borderColor={borderColor}
+                      textMuted={textMuted}
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Recent Alerts - 3 columns */}
+              {/* Recent Alerts */}
               <div className="col-span-3">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-xl p-3 shadow-sm h-full flex flex-col`}
@@ -1013,12 +1010,12 @@ export default function OverviewPage({
       </div>
 
       <style>{`
-        @keyframes fadeInUp { 
-          from { opacity: 0; transform: translateY(10px); } 
-          to { opacity: 1; transform: translateY(0); } 
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        .animate-fade-in-up { 
-          animation: fadeInUp 0.4s ease-out forwards; 
+        .animate-fade-in-up {
+          animation: fadeInUp 0.4s ease-out forwards;
         }
       `}</style>
     </div>
