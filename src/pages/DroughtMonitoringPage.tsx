@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sun, Download, AlertTriangle } from "lucide-react";
+import { Sun,  AlertTriangle } from "lucide-react";
 
 interface DroughtMonitoringPageProps {
   isDarkMode?: boolean;
