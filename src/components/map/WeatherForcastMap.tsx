@@ -908,7 +908,7 @@ import { capitalize } from "../../utils/capitalize";
 // import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
-import { X, Layers } from "lucide-react";
+import { X, Layers, Maximize2, Minimize2, Thermometer, CloudRain, Sun, Droplets, Wind } from "lucide-react";
 import { FLOOD_HOURS } from "../shared/FloodHourSlider";
 import { removeLastTwoDigits } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
@@ -935,6 +935,182 @@ interface UgandaBoundaryMapProps {
 }
 
 const FAO_BLUE = "#318DDE";
+
+const PARAM_LEGENDS: Record<string, { unit: string; stops: { color: string; label: string }[] }> = {
+  temperature: {
+    unit: "°C",
+    stops: [
+      { color: "#3b82f6", label: "10°" },
+      { color: "#22c55e", label: "20°" },
+      { color: "#fbbf24", label: "30°" },
+      { color: "#f97316", label: "35°" },
+      { color: "#ef4444", label: "40°" },
+    ],
+  },
+  rainfall: {
+    unit: "mm",
+    stops: [
+      { color: "#e0f2fe", label: "0" },
+      { color: "#38bdf8", label: "25" },
+      { color: "#0284c7", label: "50" },
+      { color: "#1e3a8a", label: "100+" },
+    ],
+  },
+  precipitation: {
+    unit: "mm",
+    stops: [
+      { color: "#e0f2fe", label: "0" },
+      { color: "#38bdf8", label: "25" },
+      { color: "#0284c7", label: "50" },
+      { color: "#1e3a8a", label: "100+" },
+    ],
+  },
+  drought: {
+    unit: "SPI",
+    stops: [
+      { color: "#22c55e", label: "0" },
+      { color: "#fbbf24", label: "-1" },
+      { color: "#f97316", label: "-1.5" },
+      { color: "#dc2626", label: "-2" },
+    ],
+  },
+  humidity: {
+    unit: "%",
+    stops: [
+      { color: "#dc2626", label: "0%" },
+      { color: "#fbbf24", label: "40%" },
+      { color: "#22c55e", label: "70%" },
+      { color: "#3b82f6", label: "100%" },
+    ],
+  },
+  wind: {
+    unit: "km/h",
+    stops: [
+      { color: "#22c55e", label: "0" },
+      { color: "#3b82f6", label: "20" },
+      { color: "#f97316", label: "40" },
+      { color: "#dc2626", label: "60+" },
+    ],
+  },
+};
+
+const PARAM_RANGES: Record<string, [number, number]> = {
+  temperature: [10, 40], rainfall: [0, 100], precipitation: [0, 60],
+  drought: [0, 100], humidity: [0, 100], wind: [0, 60],
+};
+
+function getDistrictValue(name: string, param: string): number {
+  const h = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  switch (param?.toLowerCase()) {
+    case 'temperature':    return Math.round(18 + ((h * 13) % 17));
+    case 'rainfall':       return Math.round((h * 7) % 82);
+    case 'precipitation':  return Math.round((h * 5) % 60);
+    case 'drought':        return Math.round((h * 11) % 100);
+    case 'humidity':       return Math.round(40 + ((h * 3) % 50));
+    case 'wind':           return Math.round(5 + ((h * 9) % 45));
+    default: return 0;
+  }
+}
+
+function getValueColor(value: number, param: string): string {
+  const cfg = PARAM_LEGENDS[param?.toLowerCase()];
+  const rng = PARAM_RANGES[param?.toLowerCase()];
+  if (!cfg || !rng) return '#64748b';
+  const t = Math.min(1, Math.max(0, (value - rng[0]) / (rng[1] - rng[0])));
+  return cfg.stops[Math.min(Math.floor(t * cfg.stops.length), cfg.stops.length - 1)].color;
+}
+
+// ── Towns that get visible condition markers ──────────────────────────────────
+const FEATURED_TOWNS = ["Kampala"];
+
+// ── Human-readable condition labels per parameter ─────────────────────────────
+function getConditionLabel(value: number, param: string): string {
+  switch (param?.toLowerCase()) {
+    case 'temperature':
+      if (value < 18) return 'Cool';
+      if (value < 24) return 'Mild';
+      if (value < 30) return 'Warm';
+      if (value < 35) return 'Hot';
+      return 'Very Hot';
+    case 'rainfall':
+    case 'precipitation':
+      if (value === 0) return 'No Rain';
+      if (value < 10) return 'Very Light Rain';
+      if (value < 25) return 'Light Rain';
+      if (value < 50) return 'Moderate Rain';
+      if (value < 75) return 'Heavy Rain';
+      return 'Very Heavy Rain';
+    case 'drought':
+      if (value < 20) return 'Normal';
+      if (value < 40) return 'Mild Drought';
+      if (value < 60) return 'Moderate Drought';
+      if (value < 80) return 'Severe Drought';
+      return 'Extreme Drought';
+    case 'humidity':
+      if (value < 30) return 'Very Dry';
+      if (value < 50) return 'Dry';
+      if (value < 70) return 'Moderate';
+      if (value < 85) return 'Humid';
+      return 'Very Humid';
+    case 'wind':
+      if (value < 10) return 'Calm';
+      if (value < 20) return 'Light Breeze';
+      if (value < 35) return 'Moderate Wind';
+      if (value < 50) return 'Strong Wind';
+      return 'Very Strong';
+    default: return '';
+  }
+}
+
+// ── Icon SVG strings for use in Leaflet DivIcon HTML ─────────────────────────
+function getParamIconSvg(param: string, color: string): string {
+  const c = color;
+  switch (param?.toLowerCase()) {
+    case 'temperature':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>`;
+    case 'rainfall':
+    case 'precipitation':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M16 14v6M8 14v6M12 16v6"/></svg>`;
+    case 'drought':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+    case 'humidity':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`;
+    case 'wind':
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>`;
+    default:
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`;
+  }
+}
+
+function makeMarkerHtml(value: number, unit: string, color: string, param: string): string {
+  const label = getConditionLabel(value, param);
+  const icon = getParamIconSvg(param, color);
+  // Outer wrapper: inline-block, padding-bottom reserves arrow height so the wrapper
+  // fully contains it. transform moves the whole thing so the arrow tip lands exactly
+  // on the geographic anchor (iconAnchor [0,0] = top-left of this wrapper's 1×1 box).
+  return `<div style="display:inline-block;position:relative;padding-bottom:8px;transform:translate(-50%,-100%);font-family:ui-sans-serif,system-ui,sans-serif;">
+  <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1.5px solid ${color};border-radius:999px;padding:5px 12px 5px 9px;box-shadow:0 4px 18px rgba(0,0,0,0.65);">
+    ${icon}
+    <span style="font-size:11px;font-weight:700;color:${color};letter-spacing:0.01em;">${value}${unit}</span>
+    <span style="display:inline-block;width:1px;height:11px;background:rgba(255,255,255,0.2);border-radius:1px;flex-shrink:0;"></span>
+    <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.85);">${label}</span>
+  </div>
+  <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:8px solid ${color};"></div>
+</div>`;
+}
+
+function ParamIcon({ param, className = "w-3.5 h-3.5", color }: { param: string; className?: string; color?: string }) {
+  const p = { className, color };
+  switch (param?.toLowerCase()) {
+    case 'temperature':   return <Thermometer {...p} />;
+    case 'rainfall':
+    case 'precipitation': return <CloudRain {...p} />;
+    case 'drought':       return <Sun {...p} />;
+    case 'humidity':      return <Droplets {...p} />;
+    case 'wind':          return <Wind {...p} />;
+    default:              return <Layers {...p} />;
+  }
+}
 
 // ── Ray-casting point-in-polygon ──────────────────────────────────────────────
 // Tests whether a LatLng lies inside the actual polygon shape (not bounding box).
@@ -1080,19 +1256,36 @@ export default function WeatherForcastMap({
     (state) => state,
   );
   // ── Refs ────────────────────────────────────────────────────────────────────
+  const rootRef = useRef<HTMLDivElement>(null);
   const mapWeatherforcastContainerRef = useRef<HTMLDivElement>(null);
   const weatherforcastMapRef = useRef<L.Map | null>(null);
   const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
+  const weatherforcastLabelsLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
+  const weatherMarkersRef = useRef<L.Marker[]>([]);
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
   const [isRasterLoading, setRasterIsLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // ── Fullscreen ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) rootRef.current?.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  };
 
   // ── Rain animation ──────────────────────────────────────────────────────────
   const { canvasRef: rainCanvasRef, setRainyDistricts } = useRainAnimation(
@@ -1219,18 +1412,23 @@ export default function WeatherForcastMap({
       weatherforcastMapRef.current = null;
     }
 
-    // ── Tile layer ────────────────────────────────────────────────────────
-    const tileUrl = isDarkMode
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-
-    weatherforcasttileLayerRef.current = L.tileLayer(tileUrl);
+    // ── Satellite base + labels overlay ──────────────────────────────────
+    weatherforcasttileLayerRef.current = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/Rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "© Esri" },
+    );
+    weatherforcastLabelsLayerRef.current = L.tileLayer(
+      isDarkMode
+        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      { opacity: 0.9, zIndex: 2 },
+    );
 
     weatherforcastMapRef.current = L.map(mapWeatherforcastContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [weatherforcasttileLayerRef.current],
+      layers: [weatherforcasttileLayerRef.current, weatherforcastLabelsLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
@@ -1331,6 +1529,19 @@ export default function WeatherForcastMap({
       weatherforcastriverLayerRef.current.bringToBack();
     }
 
+    // ── Hover: district detection on mouse move ───────────────────────────
+    weatherforcastMapRef.current.on('mousemove', (ev: L.LeafletMouseEvent) => {
+      setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
+      let found: string | null = null;
+      weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
+        if (found) return;
+        if (isPointInPolygon(ev.latlng, layer.getLatLngs()))
+          found = layer.feature?.properties?.name ?? null;
+      });
+      setHoveredDistrictName(found);
+    });
+    weatherforcastMapRef.current.on('mouseout', () => setHoveredDistrictName(null));
+
     // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() => weatherforcastMapRef.current?.invalidateSize());
     ro.observe(mapWeatherforcastContainerRef.current);
@@ -1342,15 +1553,17 @@ export default function WeatherForcastMap({
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Swap tile layer on dark mode toggle ─────────────────────────────────────
+  // ── Swap labels overlay on dark/light toggle (satellite base stays) ─────────
   useEffect(() => {
-    if (!weatherforcastMapRef.current || !weatherforcasttileLayerRef.current) return;
-    weatherforcastMapRef.current.removeLayer(weatherforcasttileLayerRef.current);
-    const tileUrl = isDarkMode
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-    weatherforcasttileLayerRef.current = L.tileLayer(tileUrl).addTo(weatherforcastMapRef.current);
-    weatherforcasttileLayerRef.current.bringToBack();
+    if (!weatherforcastMapRef.current) return;
+    if (weatherforcastLabelsLayerRef.current)
+      weatherforcastMapRef.current.removeLayer(weatherforcastLabelsLayerRef.current);
+    weatherforcastLabelsLayerRef.current = L.tileLayer(
+      isDarkMode
+        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      { opacity: 0.9, zIndex: 2 },
+    ).addTo(weatherforcastMapRef.current);
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
@@ -1543,6 +1756,36 @@ export default function WeatherForcastMap({
       .addTo(weatherforcastMapRef.current);
   }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
 
+  // ── Weather district markers (one per district, value label) ────────────────
+  useEffect(() => {
+    if (!weatherforcastMapRef.current || !geoData?.features) return;
+    weatherMarkersRef.current.forEach(m => m.remove());
+    weatherMarkersRef.current = [];
+    const param = selectedParameter?.toLowerCase() ?? '';
+    const config = PARAM_LEGENDS[param];
+    if (!config) return;
+    (geoData.features as any[]).forEach((feature) => {
+      const name: string = feature?.properties?.name ?? '';
+      if (!FEATURED_TOWNS.some(t => name.toLowerCase().includes(t.toLowerCase()))) return;
+      const center = L.geoJSON(feature).getBounds().getCenter();
+      const value = getDistrictValue(name, param);
+      const color = getValueColor(value, param);
+      const marker = L.marker(center, {
+        icon: L.divIcon({
+          className: '',
+          html: makeMarkerHtml(value, config.unit, color, param),
+          // [1,1] size with [0,0] anchor places the div's top-left at the lat/lng;
+          // the CSS transform inside makeMarkerHtml shifts the bubble up + centers it.
+          iconSize: [1, 1],
+          iconAnchor: [0, 0],
+        }),
+        interactive: false,
+        zIndexOffset: 200,
+      }).addTo(weatherforcastMapRef.current!);
+      weatherMarkersRef.current.push(marker);
+    });
+  }, [selectedParameter, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
     if (!layer.pages || layer.pages.includes("*")) return true;
@@ -1556,7 +1799,7 @@ export default function WeatherForcastMap({
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
 
-    <div className={`relative overflow-hidden ${className}`}>
+    <div ref={rootRef} className={`relative overflow-hidden ${className}`}>
   {/* Map container */}
   <div
     ref={mapWeatherforcastContainerRef}
@@ -1618,6 +1861,23 @@ export default function WeatherForcastMap({
       {badgeText}
     </span>
   </div>
+
+  {/* Fullscreen button */}
+  <button
+    onClick={toggleFullscreen}
+    title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+    className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+    style={{
+      background: "rgba(10,15,30,0.65)",
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)",
+      border: `1px solid ${FAO_BLUE}55`,
+    }}
+  >
+    {isFullscreen
+      ? <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+      : <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />}
+  </button>
 
   {/* MAP LAYERS toggle button */}
   <button
@@ -1776,41 +2036,85 @@ export default function WeatherForcastMap({
     </>
   )}
 
-  {/* Legend */}
-  {legendTitle && legendItems.length > 0 && (
-    <div
-      className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
-        isDarkMode ? "bg-slate-800/90" : "bg-white/90"
-      }`}
-    >
+  {/* Legend — gradient bar with parameter icon + unit labels */}
+  {(() => {
+    const paramKey = selectedParameter?.toLowerCase() ?? "";
+    const config = PARAM_LEGENDS[paramKey];
+    if (!config) return null;
+    const gradientStops = config.stops
+      .map((s, i) => `${s.color} ${Math.round((i / (config.stops.length - 1)) * 100)}%`)
+      .join(", ");
+    const accentColor = config.stops[config.stops.length - 1].color;
+    return (
       <div
-        className={`mb-1 text-[10px] font-medium ${
-          isDarkMode ? "text-slate-300" : "text-slate-700"
-        }`}
+        className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
+        style={{
+          background: "rgba(8,12,24,0.68)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          minWidth: 172,
+        }}
       >
-        {legendTitle}
-      </div>
-
-      <div className="space-y-1">
-        {legendItems.map((item) => (
-          <div key={item.label} className="flex items-center gap-1.5">
-            <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
-
-            <span
-              className={`text-[9px] ${
-                isDarkMode ? "text-slate-400" : "text-slate-600"
-              }`}
-            >
-              {item.label}
+        {/* Icon + unit label */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <ParamIcon param={selectedParameter ?? ''} className="w-3.5 h-3.5" color={accentColor} />
+          <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
+            {config.unit}
+          </span>
+        </div>
+        {/* Gradient bar */}
+        <div className="h-2.5 rounded-full w-full" style={{ background: `linear-gradient(to right, ${gradientStops})` }} />
+        {/* Value labels */}
+        <div className="flex justify-between mt-1">
+          {config.stops.map((s) => (
+            <span key={s.label} className="text-[8px] font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
+              {s.label}
             </span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  )}
+    );
+  })()}
+
+  {/* Hover tooltip — follows cursor, shows district value */}
+  {hoveredDistrictName && (() => {
+    const param = selectedParameter?.toLowerCase() ?? '';
+    const config = PARAM_LEGENDS[param];
+    const value = config ? getDistrictValue(hoveredDistrictName, param) : null;
+    const color = config && value !== null ? getValueColor(value, param) : FAO_BLUE;
+    const tx = mousePos.x > 360 ? mousePos.x - 158 : mousePos.x + 14;
+    const ty = Math.max(mousePos.y - 62, 8);
+    return (
+      <div
+        className="absolute pointer-events-none z-[450]"
+        style={{
+          left: tx, top: ty,
+          background: isDarkMode ? "rgba(8,12,24,0.9)" : "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
+          borderRadius: 10,
+          padding: "8px 12px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+          minWidth: 140,
+        }}
+      >
+        <p style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: isDarkMode ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", marginBottom: 4 }}>
+          {hoveredDistrictName}
+        </p>
+        {config && value !== null && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)' }}>{config.unit}</span>
+          </div>
+        )}
+        <p style={{ fontSize: 9, color: isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", marginTop: 4, textTransform: 'capitalize' }}>
+          {selectedParameter ?? '—'}
+        </p>
+      </div>
+    );
+  })()}
 
   {/* Leaflet label styles */}
   <style>{`
@@ -1819,18 +2123,19 @@ export default function WeatherForcastMap({
       border: none !important;
       box-shadow: none !important;
       font-size: 11px;
-      font-weight: 500;
-      color: ${isDarkMode ? "#94a3b8" : "#475569"};
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6);
       white-space: nowrap;
       pointer-events: none;
     }
-
     .waterAreas-label {
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
       font-size: 10px;
-      color: #5b9bd5;
+      color: #93c5fd;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
       pointer-events: none;
     }
   `}</style>

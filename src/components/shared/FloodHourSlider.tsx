@@ -19,11 +19,13 @@ interface FloodHourSliderProps {
   borderColor: string;
   textMuted: string;
   FAO_BLUE?: string;
+  floating?: boolean;
 }
 
 export function FloodHourSlider({
   isDarkMode,
   borderColor,
+  floating = false,
 }: FloodHourSliderProps) {
   const { setSliderhourIndexValue } = useAppStore(
     (state) => state,
@@ -107,11 +109,10 @@ export function FloodHourSlider({
 
   const bg = isDarkMode ? "bg-slate-700/90" : "bg-slate-600/90";
 
-  return (
-    <div className={`border-t ${borderColor} flex items-center justify-center py-2 px-3`}>
-      <div
-        className={`${bg} backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg`}
-      >
+  const pill = (
+    <div
+      className={`${bg} backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg`}
+    >
         {/* Play / Pause */}
         <button
           onClick={() => setPlaying((p) => !p)}
@@ -169,6 +170,13 @@ export function FloodHourSlider({
           <SkipForward className="w-3.5 h-3.5 text-white" />
         </button>
       </div>
+  );
+
+  if (floating) return pill;
+
+  return (
+    <div className={`border-t ${borderColor} flex items-center justify-center py-2 px-3`}>
+      {pill}
     </div>
   );
 }

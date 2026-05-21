@@ -582,34 +582,19 @@ export default function FloodMonitoringPage({
                       2 Critical
                     </span>
                   </div>
-                  <div className="relative flex-1 flex flex-col min-h-0">
-                    <div className="flex-1 relative min-h-0">
-                      <FloodMap
+                  <div className="flex-1 relative min-h-0">
+                    <FloodMap
+                      isDarkMode={isDarkMode}
+                      className="absolute inset-0 w-full h-full"
+                    />
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                      <FloodHourSlider
+                        floating
                         isDarkMode={isDarkMode}
-                        className="absolute inset-0 w-full h-full"
+                        borderColor={borderColor}
+                        textMuted={textMuted}
                       />
                     </div>
-                    {/* Time Slider */}
-                    {/* <div className={`px-4 py-3 border-t ${borderColor} flex items-center gap-4 ${isDarkMode ? 'bg-slate-800/80' : 'bg-slate-50'}`}>
-                      <span className={`text-xs font-medium ${textMuted}`}>2001</span>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max={(2026 - 2001 + 1) * 12 - 1} 
-                        value={sliderValue}
-                        onChange={(e) => setSliderValue(parseInt(e.target.value))}
-                        className="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer"
-                        style={{ backgroundColor: isDarkMode ? '#334155' : '#cbd5e1', accentColor: FAO_BLUE }}
-                      />
-                      <span className="text-xs font-bold px-2 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: `${FAO_BLUE}20`, color: FAO_BLUE }}>
-                        {getMonthYear(sliderValue)}
-                      </span>
-                    </div> */}
-                    <FloodHourSlider
-                      isDarkMode={isDarkMode}
-                      borderColor={borderColor}
-                      textMuted={textMuted}
-                    />
                   </div>
                 </div>
               </div>
@@ -940,13 +925,11 @@ export default function FloodMonitoringPage({
                   2 Critical
                 </span>
               </div>
-              <div className="relative aspect-video flex flex-col">
-                <div className="flex-1 relative">
-                  <FloodMap
-                    isDarkMode={isDarkMode}
-                    className="absolute inset-0 w-full h-full"
-                  />
-                </div>
+              <div className="relative aspect-video">
+                <FloodMap
+                  isDarkMode={isDarkMode}
+                  className="absolute inset-0 w-full h-full"
+                />
                 {/* Filter button on map */}
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -986,11 +969,14 @@ export default function FloodMonitoringPage({
                   </span>
                 </div> */}
 
-                <FloodHourSlider
-                  isDarkMode={isDarkMode}
-                  borderColor={borderColor}
-                  textMuted={textMuted}
-                />
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                  <FloodHourSlider
+                    floating
+                    isDarkMode={isDarkMode}
+                    borderColor={borderColor}
+                    textMuted={textMuted}
+                  />
+                </div>
               </div>
             </div>
             {/* Filter Popup */}
