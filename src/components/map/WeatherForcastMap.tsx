@@ -908,7 +908,7 @@ import { capitalize } from "../../utils/capitalize";
 // import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
-import { X, Layers, Maximize2, Minimize2, Thermometer, CloudRain, Sun, Droplets, Wind } from "lucide-react";
+import { X, Layers, Maximize2, Minimize2, Thermometer, CloudRain, Sun, Droplets, Wind, Plus, Minus } from "lucide-react";
 import { FLOOD_HOURS } from "../shared/FloodHourSlider";
 import { removeLastTwoDigits } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
@@ -1080,20 +1080,19 @@ function getParamIconSvg(param: string, color: string): string {
   }
 }
 
-function makeMarkerHtml(value: number, unit: string, color: string, param: string): string {
+function makeMarkerHtml(districtName: string, value: number, unit: string, color: string, param: string): string {
   const label = getConditionLabel(value, param);
-  const icon = getParamIconSvg(param, color);
-  // Outer wrapper: inline-block, padding-bottom reserves arrow height so the wrapper
-  // fully contains it. transform moves the whole thing so the arrow tip lands exactly
-  // on the geographic anchor (iconAnchor [0,0] = top-left of this wrapper's 1×1 box).
+  const icon  = getParamIconSvg(param, color);
   return `<div style="display:inline-block;position:relative;padding-bottom:8px;transform:translate(-50%,-100%);font-family:ui-sans-serif,system-ui,sans-serif;">
-  <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:999px;padding:5px 12px 5px 9px;box-shadow:0 4px 18px rgba(0,0,0,0.65);">
+  <div style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap;background:rgba(8,12,24,0.90);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:999px;padding:5px 12px 5px 9px;box-shadow:0 4px 18px rgba(0,0,0,0.65);">
     ${icon}
-    <span style="font-size:11px;font-weight:700;color:${color};letter-spacing:0.01em;">${value}${unit}</span>
+    <span style="font-size:11px;font-weight:800;color:rgba(255,255,255,0.95);letter-spacing:0.02em;">${districtName}</span>
     <span style="display:inline-block;width:1px;height:11px;background:rgba(255,255,255,0.2);border-radius:1px;flex-shrink:0;"></span>
-    <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.85);">${label}</span>
+    <span style="font-size:11px;font-weight:700;color:${color};">${value}${unit}</span>
+    <span style="display:inline-block;width:1px;height:11px;background:rgba(255,255,255,0.2);border-radius:1px;flex-shrink:0;"></span>
+    <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.80);">${label}</span>
   </div>
-  <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid rgba(255,255,255,0.5);"></div>
+  <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid rgba(255,255,255,0.45);"></div>
 </div>`;
 }
 
@@ -1678,18 +1677,17 @@ export default function WeatherForcastMap({
           const name   = f.properties.name as string;
           const meanMm = getDistrictValue(name, "rainfall");
 
-          // Scale drop density and speed by rainfall intensity band
-          let rainyPct: number;
-          let speedScale: number;
-          if      (meanMm >= 75) { rainyPct = 90;  speedScale = 1.6; }
-          else if (meanMm >= 50) { rainyPct = 70;  speedScale = 1.3; }
-          else if (meanMm >= 25) { rainyPct = 45;  speedScale = 1.0; }
-          else if (meanMm >= 10) { rainyPct = 22;  speedScale = 0.8; }
-          else                   { rainyPct = 0;   speedScale = 0;   }
+          // Drop density, speed and line thickness scaled by rainfall intensity
+          let rainyPct: number, speedScale: number, lineWidth: number;
+          if      (meanMm >= 75) { rainyPct = 90; speedScale = 1.6; lineWidth = 1.8; }
+          else if (meanMm >= 50) { rainyPct = 70; speedScale = 1.3; lineWidth = 1.3; }
+          else if (meanMm >= 25) { rainyPct = 45; speedScale = 1.0; lineWidth = 0.9; }
+          else if (meanMm >= 10) { rainyPct = 22; speedScale = 0.8; lineWidth = 0.5; }
+          else                   { rainyPct = 0;  speedScale = 0;   lineWidth = 0;   }
 
-          return { name, meanMm, rainyPct, speedScale };
+          return { name, meanMm, rainyPct, speedScale, lineWidth };
         })
-        .filter((d) => d.meanMm >= 10); // no animation for dry districts
+        .filter((d) => d.meanMm >= 10);
       setRainyDistricts(rainyDistricts);
     } else {
       setRainyDistricts([]);
@@ -1754,7 +1752,7 @@ export default function WeatherForcastMap({
       const marker = L.marker(center, {
         icon: L.divIcon({
           className: '',
-          html: makeMarkerHtml(value, config.unit, color, param),
+          html: makeMarkerHtml(name, value, config.unit, color, param),
           // [1,1] size with [0,0] anchor places the div's top-left at the lat/lng;
           // the CSS transform inside makeMarkerHtml shifts the bubble up + centers it.
           iconSize: [1, 1],
@@ -1877,6 +1875,27 @@ export default function WeatherForcastMap({
     <Layers className="w-3.5 h-3.5" />
     MAP LAYERS
   </button>
+
+  {/* Zoom controls — below MAP LAYERS button */}
+  <div className="absolute top-[46px] right-2 z-[400] flex flex-col gap-1">
+    {[
+      { icon: Plus,  title: "Zoom in",  action: () => weatherforcastMapRef.current?.zoomIn()  },
+      { icon: Minus, title: "Zoom out", action: () => weatherforcastMapRef.current?.zoomOut() },
+    ].map(({ icon: Icon, title, action }) => (
+      <button
+        key={title}
+        onClick={action}
+        title={title}
+        className="flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all hover:opacity-90"
+        style={{
+          backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
+          border: `1px solid ${FAO_BLUE}55`,
+        }}
+      >
+        <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+      </button>
+    ))}
+  </div>
 
   {/* Layer panel */}
   {showLayerPanel && (

@@ -9,6 +9,7 @@ interface RainyDistrict {
   meanMm: number;
   rainyPct?: number;
   speedScale?: number;
+  lineWidth?: number; // base stroke width — heavier rain gets thicker lines
 }
 
 interface RainDrop {
@@ -16,6 +17,7 @@ interface RainDrop {
   speed: number;   // px/frame at 60 fps — scaled by delta-time
   opacity: number;
   angle: number;
+  width: number;   // stroke width
 }
 
 type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
@@ -134,18 +136,21 @@ export function useRainAnimation(
         const [r, g, b] = rainColor(d.meanMm);
         const pct      = d.rainyPct ?? 60;
         const sScale   = d.speedScale ?? 1;
-        const count    = Math.max(3, Math.round((pct / 100) * 50));
+        const count    = Math.max(8, Math.round((pct / 100) * 90));
+
+        const lw = d.lineWidth ?? 1;
 
         const normDrops = Array.from({ length: count }, () => ({
           nx: Math.random(),
-          ny: -(Math.random() * 0.5),
+          ny: Math.random(),           // scatter across visible area on init
         }));
 
         const drops: RainDrop[] = Array.from({ length: count }, () => ({
-          len:     Math.random() * 14 + 6,
-          speed:   (Math.random() * 4 + 4) * sScale,
-          opacity: Math.random() * 0.45 + 0.25,
-          angle:   0.10,
+          len:     Math.random() * 10 + 8,              // 8–18 px — consistent streak length
+          speed:   (Math.random() * 3 + 3.5) * sScale, // 3.5–6.5 px/frame
+          opacity: Math.random() * 0.30 + 0.15,        // subtle: 0.15–0.45
+          angle:   0.18 + (Math.random() - 0.5) * 0.06, // ~10° lean, very consistent
+          width:   Math.max(0.3, lw + (Math.random() - 0.5) * 0.25),
         }));
 
         zones.push({ geometry: geo, r, g, b, drops, normDrops, _path: null, _bbox: null });
@@ -205,7 +210,7 @@ export function useRainAnimation(
 
           ctx.beginPath();
           ctx.strokeStyle = `rgba(${r},${g},${b},${d.opacity})`;
-          ctx.lineWidth   = 1;
+          ctx.lineWidth   = d.width;
           ctx.moveTo(px, py);
           ctx.lineTo(px + Math.sin(d.angle) * d.len, py + d.len);
           ctx.stroke();
