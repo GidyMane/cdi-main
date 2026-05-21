@@ -7,7 +7,7 @@ import { capitalize } from "../../utils/capitalize";
 // import { useQuery } from "@tanstack/react-query";
 // import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
-import { X, Layers } from "lucide-react";
+import { X, Layers, Maximize2, Minimize2, Waves } from "lucide-react";
 import { FLOOD_HOURS } from "../shared/FloodHourSlider";
 import { geoData } from "@/utils/geodata";
 
@@ -175,12 +175,14 @@ export default function FloodMonitorMap({
     (state) => state,
   );
   // ── Refs ────────────────────────────────────────────────────────────────────
+  const floodRootRef = useRef<HTMLDivElement>(null);
   const FloodMonitormapContainerRef = useRef<HTMLDivElement>(null);
   const FloodMonitormapRef = useRef<L.Map | null>(null);
   const FloodMonitordistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitorboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitorriverLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitortileLayerRef = useRef<L.TileLayer | null>(null);
+  const FloodMonitorLabelsLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorrasterLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
 
@@ -188,6 +190,18 @@ export default function FloodMonitorMap({
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
   const [isRasterLoading, setRasterIsLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ── Fullscreen ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) floodRootRef.current?.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  };
 
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
@@ -297,18 +311,23 @@ export default function FloodMonitorMap({
       FloodMonitormapRef.current = null;
     }
 
-    // ── Tile layer ────────────────────────────────────────────────────────
-    const tileUrl = isDarkMode
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-
-    FloodMonitortileLayerRef.current = L.tileLayer(tileUrl);
+    // ── Satellite base + labels overlay ──────────────────────────────────
+    FloodMonitortileLayerRef.current = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/Rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "© Esri" },
+    );
+    FloodMonitorLabelsLayerRef.current = L.tileLayer(
+      isDarkMode
+        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      { opacity: 0.9, zIndex: 2 },
+    );
 
     FloodMonitormapRef.current = L.map(FloodMonitormapContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [FloodMonitortileLayerRef.current],
+      layers: [FloodMonitortileLayerRef.current, FloodMonitorLabelsLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
@@ -420,15 +439,17 @@ export default function FloodMonitorMap({
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Swap tile layer on dark mode toggle ─────────────────────────────────────
+  // ── Swap labels overlay on dark/light toggle ─────────────────────────────────
   useEffect(() => {
-    if (!FloodMonitormapRef.current || !FloodMonitortileLayerRef.current) return;
-    FloodMonitormapRef.current.removeLayer(FloodMonitortileLayerRef.current);
-    const tileUrl = isDarkMode
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-    FloodMonitortileLayerRef.current = L.tileLayer(tileUrl).addTo(FloodMonitormapRef.current);
-    FloodMonitortileLayerRef.current.bringToBack();
+    if (!FloodMonitormapRef.current) return;
+    if (FloodMonitorLabelsLayerRef.current)
+      FloodMonitormapRef.current.removeLayer(FloodMonitorLabelsLayerRef.current);
+    FloodMonitorLabelsLayerRef.current = L.tileLayer(
+      isDarkMode
+        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
+      { opacity: 0.9, zIndex: 2 },
+    ).addTo(FloodMonitormapRef.current);
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
@@ -566,7 +587,7 @@ export default function FloodMonitorMap({
   })).filter((group) => group.layers.length > 0);
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-       <div className={`relative overflow-hidden ${className}`}>
+       <div ref={floodRootRef} className={`relative overflow-hidden ${className}`}>
      {/* Map container */}
      <div
        ref={FloodMonitormapContainerRef}
@@ -622,6 +643,23 @@ export default function FloodMonitorMap({
        </span>
      </div>
    
+     {/* Fullscreen button */}
+     <button
+       onClick={toggleFullscreen}
+       title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+       className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+       style={{
+         background: "rgba(10,15,30,0.65)",
+         backdropFilter: "blur(8px)",
+         WebkitBackdropFilter: "blur(8px)",
+         border: `1px solid ${FAO_BLUE}55`,
+       }}
+     >
+       {isFullscreen
+         ? <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+         : <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />}
+     </button>
+
      {/* MAP LAYERS toggle button */}
      <button
        onClick={() => setShowLayerPanel((v) => !v)}
@@ -779,41 +817,39 @@ export default function FloodMonitorMap({
        </>
      )}
    
-     {/* Legend */}
-     {legendTitle && legendItems.length > 0 && (
-       <div
-         className={`absolute bottom-2 left-2 z-[400] rounded-lg p-2 shadow-sm ${
-           isDarkMode ? "bg-slate-800/90" : "bg-white/90"
-         }`}
-       >
+     {/* Legend — gradient bar with Waves icon */}
+     {legendTitle && legendItems.length > 0 && (() => {
+       const gradientStops = legendItems
+         .map((item, i) => `${item.color} ${Math.round((i / (legendItems.length - 1)) * 100)}%`)
+         .join(", ");
+       return (
          <div
-           className={`mb-1 text-[10px] font-medium ${
-             isDarkMode ? "text-slate-300" : "text-slate-700"
-           }`}
+           className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
+           style={{
+             background: "rgba(8,12,24,0.68)",
+             backdropFilter: "blur(14px)",
+             WebkitBackdropFilter: "blur(14px)",
+             border: "1px solid rgba(255,255,255,0.1)",
+             minWidth: 172,
+           }}
          >
-           {legendTitle}
-         </div>
-   
-         <div className="space-y-1">
-           {legendItems.map((item) => (
-             <div key={item.label} className="flex items-center gap-1.5">
-               <div
-                 className="h-2.5 w-2.5 rounded-full"
-                 style={{ backgroundColor: item.color }}
-               />
-   
-               <span
-                 className={`text-[9px] ${
-                   isDarkMode ? "text-slate-400" : "text-slate-600"
-                 }`}
-               >
+           <div className="flex items-center gap-1.5 mb-2">
+             <Waves className="w-3.5 h-3.5" style={{ color: legendItems[legendItems.length - 1].color }} />
+             <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: legendItems[legendItems.length - 1].color }}>
+               {legendTitle}
+             </span>
+           </div>
+           <div className="h-2.5 rounded-full w-full" style={{ background: `linear-gradient(to right, ${gradientStops})` }} />
+           <div className="flex justify-between mt-1">
+             {legendItems.map((item) => (
+               <span key={item.label} className="text-[8px] font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
                  {item.label}
                </span>
-             </div>
-           ))}
+             ))}
+           </div>
          </div>
-       </div>
-     )}
+       );
+     })()}
    
      {/* Leaflet label styles */}
      <style>{`
@@ -822,19 +858,22 @@ export default function FloodMonitorMap({
          border: none !important;
          box-shadow: none !important;
          font-size: 11px;
-         font-weight: 500;
-         color: ${isDarkMode ? "#94a3b8" : "#475569"};
+         font-weight: 600;
+         color: #ffffff;
          white-space: nowrap;
          pointer-events: none;
+         text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8), 0 -1px 3px rgba(0,0,0,0.8);
        }
-   
+
        .waterAreas-label {
          background: transparent !important;
          border: none !important;
          box-shadow: none !important;
          font-size: 10px;
-         color: #5b9bd5;
+         font-weight: 600;
+         color: #7ec8f7;
          pointer-events: none;
+         text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8);
        }
      `}</style>
    </div>

@@ -744,21 +744,22 @@ export default function WeatherForecastPage({
                       Live
                     </span>
                   </div>
-                  <div className="relative flex-1 flex flex-col min-h-0">
-                    <div className="flex-1 relative min-h-0">
-                      <WeatherForcastMap
+                  <div className="flex-1 relative min-h-0">
+                    <WeatherForcastMap
+                      isDarkMode={isDarkMode}
+                      className="absolute inset-0 w-full h-full rounded-none"
+                      badgeText="Uganda"
+                      legendTitle="Weather"
+                      legendItems={WEATHER_LEGEND_ITEMS}
+                    />
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                      <FloodHourSlider
+                        floating
                         isDarkMode={isDarkMode}
-                        className="absolute inset-0 w-full h-full rounded-none"
-                        badgeText="Uganda"
-                        legendTitle="Weather"
-                        legendItems={WEATHER_LEGEND_ITEMS}
+                        borderColor={borderColor}
+                        textMuted={textMuted}
                       />
                     </div>
-                    <FloodHourSlider
-                      isDarkMode={isDarkMode}
-                      borderColor={borderColor}
-                      textMuted={textMuted}
-                    />
                   </div>
                 </div>
               </div>
@@ -951,16 +952,14 @@ export default function WeatherForecastPage({
                   Live
                 </span>
               </div>
-              <div className="relative aspect-[16/10] flex flex-col">
-                <div className="flex-1 relative">
-                  <WeatherForcastMap
-                    isDarkMode={isDarkMode}
-                    className="absolute inset-0 w-full h-full"
-                    badgeText="Uganda"
-                    legendTitle="Weather"
-                    legendItems={WEATHER_LEGEND_ITEMS}
-                  />
-                </div>
+              <div className="relative aspect-[16/10]">
+                <WeatherForcastMap
+                  isDarkMode={isDarkMode}
+                  className="absolute inset-0 w-full h-full"
+                  badgeText="Uganda"
+                  legendTitle="Weather"
+                  legendItems={WEATHER_LEGEND_ITEMS}
+                />
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center shadow-md z-[1001] text-white"
@@ -968,11 +967,14 @@ export default function WeatherForecastPage({
                 >
                   <Filter className="w-4 h-4" />
                 </button>
-                <FloodHourSlider
-                  isDarkMode={isDarkMode}
-                  borderColor={borderColor}
-                  textMuted={textMuted}
-                />
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                  <FloodHourSlider
+                    floating
+                    isDarkMode={isDarkMode}
+                    borderColor={borderColor}
+                    textMuted={textMuted}
+                  />
+                </div>
               </div>
             </div>
             {showMobileFilters && (
