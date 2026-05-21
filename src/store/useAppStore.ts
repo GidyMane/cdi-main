@@ -86,8 +86,11 @@ export interface AppStoreState {
 export const useAppStore = create<AppStoreState>()(
   persist(
     (set) => ({
-      // Theme
-      isDarkMode: false,
+      // Theme — initialise from system preference so there's no flash on first load
+      isDarkMode:
+        typeof window !== "undefined"
+          ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          : false,
       setIsDarkMode: (mode) => set({ isDarkMode: mode }),
 
       // Navigation
@@ -95,10 +98,7 @@ export const useAppStore = create<AppStoreState>()(
       setCurrentPage: (page) => set({ currentPage: page }),
 
       // Filters
-      selectedDistrictId: {
-        id: 3071,
-        name: "Apac",
-      },
+      selectedDistrictId: undefined,
       setSelectedDistrictId: (id) => set({ selectedDistrictId: id }),
       selectedRegionId: undefined,
       setSelectedRegionId: (id) => set({ selectedRegionId: id }),
@@ -159,10 +159,11 @@ export const useAppStore = create<AppStoreState>()(
         set({ sliderhourIndexValue: value }),
     }),
     {
-      name: "app-store", // Name of the persisted store
+      name: "app-store",
       partialize: (state) => ({
-        selectedDistrictId: state.selectedDistrictId,
-      }), // Only persist theme and selected distric
+        isDarkMode: state.isDarkMode,
+        // selectedDistrictId intentionally NOT persisted — always starts fresh
+      }),
     },
   ),
 );

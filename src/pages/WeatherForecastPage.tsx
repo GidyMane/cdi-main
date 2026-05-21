@@ -342,6 +342,7 @@ export default function WeatherForecastPage({
     setDateRange,
     selectedDistrictId,
   } = useAppStore((state) => state);
+
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
