@@ -1259,7 +1259,6 @@ export default function WeatherForcastMap({
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
-  const weatherforcastLabelsLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
   const weatherMarkersRef = useRef<L.Marker[]>([]);
