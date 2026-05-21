@@ -730,6 +730,7 @@ export default function WeatherForecastPage({
                       className="absolute inset-0 w-full h-full rounded-none"
                       badgeText={selectedDistrictId?.name ?? "Uganda"}
                       getTheBounds={selectedDistrictId?.name ?? ""}
+                      district_list={district_list}
                     />
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
                       <FloodHourSlider
@@ -926,6 +927,7 @@ export default function WeatherForecastPage({
                   className="absolute inset-0 w-full h-full"
                   badgeText={selectedDistrictId?.name ?? "Uganda"}
                   getTheBounds={selectedDistrictId?.name ?? ""}
+                  district_list={district_list}
                 />
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}
