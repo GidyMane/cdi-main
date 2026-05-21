@@ -6,17 +6,25 @@ function Districts_list({ district_list, isDarkMode, textMuted }: any) {
     (state) => state,
   );
 
+  // Deduplicate by id to prevent duplicate entries from the API response
+  const unique: district[] = district_list
+    ? Array.from(
+        new Map((district_list as district[]).map((d) => [d.id, d])).values(),
+      ).sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
   return (
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Districts</label>
       <select
-        // ── Use the id as the select value, not the whole object ──────────
-        value={selectedDistrictId?.id}
+        value={selectedDistrictId?.id ?? ""}
         onChange={(e) => {
-          // Find the full district object by id and pass it to the store
-          const found = district_list?.find(
-            (r: district) => r.id === Number(e.target.value),
-          );
+          if (!e.target.value) {
+            // "All Districts" selected — clear district and reset map
+            setSelectedDistrictId(undefined);
+            return;
+          }
+          const found = unique.find((r) => r.id === Number(e.target.value));
           if (found) setSelectedDistrictId(found);
         }}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${
@@ -26,8 +34,7 @@ function Districts_list({ district_list, isDarkMode, textMuted }: any) {
         }`}
       >
         <option value="">All Districts</option>
-        {district_list?.map((r: district) => (
-          // ── Use r.id as the option value, not the object ─────────────────
+        {unique.map((r) => (
           <option key={r.id} value={r.id}>
             {r.name}
           </option>

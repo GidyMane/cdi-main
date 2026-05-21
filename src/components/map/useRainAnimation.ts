@@ -5,107 +5,163 @@ import type { FeatureCollection, Feature, Polygon, MultiPolygon } from "geojson"
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface RainyDistrict {
-  /** District name — must match the `name` property in your GeoJSON features */
   name: string;
-  /** Mean rainfall in mm — used to pick drop colour */
   meanMm: number;
-  /** 0–100: percentage of district area that is rainy — controls drop density */
   rainyPct?: number;
+  speedScale?: number; // 1 = normal, >1 = faster (heavy rain)
 }
 
-interface RainDrop {
-  x: number;
-  y: number;
-  len: number;
+interface Drop {
+  nx: number;
+  ny: number;
+  size: number;
   speed: number;
   opacity: number;
   angle: number;
 }
 
+type Bbox = { x0: number; y0: number; x1: number; y1: number };
+
 interface RainZone {
-  /** Original GeoJSON geometry — kept so we can reproject every frame */
   geometry: Polygon | MultiPolygon;
-  r: number;
-  g: number;
-  b: number;
-  drops: RainDrop[];
-  /** Normalised drop positions in [0,1] relative to the geo bounding box.
-   *  We store these so drops survive pan/zoom without resetting. */
-  normDrops: { nx: number; ny: number }[];
+  r: number; g: number; b: number;
+  layerDrops: [Drop[], Drop[], Drop[]]; // pre-sorted — no filter() per frame
+  _path: Path2D | null;                  // cached; null means needs rebuild
+  _bbox: Bbox | null;
 }
 
-// ── Colour ramp ───────────────────────────────────────────────────────────────
+// ── Layer definitions ─────────────────────────────────────────────────────────
+// Three depth layers: background (slow, tiny) → foreground (fast, larger).
+// Speeds are normalised-y per frame at 60 fps, scaled by delta-time.
 
-function rainColor(meanMm: number): [number, number, number] {
-  if (meanMm >= 300) return [3,   20,  58];
-  if (meanMm >= 150) return [8,   48,  107];
-  if (meanMm >= 50)  return [33,  113, 181];
-  if (meanMm >= 10)  return [107, 174, 214];
-  return                    [198, 219, 239];
+const LAYERS = [
+  { fraction: 0.45, speedBase: 0.032, speedVar: 0.008, sizeBase: 1.4, sizeVar: 0.5, opBase: 0.30, opVar: 0.10, angle: 0.06 },
+  { fraction: 0.35, speedBase: 0.055, speedVar: 0.010, sizeBase: 2.2, sizeVar: 0.7, opBase: 0.52, opVar: 0.12, angle: 0.10 },
+  { fraction: 0.20, speedBase: 0.082, speedVar: 0.014, sizeBase: 3.2, sizeVar: 1.0, opBase: 0.75, opVar: 0.15, angle: 0.14 },
+] as const;
+
+const BASE_DROPS = 130;
+
+// ── Intensity colour ──────────────────────────────────────────────────────────
+
+function rainColor(mm: number): [number, number, number] {
+  if (mm >= 300) return [  8,  48, 107];
+  if (mm >= 100) return [ 33, 113, 181];
+  if (mm >= 50)  return [ 66, 146, 198];
+  if (mm >= 25)  return [107, 174, 214];
+  if (mm >= 10)  return [158, 202, 225];
+  return                 [198, 219, 239];
 }
 
-// ── Coordinate helpers ────────────────────────────────────────────────────────
+// ── GeoJSON → canvas helpers (results are cached per zone) ────────────────────
 
-/** Convert a GeoJSON [lon, lat] ring to canvas pixel points */
-function ringToPixels(ring: number[][], map: L.Map): [number, number][] {
-  return ring.map(([lon, lat]) => {
-    const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-    return [pt.x, pt.y];
-  });
-}
-
-/** Build a Path2D clipping path for a Polygon or MultiPolygon geometry */
-function geomToPath(geometry: Polygon | MultiPolygon, map: L.Map): Path2D {
+function buildPath(geo: Polygon | MultiPolygon, map: L.Map): Path2D {
   const path = new Path2D();
-
-  const addRing = (ring: number[][]) => {
-    const pts = ringToPixels(ring, map);
-    if (!pts.length) return;
-    path.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) path.lineTo(pts[i][0], pts[i][1]);
+  const ring = (pts: number[][]) => {
+    const px = pts.map(([lo, la]) => map.latLngToContainerPoint(L.latLng(la, lo)));
+    if (!px.length) return;
+    path.moveTo(px[0].x, px[0].y);
+    for (let i = 1; i < px.length; i++) path.lineTo(px[i].x, px[i].y);
     path.closePath();
   };
-
-  if (geometry.type === "Polygon") {
-    geometry.coordinates.forEach(addRing);
-  } else {
-    geometry.coordinates.forEach((poly) => poly.forEach(addRing));
-  }
-
+  if (geo.type === "Polygon") geo.coordinates.forEach(ring);
+  else geo.coordinates.forEach((p) => p.forEach(ring));
   return path;
 }
 
-/** Pixel bounding box of a geometry at the current map view */
-function geomPixelBbox(geometry: Polygon | MultiPolygon, map: L.Map) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-  const check = ([lon, lat]: number[]) => {
-    const pt = map.latLngToContainerPoint(L.latLng(lat, lon));
-    if (pt.x < minX) minX = pt.x;
-    if (pt.x > maxX) maxX = pt.x;
-    if (pt.y < minY) minY = pt.y;
-    if (pt.y > maxY) maxY = pt.y;
+function buildBbox(geo: Polygon | MultiPolygon, map: L.Map): Bbox {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const check = ([lo, la]: number[]) => {
+    const p = map.latLngToContainerPoint(L.latLng(la, lo));
+    if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+    if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
   };
-
-  const outerRing = (rings: number[][][]) => rings[0]?.forEach(check);
-
-  if (geometry.type === "Polygon") {
-    outerRing(geometry.coordinates);
-  } else {
-    geometry.coordinates.forEach((poly) => outerRing(poly));
-  }
-
-  return { minX, minY, maxX, maxY };
+  if (geo.type === "Polygon") geo.coordinates[0]?.forEach(check);
+  else geo.coordinates.forEach((p) => p[0]?.forEach(check));
+  return { x0, y0, x1, y1 };
 }
 
 // ── Drop factory ──────────────────────────────────────────────────────────────
 
-function newNormDrop(): { nx: number; ny: number } {
+function newDrop(layer: typeof LAYERS[number], scatter: boolean, speedScale: number): Drop {
+  const v = (b: number, s: number) => b + (Math.random() - 0.5) * s * 2;
   return {
-    nx: Math.random(),
-    // start above the top of the bbox (negative normalised y)
-    ny: -(Math.random() * 0.5),
+    nx:      Math.random(),
+    ny:      scatter ? Math.random() : -(Math.random() * 0.9),
+    size:    Math.max(0.8, v(layer.sizeBase, layer.sizeVar)),
+    speed:   Math.max(0.008, v(layer.speedBase, layer.speedVar)) * speedScale,
+    opacity: Math.max(0.05, v(layer.opBase, layer.opVar)),
+    angle:   (Math.random() - 0.5) * layer.angle * 2,
   };
+}
+
+// ── Draw a single raindrop ────────────────────────────────────────────────────
+// Layer-aware: bg drops use a cheap solid fill to minimise gradient GC pressure.
+// Mid drops get a gradient body only. Foreground drops get the full teardrop.
+
+function drawDrop(
+  ctx: CanvasRenderingContext2D,
+  px: number, py: number,
+  d: Drop,
+  r: number, g: number, b: number,
+  li: number,
+) {
+  const s = d.size;
+  const w = s * 0.38;
+  const tailH = s * 1.85;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(d.angle);
+
+  if (li === 0) {
+    // Background — cheap pill shape, no gradient
+    ctx.globalAlpha = d.opacity * 0.7;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath();
+    ctx.ellipse(0, -(tailH * 0.3), w * 0.55, s * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (li === 1) {
+    // Mid — gradient body, no specular
+    const grad = ctx.createLinearGradient(0, -tailH, 0, s * 0.5);
+    grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+    grad.addColorStop(0.5, `rgba(${r},${g},${b},${d.opacity * 0.5})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},${d.opacity})`);
+    ctx.beginPath();
+    ctx.moveTo(0, -tailH);
+    ctx.bezierCurveTo( w * 0.5, -tailH * 0.3,  w,  s * 0.1, 0, s * 0.5);
+    ctx.bezierCurveTo(-w,  s * 0.1, -w * 0.5, -tailH * 0.3, 0, -tailH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  } else {
+    // Foreground — full teardrop with specular highlight
+    const grad = ctx.createLinearGradient(0, -tailH, 0, s * 0.5);
+    grad.addColorStop(0,   `rgba(${r},${g},${b},0)`);
+    grad.addColorStop(0.4, `rgba(${r},${g},${b},${d.opacity * 0.4})`);
+    grad.addColorStop(1,   `rgba(${r},${g},${b},${d.opacity})`);
+    ctx.beginPath();
+    ctx.moveTo(0, -tailH);
+    ctx.bezierCurveTo( w * 0.5, -tailH * 0.3,  w,  s * 0.1, 0, s * 0.5);
+    ctx.bezierCurveTo(-w,  s * 0.1, -w * 0.5, -tailH * 0.3, 0, -tailH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Specular highlight
+    const hx = -w * 0.18;
+    const hy = -s * 0.04;
+    const hGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, w * 0.44);
+    hGrad.addColorStop(0, `rgba(255,255,255,${d.opacity * 0.55})`);
+    hGrad.addColorStop(1, `rgba(255,255,255,0)`);
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, w * 0.44, s * 0.24, 0, 0, Math.PI * 2);
+    ctx.fillStyle = hGrad;
+    ctx.fill();
+  }
+
+  ctx.restore();
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -114,73 +170,71 @@ export function useRainAnimation(
   mapRef: React.RefObject<L.Map | null>,
   geoData: FeatureCollection | null | undefined,
 ) {
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const zonesRef    = useRef<RainZone[]>([]);
-  const frameRef    = useRef<number | null>(null);
-  const enabledRef  = useRef(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const zonesRef  = useRef<RainZone[]>([]);
+  const frameRef  = useRef<number | null>(null);
 
-  // ── Build a lookup: lowercase district name → GeoJSON feature ──────────────
   const buildByName = useCallback(() => {
-    if (!geoData?.features) return {} as Record<string, Feature>;
-    const byName: Record<string, Feature> = {};
-    geoData.features.forEach((f) => {
+    const out: Record<string, Feature> = {};
+    geoData?.features?.forEach((f) => {
       const p = f.properties ?? {};
-      const n = (
-        p.name ?? p.Name ?? p.NAME ??
-        p.DNAME2019 ?? p.dname2019 ??
-        p.district_name ?? p.DISTRICT ??
-        p.ADM2_EN ?? p.adm2_en ?? ""
-      ).toLowerCase().trim() as string;
-      if (n) byName[n] = f;
+      const n = (p.name ?? p.Name ?? p.NAME ?? p.district_name ?? "")
+        .toLowerCase().trim() as string;
+      if (n) out[n] = f;
     });
-    return byName;
+    return out;
   }, [geoData]);
 
-  // ── Sync canvas size to its CSS size ──────────────────────────────────────
-  const syncCanvasSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const { offsetWidth: w, offsetHeight: h } = canvas;
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width  = w;
-      canvas.height = h;
+  // DPR-aware canvas sizing
+  const syncSize = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cw  = c.offsetWidth;
+    const ch  = c.offsetHeight;
+    if (c.width !== Math.round(cw * dpr) || c.height !== Math.round(ch * dpr)) {
+      c.width  = Math.round(cw * dpr);
+      c.height = Math.round(ch * dpr);
     }
   }, []);
 
-  // ── Build zones from a list of rainy districts ────────────────────────────
+  // Invalidate cached path/bbox on map pan or zoom
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const invalidate = () => {
+      zonesRef.current.forEach((z) => { z._path = null; z._bbox = null; });
+    };
+    map.on("move zoom", invalidate);
+    return () => { map.off("move zoom", invalidate); };
+  }, [mapRef]);
+
+  // Build zones from rainy-district list
   const setRainyDistricts = useCallback(
     (districts: RainyDistrict[]) => {
-      if (!districts.length) {
-        zonesRef.current = [];
-        return;
-      }
-
+      if (!districts.length) { zonesRef.current = []; return; }
       const byName = buildByName();
       const zones: RainZone[] = [];
 
       districts.forEach((d) => {
-        const key  = d.name.toLowerCase().trim();
-        const feat = byName[key];
+        const feat = byName[d.name.toLowerCase().trim()];
         if (!feat) return;
-
-        const geom = feat.geometry as Polygon | MultiPolygon;
-        if (geom.type !== "Polygon" && geom.type !== "MultiPolygon") return;
+        const geo = feat.geometry as Polygon | MultiPolygon;
+        if (geo.type !== "Polygon" && geo.type !== "MultiPolygon") return;
 
         const [r, g, b] = rainColor(d.meanMm);
-        const pct   = d.rainyPct ?? 60;
-        const count = Math.max(3, Math.round((pct / 100) * 40));
+        const pct       = Math.max(0, Math.min(100, d.rainyPct ?? 50));
+        const sScale    = d.speedScale ?? 1;
+        const total     = Math.max(10, Math.round(BASE_DROPS * (pct / 100)));
 
-        // Normalised drop positions — independent of current pixel coords
-        const normDrops = Array.from({ length: count }, newNormDrop);
+        const layerDrops: [Drop[], Drop[], Drop[]] = [[], [], []];
+        LAYERS.forEach((layer, li) => {
+          const n = Math.round(total * layer.fraction);
+          for (let i = 0; i < n; i++)
+            layerDrops[li as 0 | 1 | 2].push(newDrop(layer, true, sScale));
+        });
 
-        // Also keep pixel drops for the animation loop (rebuilt each frame)
-        const drops: RainDrop[] = Array.from({ length: count }, () =>
-          ({ x: 0, y: 0, len: Math.random() * 12 + 5,
-             speed: Math.random() * 3.5 + 2.5,
-             opacity: Math.random() * 0.45 + 0.2, angle: 0.10 }),
-        );
-
-        zones.push({ geometry: geom, r, g, b, drops, normDrops });
+        zones.push({ geometry: geo, r, g, b, layerDrops, _path: null, _bbox: null });
       });
 
       zonesRef.current = zones;
@@ -190,66 +244,61 @@ export function useRainAnimation(
 
   // ── Animation loop ────────────────────────────────────────────────────────
   const startAnimation = useCallback(() => {
-    if (frameRef.current) return; // already running
+    if (frameRef.current) return;
+    syncSize();
 
-    // Sync canvas size immediately before the first frame
-    syncCanvasSize();
+    let lastTs = 0;
 
-    const tick = () => {
+    const tick = (ts: number) => {
       const map    = mapRef.current;
       const canvas = canvasRef.current;
-      if (!map || !canvas) {
-        frameRef.current = requestAnimationFrame(tick);
-        return;
-      }
+      if (!map || !canvas) { frameRef.current = requestAnimationFrame(tick); return; }
 
-      // Keep canvas sized to its CSS box every frame (handles resize + zoom)
-      syncCanvasSize();
+      syncSize();
+
+      // Delta-time: normalise to 60 fps; cap to avoid jump when tab was hidden
+      const dt = lastTs > 0 ? Math.min((ts - lastTs) / 16.667, 2) : 1;
+      lastTs = ts;
 
       const ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const dpr = window.devicePixelRatio || 1;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
 
       zonesRef.current.forEach((z) => {
-        const { r, g, b, drops, normDrops, geometry } = z;
+        if (!z._bbox) z._bbox = buildBbox(z.geometry, map);
+        const bb = z._bbox;
+        if (!isFinite(bb.x0) || bb.x1 <= bb.x0 || bb.y1 <= bb.y0) return;
+        if (!z._path) z._path = buildPath(z.geometry, map);
 
-        // ── Reproject geometry to current pixel coords every frame ──────────
-        const bbox = geomPixelBbox(geometry, map);
-        if (
-          !isFinite(bbox.minX) || !isFinite(bbox.maxX) ||
-          bbox.maxX <= bbox.minX || bbox.maxY <= bbox.minY
-        ) return;
-
-        const path = geomToPath(geometry, map);
-        const w = bbox.maxX - bbox.minX;
-        const h = bbox.maxY - bbox.minY;
+        const bw = bb.x1 - bb.x0;
+        const bh = bb.y1 - bb.y0;
 
         ctx.save();
-        ctx.clip(path, "evenodd");
+        ctx.clip(z._path, "evenodd");
 
-        drops.forEach((d, i) => {
-          const nd = normDrops[i];
+        // Back-to-front (bg → mid → fg) for correct depth ordering
+        for (let li = 0; li < 3; li++) {
+          const drops = z.layerDrops[li as 0 | 1 | 2];
+          for (let i = 0; i < drops.length; i++) {
+            const d = drops[i];
+            const px = bb.x0 + d.nx * bw;
+            const py = bb.y0 + d.ny * bh;
 
-          // Map normalised position → current pixel position
-          d.x = bbox.minX + nd.nx * w;
-          d.y = bbox.minY + nd.ny * h;
+            drawDrop(ctx, px, py, d, z.r, z.g, z.b, li);
 
-          ctx.beginPath();
-          ctx.strokeStyle = `rgba(${r},${g},${b},${d.opacity})`;
-          ctx.lineWidth   = 1;
-          ctx.moveTo(d.x, d.y);
-          ctx.lineTo(d.x + Math.sin(d.angle) * d.len, d.y + d.len);
-          ctx.stroke();
+            d.ny += d.speed * dt;
+            d.nx += Math.sin(d.angle) * d.speed * 0.16 * dt;
 
-          // Advance normalised position
-          nd.ny += d.speed / h;
-          nd.nx += (Math.sin(d.angle) * d.speed * 0.35) / w;
-
-          // Reset when drop exits the bottom
-          if (nd.ny > 1 + d.len / h) {
-            nd.nx = Math.random();
-            nd.ny = -(Math.random() * 0.5);
+            if (d.ny > 1 + (d.size * 3) / bh) {
+              d.nx = Math.random();
+              d.ny = -(Math.random() * 0.8);
+            }
+            if (d.nx < -0.05) d.nx += 1.1;
+            if (d.nx > 1.05)  d.nx -= 1.1;
           }
-        });
+        }
 
         ctx.restore();
       });
@@ -258,52 +307,41 @@ export function useRainAnimation(
     };
 
     frameRef.current = requestAnimationFrame(tick);
-  }, [mapRef, syncCanvasSize]);
+  }, [mapRef, syncSize]);
 
   const stopAnimation = useCallback(() => {
     if (frameRef.current) {
       cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     }
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    const c = canvasRef.current;
+    if (c) {
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, c.width, c.height);
+      }
     }
   }, []);
 
-  // ── Toggle on/off ─────────────────────────────────────────────────────────
-  const setEnabled = useCallback(
-    (on: boolean) => {
-      enabledRef.current = on;
-      if (on && zonesRef.current.length) startAnimation();
-      else stopAnimation();
-    },
-    [startAnimation, stopAnimation],
-  );
-
-  // ── Resize canvas when the container changes size ─────────────────────────
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ro = new ResizeObserver(() => syncCanvasSize());
-    ro.observe(canvas);
+    const c = canvasRef.current;
+    if (!c) return;
+    const ro = new ResizeObserver(syncSize);
+    ro.observe(c);
     return () => ro.disconnect();
-  }, [syncCanvasSize]);
+  }, [syncSize]);
 
-  // ── Cleanup on unmount ────────────────────────────────────────────────────
-  useEffect(() => {
-    return () => stopAnimation();
-  }, [stopAnimation]);
+  useEffect(() => () => stopAnimation(), [stopAnimation]);
 
   return {
     canvasRef,
     setRainyDistricts: (districts: RainyDistrict[]) => {
       setRainyDistricts(districts);
-      if (enabledRef.current && districts.length) startAnimation();
+      if (districts.length) startAnimation();
       else stopAnimation();
     },
     startAnimation,
     stopAnimation,
-    setEnabled,
   };
 }
