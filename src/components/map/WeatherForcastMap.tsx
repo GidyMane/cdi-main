@@ -1089,13 +1089,13 @@ function makeMarkerHtml(value: number, unit: string, color: string, param: strin
   // fully contains it. transform moves the whole thing so the arrow tip lands exactly
   // on the geographic anchor (iconAnchor [0,0] = top-left of this wrapper's 1×1 box).
   return `<div style="display:inline-block;position:relative;padding-bottom:8px;transform:translate(-50%,-100%);font-family:ui-sans-serif,system-ui,sans-serif;">
-  <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1.5px solid ${color};border-radius:999px;padding:5px 12px 5px 9px;box-shadow:0 4px 18px rgba(0,0,0,0.65);">
+  <div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:rgba(8,12,24,0.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:999px;padding:5px 12px 5px 9px;box-shadow:0 4px 18px rgba(0,0,0,0.65);">
     ${icon}
     <span style="font-size:11px;font-weight:700;color:${color};letter-spacing:0.01em;">${value}${unit}</span>
     <span style="display:inline-block;width:1px;height:11px;background:rgba(255,255,255,0.2);border-radius:1px;flex-shrink:0;"></span>
     <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.85);">${label}</span>
   </div>
-  <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:8px solid ${color};"></div>
+  <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid rgba(255,255,255,0.5);"></div>
 </div>`;
 }
 
@@ -1270,7 +1270,7 @@ export default function WeatherForcastMap({
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(["country"]));
   const [isRasterLoading, setRasterIsLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(null);
@@ -1542,6 +1542,17 @@ export default function WeatherForcastMap({
     });
     weatherforcastMapRef.current.on('mouseout', () => setHoveredDistrictName(null));
 
+    // ── Country boundary on by default ───────────────────────────────────
+    const countryWms = L.tileLayer.wms(GEO_SERVER_URL, {
+      layers: "wfews:country",
+      format: "image/png",
+      transparent: true,
+      version: "1.1.0",
+      opacity: 1.0,
+    }).addTo(weatherforcastMapRef.current);
+    countryWms.bringToFront();
+    weatherforcastwmsLayersRef.current["country"] = countryWms;
+
     // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() => weatherforcastMapRef.current?.invalidateSize());
     ro.observe(mapWeatherforcastContainerRef.current);
@@ -1647,114 +1658,85 @@ export default function WeatherForcastMap({
       weatherforcastrasterLayerRef.current = null;
     }
 
-    //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
-    const param = () => {
-      switch (selectedParameter?.toLocaleLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "gee_weather_rainfall";
-        default:
-          return null;
+    const paramName = ((): string | null => {
+      switch (selectedParameter?.toLowerCase()) {
+        case "temperature":   return "gee_weather_temperature";
+        case "precipitation": return "precip";
+        case "drought":       return "drought";
+        case "rainfall":      return "gee_weather_rainfall";
+        default:              return null;
       }
-    };
+    })();
 
-    
+    if (paramName) {
+      const layerName = `wfews:${paramName}_${removeLastTwoDigits(dateRange?.replace(/-/g, "") ?? "")}`;
+      weatherforcastrasterLayerRef.current = L.tileLayer
+        .wms(GEO_SERVER_URL, {
+          layers: layerName,
+          format: "image/png",
+          transparent: true,
+          version: "1.1.0",
+          opacity: 0.85,
+        })
+        .on("loading", () => setRasterIsLoading(true))
+        .on("load",    () => setRasterIsLoading(false))
+        .on("tileerror", () => setRasterIsLoading(false))
+        .addTo(weatherforcastMapRef.current);
+      weatherforcastrasterLayerRef.current.bringToFront();
+    }
 
-    const layerName = `wfews:${param()}_${removeLastTwoDigits(dateRange?.replace(/-/g, ""))}`; // e.g. "wfews:flood_20260301_24h"
-
-    console.log("layerName",layerName)
-
-    weatherforcastrasterLayerRef.current = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: layerName,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      })
-      .on("loading", () => {
-    setRasterIsLoading(true);
-  })
-  .on("load", () => {
-    setRasterIsLoading(false);
-  })
-  .on("tileerror", () => {
-    setRasterIsLoading(false);
-  })
-      .addTo(weatherforcastMapRef.current);
-
-    // ── Rain animation: start when rainfall parameter is active ───────────────
+    // ── Rain animation: districts with light rain or above (>= 10 mm) ────────
     if (selectedParameter?.toLowerCase() === "rainfall" && geoData?.features) {
-      const rainyDistricts = geoData.features
+      const rainyDistricts = (geoData.features as any[])
         .filter((f: any) => f?.properties?.name)
-        .map((f: any) => ({
-          name:     f.properties.name as string,
-          meanMm:   f.properties.mean_rainfall ?? 80,  // use real value if available
-          rainyPct: f.properties.rainy_pct     ?? 60,
-        }));
+        .map((f: any) => {
+          const name = f.properties.name as string;
+          const meanMm = getDistrictValue(name, "rainfall");
+          return { name, meanMm, rainyPct: Math.min(100, meanMm * 1.5) };
+        })
+        .filter((d) => d.meanMm >= 10);
       setRainyDistricts(rainyDistricts);
     } else {
       setRainyDistricts([]);
     }
   }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
-  // hourly forcast
-   useEffect(() => {
+  // ── Hourly raster ────────────────────────────────────────────────────────────
+  useEffect(() => {
     if (!weatherforcastMapRef.current) return;
-    if (sliderhourIndexValue === "000") return
+    if (!sliderhourIndexValue || sliderhourIndexValue === "000") return;
 
-    // Remove old raster layer
     if (weatherforcastrasterLayerRef.current) {
       weatherforcastMapRef.current.removeLayer(weatherforcastrasterLayerRef.current);
       weatherforcastrasterLayerRef.current = null;
     }
 
-    //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
-    const param = () => {
-      switch (selectedParameter?.toLocaleLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "gee_weather_rainfall";
-        default:
-          return null;
+    const paramName = ((): string | null => {
+      switch (selectedParameter?.toLowerCase()) {
+        case "temperature":   return "gee_weather_temperature";
+        case "precipitation": return "precip";
+        case "drought":       return "drought";
+        case "rainfall":      return "gee_weather_rainfall";
+        default:              return null;
       }
-    };
+    })();
+    if (!paramName) return;
 
-    
-
-    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}_${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
-
-    console.log("layerName",layerName)
-
+    const layerName = `wfews:${paramName}_${dateRange?.replace(/-/g, "") ?? ""}_${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`;
     weatherforcastrasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
         layers: layerName,
         format: "image/png",
         transparent: true,
         version: "1.1.0",
-        opacity: 1.0,
+        opacity: 0.85,
       })
-       .on("loading", () => {
-    setRasterIsLoading(true);
-  })
-  .on("load", () => {
-    setRasterIsLoading(false);
-  })
-  .on("tileerror", () => {
-    setRasterIsLoading(false);
-  })
+      .on("loading",   () => setRasterIsLoading(true))
+      .on("load",      () => setRasterIsLoading(false))
+      .on("tileerror", () => setRasterIsLoading(false))
       .addTo(weatherforcastMapRef.current);
-  }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
+    weatherforcastrasterLayerRef.current.bringToFront();
+  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // ── Weather district markers (one per district, value label) ────────────────
   useEffect(() => {
