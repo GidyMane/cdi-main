@@ -51,12 +51,7 @@ interface WeatherForecastPageProps {
 
 const FAO_BLUE = "#318DDE";
 
-const WEATHER_LEGEND_ITEMS = [
-  { label: "Sunny", color: "#fbbf24" },
-  { label: "Cloudy", color: "#94a3b8" },
-  { label: "Rainy", color: "#3b82f6" },
-  { label: "Storm", color: "#a855f7" },
-];
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
