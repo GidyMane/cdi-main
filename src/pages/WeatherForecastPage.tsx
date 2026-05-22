@@ -373,8 +373,8 @@ export default function WeatherForecastPage({
       try {
         const [dashboard, forecast, daily] = await Promise.all([
           weatherAPI.getDashboard(statsId),
-          weatherAPI.getForecastHourly(),
-          weatherAPI.getForecastDaily(),
+          weatherAPI.getForecastHourly(statsId),
+          weatherAPI.getForecastDaily(statsId),
         ]);
         setWeatherData(dashboard as WeatherData);
         setForecastData(forecast as ForecastPerHour);
@@ -413,20 +413,32 @@ export default function WeatherForecastPage({
     "Dec",
   ];
 
-  // Get chart data based on active tab, selected card, and metric
+  // Get chart data based on active tab, selected card, metric, and date filter
   const getChartData = () => {
     if (activeTab === "nowcast") {
+      let filtered = hourlyForecast;
+
+      // Filter by date if dateRange is set
+      if (dateRange) {
+        const selectedDate = new Date(dateRange);
+        filtered = hourlyForecast.filter((h) => {
+          if (!h.rawDate) return false;
+          return (
+            h.rawDate.getFullYear() === selectedDate.getFullYear() &&
+            h.rawDate.getMonth() === selectedDate.getMonth() &&
+            h.rawDate.getDate() === selectedDate.getDate()
+          );
+        });
+      }
+
       const sliced =
-        selectedCardIndex !== null && hourlyForecast[selectedCardIndex]
+        selectedCardIndex !== null && filtered[selectedCardIndex]
           ? (() => {
               const startIdx = Math.max(0, selectedCardIndex - 2);
-              const endIdx = Math.min(
-                hourlyForecast.length,
-                selectedCardIndex + 3,
-              );
-              return hourlyForecast.slice(startIdx, endIdx);
+              const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
+              return filtered.slice(startIdx, endIdx);
             })()
-          : hourlyForecast;
+          : filtered;
 
       return sliced.map((h) => {
         const displayTime = h.rawDate
@@ -444,17 +456,29 @@ export default function WeatherForecastPage({
         };
       });
     } else {
+      let filtered = dailyForecast;
+
+      // Filter by date if dateRange is set
+      if (dateRange) {
+        const selectedDate = new Date(dateRange);
+        filtered = dailyForecast.filter((d) => {
+          if (!d.rawDate) return false;
+          return (
+            d.rawDate.getFullYear() === selectedDate.getFullYear() &&
+            d.rawDate.getMonth() === selectedDate.getMonth() &&
+            d.rawDate.getDate() === selectedDate.getDate()
+          );
+        });
+      }
+
       const sliced =
-        selectedCardIndex !== null && dailyForecast[selectedCardIndex]
+        selectedCardIndex !== null && filtered[selectedCardIndex]
           ? (() => {
               const startIdx = Math.max(0, selectedCardIndex - 1);
-              const endIdx = Math.min(
-                dailyForecast.length,
-                selectedCardIndex + 2,
-              );
-              return dailyForecast.slice(startIdx, endIdx);
+              const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
+              return filtered.slice(startIdx, endIdx);
             })()
-          : dailyForecast;
+          : filtered;
 
       return sliced.map((d) => {
         const displayDate = d.rawDate
