@@ -153,13 +153,12 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
     switch (param) {
       case "rainfall":
         return `wfews:chirps_rainfall_${yyyymm}`;
-
       case "temperature":
         return `wfews:era5_temperature_${yyyymm}`;
       case "wind":
         return `wfews:era5_wind_${yyyymm}`;
       case "humidity":
-        return null; // MISSING
+        return `wfews:era5_humidity_${yyyymm}`; // MISSING
       default:
         return null;
     }
@@ -177,7 +176,7 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
       case "temperature":
         return `wfews:era5_temperature_${yyyymmdd}_${hh}`;
       case "humidity":
-        return null; // MISSING
+        return `wfews:era5_humidity_${yyyymmdd}_${hh}`; // MISSING
       default:
         return null;
     }
