@@ -8,7 +8,7 @@ import { capitalize } from "../../utils/capitalize";
 // import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers, Maximize2, Minimize2, Waves } from "lucide-react";
-import { FLOOD_HOURS } from "../shared/FloodHourSlider";
+import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 
 interface LegendItem {
@@ -171,9 +171,8 @@ export default function FloodMonitorMap({
   zoom = 6.8,
   minZoom = 6.8,
 }: UgandaBoundaryMapProps) {
-  const { selectedParameter, dateRange, currentPage,sliderhourIndexValue} = useAppStore(
-    (state) => state,
-  );
+  const { selectedParameter, dateRange, currentPage, sliderhourIndexValue } =
+    useAppStore((state) => state);
   // ── Refs ────────────────────────────────────────────────────────────────────
   const floodRootRef = useRef<HTMLDivElement>(null);
   const FloodMonitormapContainerRef = useRef<HTMLDivElement>(null);
@@ -195,11 +194,12 @@ export default function FloodMonitorMap({
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) floodRootRef.current?.requestFullscreen?.();
+    if (!document.fullscreenElement)
+      floodRootRef.current?.requestFullscreen?.();
     else document.exitFullscreen?.();
   };
 
@@ -223,7 +223,9 @@ export default function FloodMonitorMap({
   const drawBoundary = (geojson: any, color: string) => {
     if (!FloodMonitormapRef.current) return;
     if (FloodMonitorboundaryLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+      FloodMonitormapRef.current.removeLayer(
+        FloodMonitorboundaryLayerRef.current,
+      );
       FloodMonitorboundaryLayerRef.current = null;
     }
     FloodMonitorboundaryLayerRef.current = L.geoJSON(geojson, {
@@ -244,7 +246,9 @@ export default function FloodMonitorMap({
   ): boolean => {
     if (!FloodMonitormapRef.current) return false;
     const bounds = layer.getBounds();
-    const topLeft = FloodMonitormapRef.current.latLngToLayerPoint(bounds.getNorthWest());
+    const topLeft = FloodMonitormapRef.current.latLngToLayerPoint(
+      bounds.getNorthWest(),
+    );
     const bottomRight = FloodMonitormapRef.current.latLngToLayerPoint(
       bounds.getSouthEast(),
     );
@@ -273,7 +277,9 @@ export default function FloodMonitorMap({
 
     if (activeLayers.has(layerDef.id)) {
       if (FloodMonitorwmsLayersRef.current[layerDef.id]) {
-        FloodMonitormapRef.current.removeLayer(FloodMonitorwmsLayersRef.current[layerDef.id]);
+        FloodMonitormapRef.current.removeLayer(
+          FloodMonitorwmsLayersRef.current[layerDef.id],
+        );
         delete FloodMonitorwmsLayersRef.current[layerDef.id];
       }
       setActiveLayers((prev) => {
@@ -327,7 +333,10 @@ export default function FloodMonitorMap({
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [FloodMonitortileLayerRef.current, FloodMonitorLabelsLayerRef.current],
+      layers: [
+        FloodMonitortileLayerRef.current,
+        FloodMonitorLabelsLayerRef.current,
+      ],
       zoomControl: false,
       attributionControl: false,
     });
@@ -342,7 +351,8 @@ export default function FloodMonitorMap({
     // binds tooltip, opens it, and calls bringToFront() — then chains
     // .addTo(FloodMonitormapRef.current) at the end of eachLayer like the reference does.
     const updateLabelVisibility = () => {
-      if (!FloodMonitormapRef.current || !FloodMonitordistrictLayerRef.current) return;
+      if (!FloodMonitormapRef.current || !FloodMonitordistrictLayerRef.current)
+        return;
 
       FloodMonitordistrictLayerRef.current.eachLayer((layer: any) => {
         layer.closeTooltip();
@@ -390,7 +400,9 @@ export default function FloodMonitorMap({
 
       // Highlight only the clicked feature — pass the single Feature directly
       if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current!.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitormapRef.current!.removeLayer(
+          FloodMonitorboundaryLayerRef.current,
+        );
         FloodMonitorboundaryLayerRef.current = null;
       }
       FloodMonitorboundaryLayerRef.current = L.geoJSON(clickedFeature, {
@@ -429,7 +441,9 @@ export default function FloodMonitorMap({
     }
 
     // ── ResizeObserver ────────────────────────────────────────────────────
-    const ro = new ResizeObserver(() => FloodMonitormapRef.current?.invalidateSize());
+    const ro = new ResizeObserver(() =>
+      FloodMonitormapRef.current?.invalidateSize(),
+    );
     ro.observe(FloodMonitormapContainerRef.current);
 
     return () => {
@@ -443,7 +457,9 @@ export default function FloodMonitorMap({
   useEffect(() => {
     if (!FloodMonitormapRef.current) return;
     if (FloodMonitorLabelsLayerRef.current)
-      FloodMonitormapRef.current.removeLayer(FloodMonitorLabelsLayerRef.current);
+      FloodMonitormapRef.current.removeLayer(
+        FloodMonitorLabelsLayerRef.current,
+      );
     FloodMonitorLabelsLayerRef.current = L.tileLayer(
       isDarkMode
         ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
@@ -454,7 +470,8 @@ export default function FloodMonitorMap({
 
   // ── Highlight district when `district` prop changes externally ──────────────
   useEffect(() => {
-    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData))
+      return;
 
     if (
       !district ||
@@ -462,7 +479,9 @@ export default function FloodMonitorMap({
       district.trim().toLowerCase() === "all"
     ) {
       if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitormapRef.current.removeLayer(
+          FloodMonitorboundaryLayerRef.current,
+        );
         FloodMonitorboundaryLayerRef.current = null;
       }
       return;
@@ -480,7 +499,8 @@ export default function FloodMonitorMap({
   // Mirrors the third useEffect in UgandaMap — fits map bounds to a district
   // and locks the viewport to it, or resets to full Uganda view when "all".
   useEffect(() => {
-    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData)) return;
+    if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData))
+      return;
     if (!getTheBounds || getTheBounds.trim().length === 0) return;
 
     if (
@@ -488,7 +508,9 @@ export default function FloodMonitorMap({
       getTheBounds.trim() === ""
     ) {
       if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+        FloodMonitormapRef.current.removeLayer(
+          FloodMonitorboundaryLayerRef.current,
+        );
         FloodMonitorboundaryLayerRef.current = null;
       }
       FloodMonitormapRef.current.setView([1.3733, 32.2903], zoom);
@@ -505,7 +527,9 @@ export default function FloodMonitorMap({
     const updatedGeoJSON = { ...geoData, features: matched };
 
     if (FloodMonitorboundaryLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(FloodMonitorboundaryLayerRef.current);
+      FloodMonitormapRef.current.removeLayer(
+        FloodMonitorboundaryLayerRef.current,
+      );
       FloodMonitorboundaryLayerRef.current = null;
     }
 
@@ -522,38 +546,38 @@ export default function FloodMonitorMap({
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update the raster layer when indicator, month, or timerange changes
-  // Replace your existing raster layer effect with this:
+  // ── Raster layer ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!FloodMonitormapRef.current) return;
 
-    // Remove old raster layer
     if (FloodMonitorrasterLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(FloodMonitorrasterLayerRef.current);
+      FloodMonitormapRef.current.removeLayer(
+        FloodMonitorrasterLayerRef.current,
+      );
       FloodMonitorrasterLayerRef.current = null;
     }
 
-    //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
-    const param = () => {
-      switch (selectedParameter?.toLocaleLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "chirps_rainfall";
-        default:
-          return null;
-      }
-    };
+    const hour =
+      sliderhourIndexValue === "000"
+        ? "00"
+        : String(sliderhourIndexValue).padStart(2, "0");
 
-    
+    const layerName =
+      mapLayerName({
+        parameter: selectedParameter,
+        date: dateRange,
+        mode: "daily",
+        hour,
+      }) ??
+      mapLayerName({
+        parameter: selectedParameter,
+        date: dateRange,
+        mode: "monthly",
+      });
 
-    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
+    if (!layerName) return;
 
-    console.log("layerName",layerName)
+    console.log("layerName", layerName);
 
     FloodMonitorrasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
@@ -564,16 +588,16 @@ export default function FloodMonitorMap({
         opacity: 1.0,
       })
       .on("loading", () => {
-    setRasterIsLoading(true);
-  })
-  .on("load", () => {
-    setRasterIsLoading(false);
-  })
-  .on("tileerror", () => {
-    setRasterIsLoading(false);
-  })
+        setRasterIsLoading(true);
+      })
+      .on("load", () => {
+        setRasterIsLoading(false);
+      })
+      .on("tileerror", () => {
+        setRasterIsLoading(false);
+      })
       .addTo(FloodMonitormapRef.current);
-  }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
+  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
@@ -587,108 +611,112 @@ export default function FloodMonitorMap({
   })).filter((group) => group.layers.length > 0);
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-       <div ref={floodRootRef} className={`relative overflow-hidden ${className}`}>
-     {/* Map container */}
-     <div
-       ref={FloodMonitormapContainerRef}
-       className="absolute inset-0 z-0"
-       style={{
-         background: isDarkMode ? "#0f172a" : "#f1f5f9",
-       }}
-     />
-   
-     {/* Loading overlay */}
-     <div
-       className={`
+    <div ref={floodRootRef} className={`relative overflow-hidden ${className}`}>
+      {/* Map container */}
+      <div
+        ref={FloodMonitormapContainerRef}
+        className="absolute inset-0 z-0"
+        style={{
+          background: isDarkMode ? "#0f172a" : "#f1f5f9",
+        }}
+      />
+
+      {/* Loading overlay */}
+      <div
+        className={`
          absolute inset-0 z-[500]
          flex items-center justify-center
          transition-all duration-300
-         ${!geoData || isRasterLoading
-           ? "opacity-100 visible"
-           : "opacity-0 invisible pointer-events-none"}
+         ${
+           !geoData || isRasterLoading
+             ? "opacity-100 visible"
+             : "opacity-0 invisible pointer-events-none"
+         }
          ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
        `}
-     >
-       <div className="flex flex-col items-center gap-3">
-         {/* Spinner */}
-         <div
-           className="w-8 h-8 rounded-full border-2 animate-spin"
-           style={{
-             borderColor: `${FAO_BLUE}30`,
-             borderTopColor: FAO_BLUE,
-           }}
-         />
-   
-         {/* Loading text */}
-         {/* <span
+      >
+        <div className="flex flex-col items-center gap-3">
+          {/* Spinner */}
+          <div
+            className="w-8 h-8 rounded-full border-2 animate-spin"
+            style={{
+              borderColor: `${FAO_BLUE}30`,
+              borderTopColor: FAO_BLUE,
+            }}
+          />
+
+          {/* Loading text */}
+          {/* <span
            className={`text-xs font-medium tracking-wide ${
              isDarkMode ? "text-slate-300" : "text-slate-600"
            }`}
          >
            Loading weather layers...
          </span> */}
-       </div>
-     </div>
-   
-     {/* Badge */}
-     <div className="absolute top-2 left-2 z-[400]">
-       <span
-         className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
-         style={{
-           backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
-           color: FAO_BLUE,
-         }}
-       >
-         {badgeText}
-       </span>
-     </div>
-   
-     {/* Fullscreen button */}
-     <button
-       onClick={toggleFullscreen}
-       title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-       className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
-       style={{
-         background: "rgba(10,15,30,0.65)",
-         backdropFilter: "blur(8px)",
-         WebkitBackdropFilter: "blur(8px)",
-         border: `1px solid ${FAO_BLUE}55`,
-       }}
-     >
-       {isFullscreen
-         ? <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-         : <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />}
-     </button>
+        </div>
+      </div>
 
-     {/* MAP LAYERS toggle button */}
-     <button
-       onClick={() => setShowLayerPanel((v) => !v)}
-       className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
-       style={{
-         backgroundColor: showLayerPanel
-           ? FAO_BLUE
-           : isDarkMode
-             ? "#1e293b"
-             : "#ffffff",
-         color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-         border: `1px solid ${FAO_BLUE}55`,
-       }}
-     >
-       <Layers className="w-3.5 h-3.5" />
-       MAP LAYERS
-     </button>
-   
-     {/* Layer panel */}
-     {showLayerPanel && (
-       <>
-         {/* Backdrop */}
-         <div
-           className="fixed inset-0 z-[600]"
-           onClick={() => setShowLayerPanel(false)}
-         />
-   
-         <div
-           className={`
+      {/* Badge */}
+      <div className="absolute top-2 left-2 z-[400]">
+        <span
+          className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
+          style={{
+            backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
+            color: FAO_BLUE,
+          }}
+        >
+          {badgeText}
+        </span>
+      </div>
+
+      {/* Fullscreen button */}
+      <button
+        onClick={toggleFullscreen}
+        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+        style={{
+          background: "rgba(10,15,30,0.65)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          border: `1px solid ${FAO_BLUE}55`,
+        }}
+      >
+        {isFullscreen ? (
+          <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+        ) : (
+          <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+        )}
+      </button>
+
+      {/* MAP LAYERS toggle button */}
+      <button
+        onClick={() => setShowLayerPanel((v) => !v)}
+        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+        style={{
+          backgroundColor: showLayerPanel
+            ? FAO_BLUE
+            : isDarkMode
+              ? "#1e293b"
+              : "#ffffff",
+          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
+          border: `1px solid ${FAO_BLUE}55`,
+        }}
+      >
+        <Layers className="w-3.5 h-3.5" />
+        MAP LAYERS
+      </button>
+
+      {/* Layer panel */}
+      {showLayerPanel && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-[600]"
+            onClick={() => setShowLayerPanel(false)}
+          />
+
+          <div
+            className={`
              absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
              flex flex-col
              ${
@@ -697,162 +725,178 @@ export default function FloodMonitorMap({
                  : "bg-white border border-slate-200"
              }
            `}
-           style={{
-             maxHeight: "90%",
-           }}
-         >
-           {/* Panel header */}
-           <div
-             className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
-             style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
-           >
-             <span
-               className={`text-xs font-bold tracking-wide ${
-                 isDarkMode ? "text-white" : "text-slate-800"
-               }`}
-             >
-               MAP LAYERS
-             </span>
-   
-             <button
-               onClick={() => setShowLayerPanel(false)}
-               className={`p-0.5 rounded transition-colors ${
-                 isDarkMode
-                   ? "hover:bg-slate-700 text-slate-400"
-                   : "hover:bg-slate-100 text-slate-500"
-               }`}
-             >
-               <X className="w-3.5 h-3.5" />
-             </button>
-           </div>
-   
-           {/* Scrollable layer list */}
-           <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-             {visibleGroups?.map((group) => (
-               <div key={group.title} className="mb-1">
-                 {/* Group heading */}
-                 <p
-                   className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                   style={{ color: FAO_BLUE }}
-                 >
-                   {group.title}
-                 </p>
-   
-                 {/* Layer rows */}
-                 {group.layers.map((layerDef) => {
-                   const isActive = activeLayers.has(layerDef.id);
-   
-                   return (
-                     <div
-                       key={layerDef.id}
-                       onClick={() => toggleLayer(layerDef)}
-                       className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
-                         isDarkMode
-                           ? "hover:bg-slate-700/50"
-                           : "hover:bg-slate-50"
-                       }`}
-                     >
-                       <div className="flex items-center gap-2">
-                         {/* Checkbox */}
-                         <div
-                           className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                           style={{
-                             backgroundColor: isActive
-                               ? FAO_BLUE
-                               : "transparent",
-                             borderColor: isActive
-                               ? FAO_BLUE
-                               : isDarkMode
-                                 ? "#475569"
-                                 : "#cbd5e1",
-                           }}
-                         >
-                           {isActive && (
-                             <svg
-                               className="w-2.5 h-2.5 text-white"
-                               viewBox="0 0 10 10"
-                               fill="none"
-                             >
-                               <path
-                                 d="M1.5 5L4 7.5L8.5 2.5"
-                                 stroke="currentColor"
-                                 strokeWidth="1.5"
-                                 strokeLinecap="round"
-                                 strokeLinejoin="round"
-                               />
-                             </svg>
-                           )}
-                         </div>
-   
-                         <span
-                           className={`text-xs ${
-                             isDarkMode
-                               ? "text-slate-300"
-                               : "text-slate-700"
-                           }`}
-                         >
-                           {layerDef.label}
-                         </span>
-                       </div>
-   
-                       {/* Date badge */}
-                       {layerDef.date && (
-                         <span
-                           className={`text-[10px] ml-2 flex-shrink-0 ${
-                             isDarkMode
-                               ? "text-slate-500"
-                               : "text-slate-400"
-                           }`}
-                         >
-                           {layerDef.date}
-                         </span>
-                       )}
-                     </div>
-                   );
-                 })}
-               </div>
-             ))}
-           </div>
-         </div>
-       </>
-     )}
-   
-     {/* Legend — gradient bar with Waves icon */}
-     {legendTitle && legendItems.length > 0 && (() => {
-       const gradientStops = legendItems
-         .map((item, i) => `${item.color} ${Math.round((i / (legendItems.length - 1)) * 100)}%`)
-         .join(", ");
-       return (
-         <div
-           className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
-           style={{
-             background: "rgba(8,12,24,0.68)",
-             backdropFilter: "blur(14px)",
-             WebkitBackdropFilter: "blur(14px)",
-             border: "1px solid rgba(255,255,255,0.1)",
-             minWidth: 172,
-           }}
-         >
-           <div className="flex items-center gap-1.5 mb-2">
-             <Waves className="w-3.5 h-3.5" style={{ color: legendItems[legendItems.length - 1].color }} />
-             <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: legendItems[legendItems.length - 1].color }}>
-               {legendTitle}
-             </span>
-           </div>
-           <div className="h-2.5 rounded-full w-full" style={{ background: `linear-gradient(to right, ${gradientStops})` }} />
-           <div className="flex justify-between mt-1">
-             {legendItems.map((item) => (
-               <span key={item.label} className="text-[8px] font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>
-                 {item.label}
-               </span>
-             ))}
-           </div>
-         </div>
-       );
-     })()}
-   
-     {/* Leaflet label styles */}
-     <style>{`
+            style={{
+              maxHeight: "90%",
+            }}
+          >
+            {/* Panel header */}
+            <div
+              className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
+              style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
+            >
+              <span
+                className={`text-xs font-bold tracking-wide ${
+                  isDarkMode ? "text-white" : "text-slate-800"
+                }`}
+              >
+                MAP LAYERS
+              </span>
+
+              <button
+                onClick={() => setShowLayerPanel(false)}
+                className={`p-0.5 rounded transition-colors ${
+                  isDarkMode
+                    ? "hover:bg-slate-700 text-slate-400"
+                    : "hover:bg-slate-100 text-slate-500"
+                }`}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Scrollable layer list */}
+            <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
+              {visibleGroups?.map((group) => (
+                <div key={group.title} className="mb-1">
+                  {/* Group heading */}
+                  <p
+                    className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                    style={{ color: FAO_BLUE }}
+                  >
+                    {group.title}
+                  </p>
+
+                  {/* Layer rows */}
+                  {group.layers.map((layerDef) => {
+                    const isActive = activeLayers.has(layerDef.id);
+
+                    return (
+                      <div
+                        key={layerDef.id}
+                        onClick={() => toggleLayer(layerDef)}
+                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                          isDarkMode
+                            ? "hover:bg-slate-700/50"
+                            : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {/* Checkbox */}
+                          <div
+                            className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                            style={{
+                              backgroundColor: isActive
+                                ? FAO_BLUE
+                                : "transparent",
+                              borderColor: isActive
+                                ? FAO_BLUE
+                                : isDarkMode
+                                  ? "#475569"
+                                  : "#cbd5e1",
+                            }}
+                          >
+                            {isActive && (
+                              <svg
+                                className="w-2.5 h-2.5 text-white"
+                                viewBox="0 0 10 10"
+                                fill="none"
+                              >
+                                <path
+                                  d="M1.5 5L4 7.5L8.5 2.5"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </div>
+
+                          <span
+                            className={`text-xs ${
+                              isDarkMode ? "text-slate-300" : "text-slate-700"
+                            }`}
+                          >
+                            {layerDef.label}
+                          </span>
+                        </div>
+
+                        {/* Date badge */}
+                        {layerDef.date && (
+                          <span
+                            className={`text-[10px] ml-2 flex-shrink-0 ${
+                              isDarkMode ? "text-slate-500" : "text-slate-400"
+                            }`}
+                          >
+                            {layerDef.date}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Legend — gradient bar with Waves icon */}
+      {legendTitle &&
+        legendItems.length > 0 &&
+        (() => {
+          const gradientStops = legendItems
+            .map(
+              (item, i) =>
+                `${item.color} ${Math.round((i / (legendItems.length - 1)) * 100)}%`,
+            )
+            .join(", ");
+          return (
+            <div
+              className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
+              style={{
+                background: "rgba(8,12,24,0.68)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                minWidth: 172,
+              }}
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                <Waves
+                  className="w-3.5 h-3.5"
+                  style={{ color: legendItems[legendItems.length - 1].color }}
+                />
+                <span
+                  className="text-[10px] font-bold tracking-widest uppercase"
+                  style={{ color: legendItems[legendItems.length - 1].color }}
+                >
+                  {legendTitle}
+                </span>
+              </div>
+              <div
+                className="h-2.5 rounded-full w-full"
+                style={{
+                  background: `linear-gradient(to right, ${gradientStops})`,
+                }}
+              />
+              <div className="flex justify-between mt-1">
+                {legendItems.map((item) => (
+                  <span
+                    key={item.label}
+                    className="text-[8px] font-medium"
+                    style={{ color: "rgba(255,255,255,0.55)" }}
+                  >
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Leaflet label styles */}
+      <style>{`
        .district-label {
          background: transparent !important;
          border: none !important;
@@ -876,6 +920,6 @@ export default function FloodMonitorMap({
          text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8);
        }
      `}</style>
-   </div>
+    </div>
   );
 }

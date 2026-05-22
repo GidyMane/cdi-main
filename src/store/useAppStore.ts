@@ -81,6 +81,15 @@ export interface AppStoreState {
   //slider
   sliderhourIndexValue: string;
   setSliderhourIndexValue: (value: any) => void;
+
+  // Map layer mode
+  layerMode: "daily" | "monthly" | "forecast";
+  setLayerMode: (mode: "daily" | "monthly" | "forecast") => void;
+
+  // Forecast step in hours (24, 48, 72, 96, 120, 144, 168)
+  forecastStep: number;
+  // setForecastStep: (step: number) => void;
+  setForecastStep: (value: number | ((prev: number) => number)) => void;
 }
 
 export const useAppStore = create<AppStoreState>()(
@@ -157,6 +166,19 @@ export const useAppStore = create<AppStoreState>()(
       sliderhourIndexValue: "000",
       setSliderhourIndexValue: (value: string) =>
         set({ sliderhourIndexValue: value }),
+
+      // Map layer mode
+      layerMode: "daily",
+      setLayerMode: (mode) => set({ layerMode: mode }),
+
+      // Forecast step
+      forecastStep: 24,
+      // setForecastStep: (step) => set({ forecastStep: step }),
+      setForecastStep: (value) =>
+        set((state) => ({
+          forecastStep:
+            typeof value === "function" ? value(state.forecastStep) : value,
+        })),
     }),
     {
       name: "app-store",
