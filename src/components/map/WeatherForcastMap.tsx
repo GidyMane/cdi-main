@@ -21,8 +21,7 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
-import { FLOOD_HOURS } from "../shared/FloodHourSlider";
-import { removeLastTwoDigits } from "@/utils/woker_fn";
+import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 import type { district } from "@/types/data_types";
 // import { useWindAnimation } from "./useWindAnimation";
@@ -307,90 +306,12 @@ const today = new Date().toLocaleDateString("en-GB", {
   year: "numeric",
 });
 
-const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-  {
-    title: "FORECASTS",
-    layers: [
-      // flood monitor tab only
-      {
-        id: "flood",
-        label: "Flood Forecast",
-        wms: "flood_20260301_24h",
-        date: today,
-        pages: ["flood"],
-      },
-      // weather forecast tab only
-      {
-        id: "rainfall",
-        label: "Rainfall (CHIRPS-GEFS)",
-        wms: "chirps_gefs",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "heat_stress",
-        label: "Heat Stress WBGT",
-        wms: "wbgt",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "tmax",
-        label: "Max Temp (Tmax)",
-        wms: "chirts_tmax_20260428",
-        date: today,
-        pages: ["weather"],
-      },
-    ],
-  },
-  {
-    title: "BOUNDARIES",
-    layers: [
-      { id: "country", label: "Country", wms: "country", pages: ["*"] },
-      { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
-    ],
-  },
-  {
-    title: "HYDROLOGY",
-    layers: [
-      { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
-      {
-        id: "waterways",
-        label: "Waterways",
-        wms: "waterways",
-        pages: ["flood"],
-      },
-      {
-        id: "water_bodies",
-        label: "Water Bodies",
-        wms: "water_bodies",
-        pages: ["flood"],
-      },
-    ],
-  },
-  {
-    title: "INFRASTRUCTURE",
-    layers: [
-      { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
-      { id: "places", label: "Places", wms: "places", pages: ["*"] },
-      { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
-      { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
-    ],
-  },
-  // {
-  //   title: "POPULATION",
-  //   layers: [
-  //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
-  //   ],
-  // },
-];
-
 export default function WeatherForcastMap({
   className = "",
   isDarkMode,
   badgeText = "Uganda",
-  district,
-  setDistrict,
+  // district,
+  // setDistrict,
   getTheBounds,
   zoom = 6.8,
   minZoom = 6.8,
@@ -401,9 +322,96 @@ export default function WeatherForcastMap({
     dateRange,
     currentPage,
     sliderhourIndexValue,
-    selectedDistrictId,
+    // selectedDistrictId,
     setSelectedDistrictId,
+    layerMode,
+    forecastStep,
   } = useAppStore((state) => state);
+
+  const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
+    {
+      title: "FORECASTS",
+      layers: [
+        // flood monitor tab only
+        {
+          id: "flood",
+          label: "Flood Forecast",
+          wms: "flood_20260301_24h",
+          date: today,
+          pages: ["flood"],
+        },
+        // weather forecast tab only
+        {
+          id: "rainfall",
+          label: "Rainfall (CHIRPS-GEFS)",
+          wms: "chirps_gefs",
+          date: today,
+          pages: ["weather"],
+        },
+        // {
+        //   id: "heat_stress",
+        //   label: "Heat Stress WBGT",
+        //   wms: "wbgt",
+        //   date: today,
+        //   pages: ["weather"],
+        // },
+        {
+          id: "tmax",
+          label: "Max Temp (Tmax)",
+          wms: `gfs_tmax_${forecastStep}h_${dateRange?.replace(/-/g, "")?.slice(0, 8)}`,
+          date: today,
+          pages: ["weather"],
+        },
+        {
+          id: "tmin",
+          label: "Min Temp (Tmin)",
+          wms: `gfs_tmin_${forecastStep}h_${dateRange?.replace(/-/g, "")?.slice(0, 8)}`,
+          date: today,
+          pages: ["weather"],
+        },
+      ],
+    },
+    {
+      title: "BOUNDARIES",
+      layers: [
+        { id: "country", label: "Country", wms: "country", pages: ["*"] },
+        { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
+      ],
+    },
+    {
+      title: "HYDROLOGY",
+      layers: [
+        { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
+        {
+          id: "waterways",
+          label: "Waterways",
+          wms: "waterways",
+          pages: ["flood"],
+        },
+        {
+          id: "water_bodies",
+          label: "Water Bodies",
+          wms: "water_bodies",
+          pages: ["flood"],
+        },
+      ],
+    },
+    {
+      title: "INFRASTRUCTURE",
+      layers: [
+        { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
+        { id: "places", label: "Places", wms: "places", pages: ["*"] },
+        { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
+        { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
+      ],
+    },
+    // {
+    //   title: "POPULATION",
+    //   layers: [
+    //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
+    //   ],
+    // },
+  ];
 
   //clean districts
   const unique: district[] = district_list
@@ -482,20 +490,20 @@ export default function WeatherForcastMap({
     data.features.length > 0;
 
   // Draw / replace the blue boundary highlight around a district
-  const drawBoundary = (geojson: any, color: string) => {
-    if (!weatherforcastMapRef.current) return;
-    if (weatherforcastboundaryLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastboundaryLayerRef.current,
-      );
-      weatherforcastboundaryLayerRef.current = null;
-    }
-    weatherforcastboundaryLayerRef.current = L.geoJSON(geojson, {
-      style: { color, weight: 4, fill: false },
-    })
-      .addTo(weatherforcastMapRef.current)
-      .bringToBack();
-  };
+  // const drawBoundary = (geojson: any, color: string) => {
+  //   if (!weatherforcastMapRef.current) return;
+  //   if (weatherforcastboundaryLayerRef.current) {
+  //     weatherforcastMapRef.current.removeLayer(
+  //       weatherforcastboundaryLayerRef.current,
+  //     );
+  //     weatherforcastboundaryLayerRef.current = null;
+  //   }
+  //   weatherforcastboundaryLayerRef.current = L.geoJSON(geojson, {
+  //     style: { color, weight: 4, fill: false },
+  //   })
+  //     .addTo(weatherforcastMapRef.current)
+  //     .bringToBack();
+  // };
 
   // Check whether a district label fits inside its polygon at current zoom
   // (exact port of doesNameFitInLeafletBoundary from reference)
@@ -845,12 +853,10 @@ export default function WeatherForcastMap({
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update the raster layer when indicator, month, or timerange changes
-  // Replace your existing raster layer effect with this:
+  // ── Raster layer — respects layerMode (daily / monthly / forecast) ──────────
   useEffect(() => {
     if (!weatherforcastMapRef.current) return;
 
-    // Remove old raster layer
     if (weatherforcastrasterLayerRef.current) {
       weatherforcastMapRef.current.removeLayer(
         weatherforcastrasterLayerRef.current,
@@ -858,23 +864,45 @@ export default function WeatherForcastMap({
       weatherforcastrasterLayerRef.current = null;
     }
 
-    const paramName = ((): string | null => {
-      switch (selectedParameter?.toLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "gee_weather_rainfall";
-        default:
-          return null;
+    const hour =
+      sliderhourIndexValue === "000"
+        ? "00"
+        : String(sliderhourIndexValue).padStart(2, "0");
+
+    // Build layer name based on the active tab
+    const layerName = (() => {
+      if (layerMode === "forecast") {
+        return mapLayerName({
+          parameter: selectedParameter,
+          date: dateRange,
+          mode: "forecast",
+          forecastStep,
+        });
       }
+      if (layerMode === "monthly") {
+        return mapLayerName({
+          parameter: selectedParameter,
+          date: dateRange,
+          mode: "monthly",
+        });
+      }
+      // daily — use selected hour, fall back to monthly if daily not available
+      return (
+        mapLayerName({
+          parameter: selectedParameter,
+          date: dateRange,
+          mode: "daily",
+          hour,
+        }) ??
+        mapLayerName({
+          parameter: selectedParameter,
+          date: dateRange,
+          mode: "monthly",
+        })
+      );
     })();
 
-    if (paramName) {
-      const layerName = `wfews:${paramName}_${removeLastTwoDigits(dateRange?.replace(/-/g, "") ?? "")}`;
+    if (layerName) {
       weatherforcastrasterLayerRef.current = L.tileLayer
         .wms(GEO_SERVER_URL, {
           layers: layerName,
@@ -929,51 +957,14 @@ export default function WeatherForcastMap({
     } else {
       setRainyDistricts([]);
     }
-  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
-
-  // ── Hourly raster ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!weatherforcastMapRef.current) return;
-    if (!sliderhourIndexValue || sliderhourIndexValue === "000") return;
-
-    if (weatherforcastrasterLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastrasterLayerRef.current,
-      );
-      weatherforcastrasterLayerRef.current = null;
-    }
-
-    const paramName = ((): string | null => {
-      switch (selectedParameter?.toLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "gee_weather_rainfall";
-        default:
-          return null;
-      }
-    })();
-    if (!paramName) return;
-
-    const layerName = `wfews:${paramName}_${dateRange?.replace(/-/g, "") ?? ""}_${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`;
-    weatherforcastrasterLayerRef.current = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: layerName,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 0.85,
-      })
-      .on("loading", () => setRasterIsLoading(true))
-      .on("load", () => setRasterIsLoading(false))
-      .on("tileerror", () => setRasterIsLoading(false))
-      .addTo(weatherforcastMapRef.current);
-    weatherforcastrasterLayerRef.current.bringToFront();
-  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
+  }, [
+    geoData,
+    selectedParameter,
+    dateRange,
+    sliderhourIndexValue,
+    layerMode,
+    forecastStep,
+  ]);
 
   // ── Weather district markers — selected district or Kampala by default ────────
   useEffect(() => {

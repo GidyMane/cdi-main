@@ -51,8 +51,6 @@ interface WeatherForecastPageProps {
 
 const FAO_BLUE = "#318DDE";
 
-
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const getWeatherIcon = (type?: string, className = "w-8 h-8") => {
@@ -126,7 +124,8 @@ const CustomMetricTooltip = ({
     >
       <p className="font-semibold mb-0.5">{label ?? ""}</p>
       <p style={{ color: FAO_BLUE }}>
-        {metricLabels[metric]}: {payload[0]?.value ?? 0}{unit}
+        {metricLabels[metric]}: {payload[0]?.value ?? 0}
+        {unit}
       </p>
     </div>
   );
@@ -341,16 +340,25 @@ export default function WeatherForecastPage({
     dateRange,
     setDateRange,
     selectedDistrictId,
+    layerMode,
+    setLayerMode,
   } = useAppStore((state) => state);
 
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-  const [forecastData, setForecastData] = useState<ForecastPerHour | null>(null);
-  const [dailyForecasts, setDailyForecast] = useState<DailyForecastResponse | null>(null);
-  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
-  const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">("temp");
+  const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
+    null,
+  );
+  const [dailyForecasts, setDailyForecast] =
+    useState<DailyForecastResponse | null>(null);
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(
+    null,
+  );
+  const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">(
+    "temp",
+  );
 
   // When no district is selected, default stats to Kampala
   const kampala = district_list.find((d) =>
@@ -391,8 +399,18 @@ export default function WeatherForecastPage({
     : [];
 
   const MONTHS = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
 
   // Get chart data based on active tab, selected card, and metric
@@ -402,7 +420,10 @@ export default function WeatherForecastPage({
         selectedCardIndex !== null && hourlyForecast[selectedCardIndex]
           ? (() => {
               const startIdx = Math.max(0, selectedCardIndex - 2);
-              const endIdx = Math.min(hourlyForecast.length, selectedCardIndex + 3);
+              const endIdx = Math.min(
+                hourlyForecast.length,
+                selectedCardIndex + 3,
+              );
               return hourlyForecast.slice(startIdx, endIdx);
             })()
           : hourlyForecast;
@@ -427,7 +448,10 @@ export default function WeatherForecastPage({
         selectedCardIndex !== null && dailyForecast[selectedCardIndex]
           ? (() => {
               const startIdx = Math.max(0, selectedCardIndex - 1);
-              const endIdx = Math.min(dailyForecast.length, selectedCardIndex + 2);
+              const endIdx = Math.min(
+                dailyForecast.length,
+                selectedCardIndex + 2,
+              );
               return dailyForecast.slice(startIdx, endIdx);
             })()
           : dailyForecast;
@@ -451,9 +475,9 @@ export default function WeatherForecastPage({
   // Stat colours match PARAM_LEGENDS mid-range stops in WeatherForcastMap
   const STAT_COLOR = {
     temperature: "#f97316", // warm orange (35° stop)
-    rainfall:    "#0284c7", // medium blue (50 mm stop)
-    humidity:    "#22c55e", // green (70% stop — moderate)
-    wind:        "#3b82f6", // blue (20 km/h stop — moderate)
+    rainfall: "#0284c7", // medium blue (50 mm stop)
+    humidity: "#22c55e", // green (70% stop — moderate)
+    wind: "#3b82f6", // blue (20 km/h stop — moderate)
   };
 
   const statCards = [
@@ -461,59 +485,83 @@ export default function WeatherForecastPage({
       label: "Temperature",
       icon: Thermometer,
       color: STAT_COLOR.temperature,
-      min: 15, max: 40,
-      value:  `${weatherData?.temperature ?? 0}°C`,
+      min: 15,
+      max: 40,
+      value: `${weatherData?.temperature ?? 0}°C`,
       change: `${(weatherData?.temperature_delta ?? 0) > 0 ? "+" : ""}${weatherData?.temperature_delta ?? 0}°C`,
-      trend: (weatherData?.temperature_delta ?? 0) > 0 ? "up" : (weatherData?.temperature_delta ?? 0) < 0 ? "down" : "neutral",
+      trend:
+        (weatherData?.temperature_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.temperature_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
       thresholds: [
         { value: 20, color: "#3b82f6", label: "Cool" },
         { value: 28, color: "#22c55e", label: "Mild" },
         { value: 35, color: "#f97316", label: "Warm" },
-        { value: 40, color: "#ef4444", label: "Hot"  },
+        { value: 40, color: "#ef4444", label: "Hot" },
       ],
     },
     {
       label: "Rainfall (24h)",
       icon: CloudRain,
       color: STAT_COLOR.rainfall,
-      min: 0, max: 100,
-      value:  `${weatherData?.rainfall_24h ?? 0} mm`,
+      min: 0,
+      max: 100,
+      value: `${weatherData?.rainfall_24h ?? 0} mm`,
       change: `${(weatherData?.rainfall_24h_delta ?? 0) > 0 ? "+" : ""}${weatherData?.rainfall_24h_delta ?? 0} mm`,
-      trend: (weatherData?.rainfall_24h_delta ?? 0) > 0 ? "up" : (weatherData?.rainfall_24h_delta ?? 0) < 0 ? "down" : "neutral",
+      trend:
+        (weatherData?.rainfall_24h_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.rainfall_24h_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
       thresholds: [
-        { value: 5,   color: "#e0f2fe", label: "Dry"      },
-        { value: 25,  color: "#38bdf8", label: "Light"    },
-        { value: 50,  color: "#0284c7", label: "Moderate" },
-        { value: 100, color: "#1e3a8a", label: "Heavy"    },
+        { value: 5, color: "#e0f2fe", label: "Dry" },
+        { value: 25, color: "#38bdf8", label: "Light" },
+        { value: 50, color: "#0284c7", label: "Moderate" },
+        { value: 100, color: "#1e3a8a", label: "Heavy" },
       ],
     },
     {
       label: "Humidity",
       icon: Droplets,
       color: STAT_COLOR.humidity,
-      min: 0, max: 100,
-      value:  `${weatherData?.humidity ?? 0}%`,
+      min: 0,
+      max: 100,
+      value: `${weatherData?.humidity ?? 0}%`,
       change: `${(weatherData?.humidity_delta ?? 0) > 0 ? "+" : ""}${weatherData?.humidity_delta ?? 0}%`,
-      trend: (weatherData?.humidity_delta ?? 0) > 0 ? "up" : (weatherData?.humidity_delta ?? 0) < 0 ? "down" : "neutral",
+      trend:
+        (weatherData?.humidity_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.humidity_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
       thresholds: [
-        { value: 30, color: "#dc2626", label: "Dry"    },
-        { value: 50, color: "#fbbf24", label: "Low"    },
+        { value: 30, color: "#dc2626", label: "Dry" },
+        { value: 50, color: "#fbbf24", label: "Low" },
         { value: 70, color: "#22c55e", label: "Normal" },
-        { value: 85, color: "#3b82f6", label: "High"   },
+        { value: 85, color: "#3b82f6", label: "High" },
       ],
     },
     {
       label: "Wind Speed",
       icon: Wind,
       color: STAT_COLOR.wind,
-      min: 0, max: 60,
-      value:  `${weatherData?.wind_speed ?? 0} km/h`,
+      min: 0,
+      max: 60,
+      value: `${weatherData?.wind_speed ?? 0} km/h`,
       change: `${(weatherData?.wind_speed_delta ?? 0) > 0 ? "+" : ""}${weatherData?.wind_speed_delta ?? 0} km/h`,
-      trend: (weatherData?.wind_speed_delta ?? 0) > 0 ? "up" : (weatherData?.wind_speed_delta ?? 0) < 0 ? "down" : "neutral",
+      trend:
+        (weatherData?.wind_speed_delta ?? 0) > 0
+          ? "up"
+          : (weatherData?.wind_speed_delta ?? 0) < 0
+            ? "down"
+            : "neutral",
       thresholds: [
-        { value: 10, color: "#22c55e", label: "Calm"   },
+        { value: 10, color: "#22c55e", label: "Calm" },
         { value: 25, color: "#3b82f6", label: "Breezy" },
-        { value: 40, color: "#f97316", label: "Windy"  },
+        { value: 40, color: "#f97316", label: "Windy" },
         { value: 60, color: "#dc2626", label: "Strong" },
       ],
     },
@@ -632,7 +680,9 @@ export default function WeatherForecastPage({
                     />
                   </div>
                 </div>
-                <div className={`flex items-center gap-1 text-[10px] ${getTrendColor(card.trend, isDarkMode)}`}>
+                <div
+                  className={`flex items-center gap-1 text-[10px] ${getTrendColor(card.trend, isDarkMode)}`}
+                >
                   {getTrendIcon(card.trend)}
                   <span style={{ color: card.color }}>{card.change}</span>
                 </div>
@@ -699,25 +749,65 @@ export default function WeatherForecastPage({
           {/* Main */}
           <div className="lg:col-span-9 space-y-3">
             {/* Map + cards row — fixed shared height */}
-            <div className="grid grid-cols-12 gap-3" style={{ height: "clamp(480px, 58vh, 900px)" }}>
+            <div
+              className="grid grid-cols-12 gap-3"
+              style={{ height: "clamp(480px, 58vh, 900px)" }}
+            >
               {/* Map — left */}
               <div className="col-span-7 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
+                  {/* Map card header — title + layer-mode tabs + Live badge */}
                   <div
-                    className={`flex items-center justify-between p-2 border-b ${borderColor} flex-shrink-0`}
+                    className={`flex items-center justify-between px-2 pt-2 pb-0 border-b ${borderColor} flex-shrink-0`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <MapIcon className="w-4 h-4" style={{ color: FAO_BLUE }} />
+                      <MapIcon
+                        className="w-4 h-4"
+                        style={{ color: FAO_BLUE }}
+                      />
                       <h3 className={`text-sm font-semibold ${headerText}`}>
                         Weather Map
                       </h3>
                     </div>
+
+                    {/* Daily / Monthly / Forecast tabs */}
+                    <div className="flex items-center gap-0.5">
+                      {(["daily", "monthly", "forecast"] as const).map(
+                        (mode) => (
+                          <button
+                            key={mode}
+                            onClick={() => setLayerMode(mode)}
+                            className="px-2.5 py-1 text-[11px] font-semibold capitalize rounded-t transition-all"
+                            style={{
+                              color:
+                                layerMode === mode
+                                  ? FAO_BLUE
+                                  : isDarkMode
+                                    ? "#64748b"
+                                    : "#94a3b8",
+                              borderBottom:
+                                layerMode === mode
+                                  ? `2px solid ${FAO_BLUE}`
+                                  : "2px solid transparent",
+                              background: "transparent",
+                            }}
+                          >
+                            {mode === "forecast"
+                              ? "Forecast"
+                              : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                          </button>
+                        ),
+                      )}
+                    </div>
+
                     <span
                       className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                       style={{
-                        backgroundColor: isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}20`,
+                        backgroundColor: isDarkMode
+                          ? `${FAO_BLUE}30`
+                          : `${FAO_BLUE}20`,
                         color: FAO_BLUE,
                       }}
                     >
@@ -746,7 +836,6 @@ export default function WeatherForecastPage({
 
               {/* Right panel — forecast cards (top) + trend chart (bottom) */}
               <div className="col-span-5 h-full min-h-0 flex flex-col gap-2">
-
                 {/* Nowcast / Forecast cards — natural height, capped at 56%, scrolls inside */}
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg shadow-sm flex flex-col flex-shrink-0`}
@@ -763,7 +852,9 @@ export default function WeatherForecastPage({
                   <div className="p-3 overflow-y-auto">
                     {activeTab?.toLowerCase() === "nowcast" ? (
                       <>
-                        <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>
+                        <h4
+                          className={`text-xs font-semibold mb-2 ${headerText}`}
+                        >
                           Hourly Forecast
                         </h4>
                         <HourlyCards
@@ -778,7 +869,9 @@ export default function WeatherForecastPage({
                       </>
                     ) : (
                       <>
-                        <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>
+                        <h4
+                          className={`text-xs font-semibold mb-2 ${headerText}`}
+                        >
                           7-Day Forecast
                         </h4>
                         <DailyCards
@@ -800,8 +893,13 @@ export default function WeatherForecastPage({
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm flex-1 flex flex-col min-h-0`}
                 >
                   <div className="flex items-center justify-between mb-1 flex-shrink-0">
-                    <h3 className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}>
-                      <TrendingUp className="w-4 h-4" style={{ color: FAO_BLUE }} />
+                    <h3
+                      className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}
+                    >
+                      <TrendingUp
+                        className="w-4 h-4"
+                        style={{ color: FAO_BLUE }}
+                      />
                       Weather Trend
                     </h3>
                     <div className="flex gap-1">
@@ -810,13 +908,20 @@ export default function WeatherForecastPage({
                           key={m}
                           onClick={() => setChartMetric(m)}
                           className={`text-xs px-2 py-0.5 rounded transition-all ${
-                            chartMetric === m ? "font-semibold text-white" : textMuted
+                            chartMetric === m
+                              ? "font-semibold text-white"
+                              : textMuted
                           }`}
                           style={{
-                            backgroundColor: chartMetric === m ? FAO_BLUE : "transparent",
+                            backgroundColor:
+                              chartMetric === m ? FAO_BLUE : "transparent",
                           }}
                         >
-                          {m === "temp" ? "Temp" : m === "rain" ? "Rain" : "Wind"}
+                          {m === "temp"
+                            ? "Temp"
+                            : m === "rain"
+                              ? "Rain"
+                              : "Wind"}
                         </button>
                       ))}
                     </div>
@@ -834,7 +939,6 @@ export default function WeatherForecastPage({
                     />
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -901,7 +1005,7 @@ export default function WeatherForecastPage({
               className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm`}
             >
               <div
-                className={`flex items-center justify-between p-2 border-b ${borderColor}`}
+                className={`flex items-center justify-between px-2 pt-2 pb-0 border-b ${borderColor}`}
               >
                 <div className="flex items-center gap-1.5">
                   <MapIcon className="w-4 h-4" style={{ color: FAO_BLUE }} />
@@ -909,6 +1013,35 @@ export default function WeatherForecastPage({
                     Weather Map
                   </h3>
                 </div>
+
+                {/* Daily / Monthly / Forecast tabs */}
+                <div className="flex items-center gap-0.5">
+                  {(["daily", "monthly", "forecast"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setLayerMode(mode)}
+                      className="px-2 py-1 text-[10px] font-semibold capitalize rounded-t transition-all"
+                      style={{
+                        color:
+                          layerMode === mode
+                            ? FAO_BLUE
+                            : isDarkMode
+                              ? "#64748b"
+                              : "#94a3b8",
+                        borderBottom:
+                          layerMode === mode
+                            ? `2px solid ${FAO_BLUE}`
+                            : "2px solid transparent",
+                        background: "transparent",
+                      }}
+                    >
+                      {mode === "forecast"
+                        ? "Forecast"
+                        : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
                 <span
                   className="px-1.5 py-0.5 rounded text-[10px] font-medium"
                   style={{

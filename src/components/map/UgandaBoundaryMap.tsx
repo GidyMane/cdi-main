@@ -8,7 +8,7 @@ import { capitalize } from "../../utils/capitalize";
 // import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
-import { FLOOD_HOURS } from "../shared/FloodHourSlider";
+import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 
 interface LegendItem {
@@ -171,9 +171,8 @@ export default function UgandaBoundaryMap({
   zoom = 6.8,
   minZoom = 6.8,
 }: UgandaBoundaryMapProps) {
-  const { selectedParameter, dateRange, currentPage,sliderhourIndexValue} = useAppStore(
-    (state) => state,
-  );
+  const { selectedParameter, dateRange, currentPage, sliderhourIndexValue } =
+    useAppStore((state) => state);
   // ── Refs ────────────────────────────────────────────────────────────────────
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -501,37 +500,36 @@ export default function UgandaBoundaryMap({
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update the raster layer when indicator, month, or timerange changes
-  // Replace your existing raster layer effect with this:
+  // ── Raster layer ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Remove old raster layer
     if (rasterLayerRef.current) {
       mapRef.current.removeLayer(rasterLayerRef.current);
       rasterLayerRef.current = null;
     }
 
-    //if (!indicator) return; // indicator = layer name e.g. "flood_20260301_24h"
-    const param = () => {
-      switch (selectedParameter?.toLocaleLowerCase()) {
-        case "temperature":
-          return "gee_weather_temperature";
-        case "precipitation":
-          return "precip";
-        case "drought":
-          return "drought";
-        case "rainfall":
-          return "chirps_rainfall";
-        default:
-          return null;
-      }
-    };
+    const hour =
+      sliderhourIndexValue === "000"
+        ? "00"
+        : String(sliderhourIndexValue).padStart(2, "0");
 
-    
+    const layerName =
+      mapLayerName({
+        parameter: selectedParameter,
+        date: dateRange,
+        mode: "daily",
+        hour,
+      }) ??
+      mapLayerName({
+        parameter: selectedParameter,
+        date: dateRange,
+        mode: "monthly",
+      });
 
-    const layerName = `wfews:${param()}_${dateRange?.replace(/-/g, "")}${FLOOD_HOURS[sliderhourIndexValue] ?? "00"}`; // e.g. "wfews:flood_20260301_24h"
+    if (!layerName) return;
 
-    console.log("layerName",layerName)
+    console.log("layerName", layerName);
 
     rasterLayerRef.current = L.tileLayer
       .wms(GEO_SERVER_URL, {
@@ -542,7 +540,7 @@ export default function UgandaBoundaryMap({
         opacity: 1.0,
       })
       .addTo(mapRef.current);
-  }, [geoData, selectedParameter, dateRange,sliderhourIndexValue]);
+  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
@@ -568,7 +566,7 @@ export default function UgandaBoundaryMap({
       />
 
       {/* Loading overlay — sits on top until geoData arrivess */}
-      {(!geoData) && (
+      {!geoData && (
         <div
           className={`absolute inset-0 z-[500] flex items-center justify-center ${
             isDarkMode ? "bg-slate-900/80" : "bg-white/80"
