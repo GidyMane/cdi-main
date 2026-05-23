@@ -8,7 +8,7 @@ import { capitalize } from "../../utils/capitalize";
 // import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers, Maximize2, Minimize2, Waves } from "lucide-react";
-import { mapLayerName } from "@/utils/woker_fn";
+import { formatDate, getLayerGroups, mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 
 interface LegendItem {
@@ -75,89 +75,89 @@ interface LayerDef {
 }
 
 // ── Layer panel definitions (matches screenshot) ──────────────────────────────
-const today = new Date().toLocaleDateString("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
+// const today = new Date().toLocaleDateString("en-GB", {
+//   day: "2-digit",
+//   month: "short",
+//   year: "numeric",
+// });
 
-const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-  {
-    title: "FORECASTS",
-    layers: [
-      // flood monitor tab only
-      {
-        id: "flood",
-        label: "Flood Forecast",
-        wms: "flood_20260301_24h",
-        date: today,
-        pages: ["flood"],
-      },
-      // weather forecast tab only
-      {
-        id: "rainfall",
-        label: "Rainfall (CHIRPS-GEFS)",
-        wms: "chirps_gefs",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "heat_stress",
-        label: "Heat Stress WBGT",
-        wms: "wbgt",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "tmax",
-        label: "Max Temp (Tmax)",
-        wms: "chirts_tmax_20260428",
-        date: today,
-        pages: ["weather"],
-      },
-    ],
-  },
-  {
-    title: "BOUNDARIES",
-    layers: [
-      { id: "country", label: "Country", wms: "country", pages: ["*"] },
-      { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
-    ],
-  },
-  {
-    title: "HYDROLOGY",
-    layers: [
-      { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
-      {
-        id: "waterways",
-        label: "Waterways",
-        wms: "waterways",
-        pages: ["flood"],
-      },
-      {
-        id: "water_bodies",
-        label: "Water Bodies",
-        wms: "water_bodies",
-        pages: ["flood"],
-      },
-    ],
-  },
-  {
-    title: "INFRASTRUCTURE",
-    layers: [
-      { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
-      { id: "places", label: "Places", wms: "places", pages: ["*"] },
-      { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
-      { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
-    ],
-  },
-  // {
-  //   title: "POPULATION",
-  //   layers: [
-  //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
-  //   ],
-  // },
-];
+// const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
+//   {
+//     title: "FORECASTS",
+//     layers: [
+//       // flood monitor tab only
+//       {
+//         id: "flood",
+//         label: "Flood Forecast",
+//         wms: "flood_20260301_24h",
+//         date: today,
+//         pages: ["flood"],
+//       },
+//       // weather forecast tab only
+//       {
+//         id: "rainfall",
+//         label: "Rainfall (CHIRPS-GEFS)",
+//         wms: "chirps_gefs",
+//         date: today,
+//         pages: ["weather"],
+//       },
+//       {
+//         id: "heat_stress",
+//         label: "Heat Stress WBGT",
+//         wms: "wbgt",
+//         date: today,
+//         pages: ["weather"],
+//       },
+//       {
+//         id: "tmax",
+//         label: "Max Temp (Tmax)",
+//         wms: "chirts_tmax_20260428",
+//         date: today,
+//         pages: ["weather"],
+//       },
+//     ],
+//   },
+//   {
+//     title: "BOUNDARIES",
+//     layers: [
+//       { id: "country", label: "Country", wms: "country", pages: ["*"] },
+//       { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
+//     ],
+//   },
+//   {
+//     title: "HYDROLOGY",
+//     layers: [
+//       { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
+//       {
+//         id: "waterways",
+//         label: "Waterways",
+//         wms: "waterways",
+//         pages: ["flood"],
+//       },
+//       {
+//         id: "water_bodies",
+//         label: "Water Bodies",
+//         wms: "water_bodies",
+//         pages: ["flood"],
+//       },
+//     ],
+//   },
+//   {
+//     title: "INFRASTRUCTURE",
+//     layers: [
+//       { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
+//       { id: "places", label: "Places", wms: "places", pages: ["*"] },
+//       { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
+//       { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
+//     ],
+//   },
+//   // {
+//   //   title: "POPULATION",
+//   //   layers: [
+//   //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
+//   //   ],
+//   // },
+// ];
 
 export default function FloodMonitorMap({
   className = "",
@@ -171,8 +171,19 @@ export default function FloodMonitorMap({
   zoom = 6.8,
   minZoom = 6.8,
 }: UgandaBoundaryMapProps) {
-  const { selectedParameter, dateRange, currentPage, sliderhourIndexValue } =
-    useAppStore((state) => state);
+  const {
+    selectedParameter,
+    dateRange,
+    currentPage,
+    sliderhourIndexValue,
+    forecastStep,
+  } = useAppStore((state) => state);
+
+  const LAYER_GROUPS = getLayerGroups({
+    today: formatDate(dateRange),
+    forecastStep,
+    dateRange,
+  });
   // ── Refs ────────────────────────────────────────────────────────────────────
   const floodRootRef = useRef<HTMLDivElement>(null);
   const FloodMonitormapContainerRef = useRef<HTMLDivElement>(null);
@@ -204,12 +215,6 @@ export default function FloodMonitorMap({
   };
 
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
-
-  // ── Data ────────────────────────────────────────────────────────────────────
-  // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({
-  //   queryKey: ["ugandaBoundary"],
-  //   queryFn: geoAPI.getUgandaBoundary,
-  // });
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -597,7 +602,13 @@ export default function FloodMonitorMap({
         setRasterIsLoading(false);
       })
       .addTo(FloodMonitormapRef.current);
-  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
+  }, [
+    geoData,
+    selectedParameter,
+    dateRange,
+    sliderhourIndexValue,
+    forecastStep,
+  ]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
