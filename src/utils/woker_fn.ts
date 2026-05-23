@@ -209,3 +209,111 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
 
   return null;
 }
+
+export interface LayerConfigParams {
+  today: any;
+  forecastStep: string | number;
+  dateRange?: string;
+}
+export interface LayerDef {
+  id: string;
+  label: string;
+  wms: string;
+  date?: string;
+  pages: string[]; // list of page paths where this layer should be available, e.g. ["/", "/flood", "/weather"]
+}
+
+export const getLayerGroups = ({
+  today,
+  forecastStep,
+  dateRange,
+}: LayerConfigParams): { title: string; layers: LayerDef[] }[] => {
+  // Clean the date format for the WMS string
+  const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) || "";
+  console.log("formattedDate", formattedDate);
+
+  return [
+    {
+      title: "FORECASTS",
+      layers: [
+        {
+          id: "flood",
+          label: "Flood Forecast",
+          wms: `flood_forecast_${formattedDate}_${forecastStep}`,
+          date: today,
+          pages: ["flood"],
+        },
+        {
+          id: "rainfall",
+          label: "Rainfall (CHIRPS-GEFS)",
+          wms: "chirps_gefs",
+          date: today,
+          pages: ["weather"],
+        },
+        {
+          id: "tmax",
+          label: "Max Temp (Tmax)",
+          wms: `gfs_tmax_${forecastStep}h_${formattedDate}`,
+          date: today,
+          pages: ["weather"],
+        },
+        {
+          id: "tmin",
+          label: "Min Temp (Tmin)",
+          wms: `gfs_tmin_${forecastStep}h_${formattedDate}`,
+          date: today,
+          pages: ["weather"],
+        },
+      ],
+    },
+    {
+      title: "BOUNDARIES",
+      layers: [
+        { id: "country", label: "Country", wms: "country", pages: ["*"] },
+        { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
+      ],
+    },
+    {
+      title: "HYDROLOGY",
+      layers: [
+        { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
+        {
+          id: "waterways",
+          label: "Waterways",
+          wms: "waterways",
+          pages: ["flood"],
+        },
+        {
+          id: "water_bodies",
+          label: "Water Bodies",
+          wms: "water_bodies",
+          pages: ["flood"],
+        },
+      ],
+    },
+    {
+      title: "INFRASTRUCTURE",
+      layers: [
+        { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
+        { id: "places", label: "Places", wms: "places", pages: ["*"] },
+        { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
+        { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
+      ],
+    },
+  ];
+};
+
+export function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  // Create date using (year, monthIndex, day) - month is 0-indexed
+  const date = new Date(year, month - 1, day);
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// Example usage:
+console.log(formatDate("20260426")); // Output: "26 Apr 2026"
