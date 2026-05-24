@@ -1,163 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-// import { geoAPI } from "../../services/api";
 import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
-// import { useQuery } from "@tanstack/react-query";
-// import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
-import { X, Layers, Maximize2, Minimize2, Waves } from "lucide-react";
-import { mapLayerName } from "@/utils/woker_fn";
+import {
+  X,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Waves,
+  Plus,
+  Minus,
+} from "lucide-react";
+import {
+  formatDate,
+  getDistrictValue,
+  getLayerGroups,
+  getValueColor,
+  isPointInPolygon,
+  isValidGeoJSON,
+  mapLayerName,
+  PARAM_LEGENDS,
+} from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-
-interface LegendItem {
-  label: string;
-  color: string;
-}
-
-interface UgandaBoundaryMapProps {
-  className?: string;
-  isDarkMode: boolean;
-  badgeText?: string;
-  legendTitle?: string;
-  legendItems?: LegendItem[];
-  district?: string;
-  setDistrict?: (name: string) => void;
-  getTheBounds?: string; // from reference: fits map to a named district
-  zoom?: number;
-  minZoom?: number;
-}
+import type { LayerDef, UgandaBoundaryMapProps } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
+const GEO_SERVER_URL =
+  "https://multihazard.rosewillbome.com/geoserver/wfews/wms";
 
-// ── Ray-casting point-in-polygon ──────────────────────────────────────────────
-// Test whether a LatLng lies inside the actual polygon shape (not bounding box).
-// Handles both Polygon and MultiPolygon by flattening nested LatLng arrays.
-const isPointInPolygon = (latlng: L.LatLng, polyLatLngs: any): boolean => {
-  const rings: L.LatLng[][] = [];
-
-  const flatten = (arr: any) => {
-    if (!Array.isArray(arr) || arr.length === 0) return;
-    if (arr[0] instanceof L.LatLng) {
-      rings.push(arr as L.LatLng[]);
-    } else {
-      arr.forEach((item: any) => flatten(item));
-    }
-  };
-  flatten(polyLatLngs);
-
-  const x = latlng.lng;
-  const y = latlng.lat;
-
-  for (const ring of rings) {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const xi = ring[i].lng,
-        yi = ring[i].lat;
-      const xj = ring[j].lng,
-        yj = ring[j].lat;
-      const intersect =
-        yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
-    }
-    if (inside) return true;
-  }
-  return false;
+const WMS_BASE_OPTIONS = {
+  format: "image/png" as const,
+  transparent: true,
+  version: "1.1.0",
+  opacity: 0.85,
 };
 
-interface LayerDef {
-  id: string;
-  label: string;
-  wms: string;
-  date?: string;
-  pages: string[]; // list of page paths where this layer should be available, e.g. ["/", "/flood", "/weather"]
+function clearLayer<T extends L.Layer>(
+  map: L.Map,
+  ref: React.MutableRefObject<T | null>,
+) {
+  if (ref.current) {
+    map.removeLayer(ref.current);
+    ref.current = null;
+  }
 }
 
 // ── Layer panel definitions (matches screenshot) ──────────────────────────────
-const today = new Date().toLocaleDateString("en-GB", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
-
-const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-  {
-    title: "FORECASTS",
-    layers: [
-      // flood monitor tab only
-      {
-        id: "flood",
-        label: "Flood Forecast",
-        wms: "flood_20260301_24h",
-        date: today,
-        pages: ["flood"],
-      },
-      // weather forecast tab only
-      {
-        id: "rainfall",
-        label: "Rainfall (CHIRPS-GEFS)",
-        wms: "chirps_gefs",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "heat_stress",
-        label: "Heat Stress WBGT",
-        wms: "wbgt",
-        date: today,
-        pages: ["weather"],
-      },
-      {
-        id: "tmax",
-        label: "Max Temp (Tmax)",
-        wms: "chirts_tmax_20260428",
-        date: today,
-        pages: ["weather"],
-      },
-    ],
-  },
-  {
-    title: "BOUNDARIES",
-    layers: [
-      { id: "country", label: "Country", wms: "country", pages: ["*"] },
-      { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
-    ],
-  },
-  {
-    title: "HYDROLOGY",
-    layers: [
-      { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
-      {
-        id: "waterways",
-        label: "Waterways",
-        wms: "waterways",
-        pages: ["flood"],
-      },
-      {
-        id: "water_bodies",
-        label: "Water Bodies",
-        wms: "water_bodies",
-        pages: ["flood"],
-      },
-    ],
-  },
-  {
-    title: "INFRASTRUCTURE",
-    layers: [
-      { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
-      { id: "places", label: "Places", wms: "places", pages: ["*"] },
-      { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
-      { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
-    ],
-  },
-  // {
-  //   title: "POPULATION",
-  //   layers: [
-  //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
-  //   ],
-  // },
-];
 
 export default function FloodMonitorMap({
   className = "",
@@ -171,8 +61,20 @@ export default function FloodMonitorMap({
   zoom = 6.8,
   minZoom = 6.8,
 }: UgandaBoundaryMapProps) {
-  const { selectedParameter, dateRange, currentPage, sliderhourIndexValue } =
-    useAppStore((state) => state);
+  const {
+    selectedParameter,
+    dateRange,
+    currentPage,
+    sliderhourIndexValue,
+    layerMode,
+    forecastStep,
+  } = useAppStore((state) => state);
+
+  const LAYER_GROUPS = getLayerGroups({
+    today: formatDate(dateRange),
+    forecastStep,
+    dateRange,
+  });
   // ── Refs ────────────────────────────────────────────────────────────────────
   const floodRootRef = useRef<HTMLDivElement>(null);
   const FloodMonitormapContainerRef = useRef<HTMLDivElement>(null);
@@ -188,8 +90,16 @@ export default function FloodMonitorMap({
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [selectedFloodForecastData, setSelectedFloodForecastData] = useState<
+    string | null
+  >(null);
   const [isRasterLoading, setRasterIsLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(
+    null,
+  );
+
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -203,31 +113,12 @@ export default function FloodMonitorMap({
     else document.exitFullscreen?.();
   };
 
-  const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
-
-  // ── Data ────────────────────────────────────────────────────────────────────
-  // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({
-  //   queryKey: ["ugandaBoundary"],
-  //   queryFn: geoAPI.getUgandaBoundary,
-  // });
-
   // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  const isValidGeoJSON = (data: any): boolean =>
-    data &&
-    data.type === "FeatureCollection" &&
-    Array.isArray(data.features) &&
-    data.features.length > 0;
 
   // Draw / replace the blue boundary highlight around a district
   const drawBoundary = (geojson: any, color: string) => {
     if (!FloodMonitormapRef.current) return;
-    if (FloodMonitorboundaryLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(
-        FloodMonitorboundaryLayerRef.current,
-      );
-      FloodMonitorboundaryLayerRef.current = null;
-    }
+    clearLayer(FloodMonitormapRef.current, FloodMonitorboundaryLayerRef);
     FloodMonitorboundaryLayerRef.current = L.geoJSON(geojson, {
       style: { color, weight: 4, fill: false },
     })
@@ -263,17 +154,19 @@ export default function FloodMonitorMap({
     const paddedW = textWidth + padding * 2;
     const paddedH = textHeight + padding * 2;
 
-    console.log(
-      "does it fit?",
-      paddedW <= availableWidth && paddedH <= availableHeight,
-    );
-
     return paddedW <= availableWidth && paddedH <= availableHeight;
   };
 
   // Toggle a panel layer on/off
   const toggleLayer = (layerDef: LayerDef) => {
     if (!FloodMonitormapRef.current) return;
+
+    // Track which forecast layer is selected so the raster effect can react
+    if (layerDef.id === "flood") {
+      setSelectedFloodForecastData(
+        activeLayers.has(layerDef.id) ? null : "flood_forecast",
+      );
+    }
 
     if (activeLayers.has(layerDef.id)) {
       if (FloodMonitorwmsLayersRef.current[layerDef.id]) {
@@ -288,17 +181,18 @@ export default function FloodMonitorMap({
         return next;
       });
     } else {
-      const wmsLayer = L.tileLayer
-        .wms(GEO_SERVER_URL, {
-          layers: `wfews:${layerDef.wms}`,
-          format: "image/png",
-          transparent: true,
-          version: "1.1.0",
-          opacity: 1.0,
-        })
-        .addTo(FloodMonitormapRef.current);
-      wmsLayer.bringToFront();
-      FloodMonitorwmsLayersRef.current[layerDef.id] = wmsLayer;
+      // flood forecast is handled via the raster effect; skip adding a generic WMS layer
+      if (layerDef.id !== "flood") {
+        const wmsLayer = L.tileLayer
+          .wms(GEO_SERVER_URL, {
+            ...WMS_BASE_OPTIONS,
+            layers: `wfews:${layerDef.wms}`,
+            opacity: 1.0,
+          })
+          .addTo(FloodMonitormapRef.current);
+        wmsLayer.bringToFront();
+        FloodMonitorwmsLayersRef.current[layerDef.id] = wmsLayer;
+      }
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
@@ -398,13 +292,8 @@ export default function FloodMonitorMap({
         setDistrict(clickedFeature.properties.name?.toUpperCase());
       }
 
-      // Highlight only the clicked feature — pass the single Feature directly
-      if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current!.removeLayer(
-          FloodMonitorboundaryLayerRef.current,
-        );
-        FloodMonitorboundaryLayerRef.current = null;
-      }
+      // Highlight only the clicked feature
+      clearLayer(FloodMonitormapRef.current!, FloodMonitorboundaryLayerRef);
       FloodMonitorboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
       })
@@ -412,11 +301,8 @@ export default function FloodMonitorMap({
         .bringToFront();
     });
 
-    // ── Water / lake overlay (from reference) ─────────────────────────────
-    if (FloodMonitorriverLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(FloodMonitorriverLayerRef.current);
-      FloodMonitorriverLayerRef.current = null;
-    }
+    // ── Water / lake overlay ──────────────────────────────────────────────
+    clearLayer(FloodMonitormapRef.current, FloodMonitorriverLayerRef);
     if (waterAreas) {
       FloodMonitorriverLayerRef.current = L.geoJSON(waterAreas as any, {
         style: {
@@ -440,6 +326,21 @@ export default function FloodMonitorMap({
       FloodMonitorriverLayerRef.current.bringToBack();
     }
 
+    // ── Hover: district detection on mouse move ───────────────────────────
+    FloodMonitormapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
+      setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
+      let found: string | null = null;
+      FloodMonitordistrictLayerRef.current?.eachLayer((layer: any) => {
+        if (found) return;
+        if (isPointInPolygon(ev.latlng, layer.getLatLngs()))
+          found = layer.feature?.properties?.name ?? null;
+      });
+      setHoveredDistrictName(found);
+    });
+    FloodMonitormapRef.current.on("mouseout", () =>
+      setHoveredDistrictName(null),
+    );
+
     // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() =>
       FloodMonitormapRef.current?.invalidateSize(),
@@ -456,10 +357,7 @@ export default function FloodMonitorMap({
   // ── Swap labels overlay on dark/light toggle ─────────────────────────────────
   useEffect(() => {
     if (!FloodMonitormapRef.current) return;
-    if (FloodMonitorLabelsLayerRef.current)
-      FloodMonitormapRef.current.removeLayer(
-        FloodMonitorLabelsLayerRef.current,
-      );
+    clearLayer(FloodMonitormapRef.current, FloodMonitorLabelsLayerRef);
     FloodMonitorLabelsLayerRef.current = L.tileLayer(
       isDarkMode
         ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
@@ -478,12 +376,7 @@ export default function FloodMonitorMap({
       district.trim() === "" ||
       district.trim().toLowerCase() === "all"
     ) {
-      if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current.removeLayer(
-          FloodMonitorboundaryLayerRef.current,
-        );
-        FloodMonitorboundaryLayerRef.current = null;
-      }
+      clearLayer(FloodMonitormapRef.current, FloodMonitorboundaryLayerRef);
       return;
     }
 
@@ -495,9 +388,7 @@ export default function FloodMonitorMap({
     drawBoundary({ type: "FeatureCollection", features: matched }, FAO_BLUE);
   }, [district, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── getTheBounds: fit viewport to a named district (from reference) ─────────
-  // Mirrors the third useEffect in UgandaMap — fits map bounds to a district
-  // and locks the viewport to it, or resets to full Uganda view when "all".
+  // ── getTheBounds: fit viewport to a named district ──────────────────────────
   useEffect(() => {
     if (!FloodMonitormapRef.current || !geoData || !isValidGeoJSON(geoData))
       return;
@@ -507,12 +398,7 @@ export default function FloodMonitorMap({
       getTheBounds.trim().toLowerCase() === "all" ||
       getTheBounds.trim() === ""
     ) {
-      if (FloodMonitorboundaryLayerRef.current) {
-        FloodMonitormapRef.current.removeLayer(
-          FloodMonitorboundaryLayerRef.current,
-        );
-        FloodMonitorboundaryLayerRef.current = null;
-      }
+      clearLayer(FloodMonitormapRef.current, FloodMonitorboundaryLayerRef);
       FloodMonitormapRef.current.setView([1.3733, 32.2903], zoom);
       FloodMonitormapRef.current.setMinZoom(minZoom);
       return;
@@ -524,18 +410,11 @@ export default function FloodMonitorMap({
     );
     if (!matched.length) return;
 
-    const updatedGeoJSON = { ...geoData, features: matched };
-
-    if (FloodMonitorboundaryLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(
-        FloodMonitorboundaryLayerRef.current,
-      );
-      FloodMonitorboundaryLayerRef.current = null;
-    }
-
-    FloodMonitorboundaryLayerRef.current = L.geoJSON(updatedGeoJSON, {
-      style: { color: "blue", weight: 4, fill: false },
-    })
+    clearLayer(FloodMonitormapRef.current, FloodMonitorboundaryLayerRef);
+    FloodMonitorboundaryLayerRef.current = L.geoJSON(
+      { ...geoData, features: matched } as any,
+      { style: { color: "blue", weight: 4, fill: false } },
+    )
       .addTo(FloodMonitormapRef.current)
       .bringToBack();
 
@@ -550,13 +429,24 @@ export default function FloodMonitorMap({
   useEffect(() => {
     if (!FloodMonitormapRef.current) return;
 
-    if (FloodMonitorrasterLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(
-        FloodMonitorrasterLayerRef.current,
-      );
-      FloodMonitorrasterLayerRef.current = null;
+    clearLayer(FloodMonitormapRef.current, FloodMonitorrasterLayerRef);
+
+    if (layerMode === "forecast") {
+      // ── Forecast branch: driven by the flood layer toggle ─────────────────
+      if (!selectedFloodForecastData) return;
+      const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) ?? "";
+      const layerName = `wfews:${selectedFloodForecastData}_${formattedDate}_${forecastStep}h`;
+      FloodMonitorrasterLayerRef.current = L.tileLayer
+        .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
+        .on("loading", () => setRasterIsLoading(true))
+        .on("load", () => setRasterIsLoading(false))
+        .on("tileerror", () => setRasterIsLoading(false))
+        .addTo(FloodMonitormapRef.current);
+      FloodMonitorrasterLayerRef.current.bringToFront();
+      return;
     }
 
+    // ── Daily / monthly branch ────────────────────────────────────────────
     const hour =
       sliderhourIndexValue === "000"
         ? "00"
@@ -577,27 +467,22 @@ export default function FloodMonitorMap({
 
     if (!layerName) return;
 
-    console.log("layerName", layerName);
-
     FloodMonitorrasterLayerRef.current = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: layerName,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      })
-      .on("loading", () => {
-        setRasterIsLoading(true);
-      })
-      .on("load", () => {
-        setRasterIsLoading(false);
-      })
-      .on("tileerror", () => {
-        setRasterIsLoading(false);
-      })
+      .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
+      .on("loading", () => setRasterIsLoading(true))
+      .on("load", () => setRasterIsLoading(false))
+      .on("tileerror", () => setRasterIsLoading(false))
       .addTo(FloodMonitormapRef.current);
-  }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
+    FloodMonitorrasterLayerRef.current.bringToFront();
+  }, [
+    geoData,
+    selectedParameter,
+    dateRange,
+    sliderhourIndexValue,
+    layerMode,
+    forecastStep,
+    selectedFloodForecastData,
+  ]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
@@ -705,6 +590,35 @@ export default function FloodMonitorMap({
         <Layers className="w-3.5 h-3.5" />
         MAP LAYERS
       </button>
+
+      {/* Zoom controls — below MAP LAYERS button */}
+      <div className="absolute top-[46px] right-2 z-[400] flex flex-col gap-1">
+        {[
+          {
+            icon: Plus,
+            title: "Zoom in",
+            action: () => FloodMonitormapRef.current?.zoomIn(),
+          },
+          {
+            icon: Minus,
+            title: "Zoom out",
+            action: () => FloodMonitormapRef.current?.zoomOut(),
+          },
+        ].map(({ icon: Icon, title, action }) => (
+          <button
+            key={title}
+            onClick={action}
+            title={title}
+            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all hover:opacity-90"
+            style={{
+              backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
+              border: `1px solid ${FAO_BLUE}55`,
+            }}
+          >
+            <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+          </button>
+        ))}
+      </div>
 
       {/* Layer panel */}
       {showLayerPanel && (
@@ -891,6 +805,92 @@ export default function FloodMonitorMap({
                   </span>
                 ))}
               </div>
+            </div>
+          );
+        })()}
+
+      {/* Hover tooltip — follows cursor, shows district value */}
+      {hoveredDistrictName &&
+        (() => {
+          const param = selectedParameter?.toLowerCase() ?? "";
+          const config = PARAM_LEGENDS[param];
+          const value = config
+            ? getDistrictValue(hoveredDistrictName, param)
+            : null;
+          const color =
+            config && value !== null ? getValueColor(value, param) : FAO_BLUE;
+          const tx = mousePos.x > 360 ? mousePos.x - 158 : mousePos.x + 14;
+          const ty = Math.max(mousePos.y - 62, 8);
+          return (
+            <div
+              className="absolute pointer-events-none z-[450]"
+              style={{
+                left: tx,
+                top: ty,
+                background: isDarkMode
+                  ? "rgba(8,12,24,0.9)"
+                  : "rgba(255,255,255,0.92)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
+                borderRadius: 10,
+                padding: "8px 12px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+                minWidth: 140,
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                  color: isDarkMode
+                    ? "rgba(255,255,255,0.4)"
+                    : "rgba(0,0,0,0.4)",
+                  marginBottom: 4,
+                }}
+              >
+                {hoveredDistrictName}
+              </p>
+              {config && value !== null && (
+                <div
+                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
+                >
+                  <span
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      color,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {value}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: isDarkMode
+                        ? "rgba(255,255,255,0.55)"
+                        : "rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    {config.unit}
+                  </span>
+                </div>
+              )}
+              <p
+                style={{
+                  fontSize: 9,
+                  color: isDarkMode
+                    ? "rgba(255,255,255,0.3)"
+                    : "rgba(0,0,0,0.3)",
+                  marginTop: 4,
+                  textTransform: "capitalize",
+                }}
+              >
+                {selectedParameter ?? "—"}
+              </p>
             </div>
           );
         })()}

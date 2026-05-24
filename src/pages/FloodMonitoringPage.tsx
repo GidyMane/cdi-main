@@ -19,6 +19,7 @@ import {
 import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
+import { useAppStore } from "@/store/useAppStore";
 
 interface FloodMonitoringPageProps {
   isDarkMode?: boolean;
@@ -161,6 +162,8 @@ const FilterContent = ({
   borderColor,
   headerText,
   riverBasins,
+  dateRange,
+  setDateRange,
 }: {
   timeRange: string;
   setTimeRange: (val: string) => void;
@@ -171,6 +174,8 @@ const FilterContent = ({
   textSecondary: string;
   borderColor: string;
   headerText: string;
+  dateRange: string;
+  setDateRange: (dateRange: string) => void;
   riverBasins: Array<{
     name: string;
     level: number;
@@ -182,6 +187,15 @@ const FilterContent = ({
   }>;
 }) => (
   <div className="space-y-3">
+    <div>
+      <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
+      <input
+        type="date"
+        value={dateRange}
+        onChange={(e) => setDateRange(e.target.value)}
+        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
+      />
+    </div>
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Time Range</label>
       <select
@@ -284,6 +298,9 @@ const FloodMap = ({
 export default function FloodMonitoringPage({
   isDarkMode = true,
 }: FloodMonitoringPageProps) {
+  const { dateRange, setDateRange, setLayerMode } = useAppStore(
+    (state) => state,
+  );
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
   const [selectedBasin, setSelectedBasin] = useState("Nile Basin");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -300,25 +317,11 @@ export default function FloodMonitoringPage({
   } = useFloodData();
   const [pageLoading, setPageLoading] = useState(true);
 
-  // const getMonthYear = (months: number) => {
-  //   const year = 2001 + Math.floor(months / 12);
-  //   const month = months % 12;
-  //   const monthNames = [
-  //     "Jan",
-  //     "Feb",
-  //     "Mar",
-  //     "Apr",
-  //     "May",
-  //     "Jun",
-  //     "Jul",
-  //     "Aug",
-  //     "Sep",
-  //     "Oct",
-  //     "Nov",
-  //     "Dec",
-  //   ];
-  //   return `${monthNames[month]} ${year}`;
-  // };
+  //set default layer mode
+
+  useEffect(() => {
+    setLayerMode("forecast");
+  }, []);
 
   // Handle initial loading
   useEffect(() => {
@@ -543,6 +546,8 @@ export default function FloodMonitoringPage({
                   borderColor={borderColor}
                   headerText={headerText}
                   riverBasins={riverBasins}
+                  dateRange={dateRange}
+                  setDateRange={setDateRange}
                 />
               </div>
 
@@ -1011,6 +1016,8 @@ export default function FloodMonitoringPage({
                     borderColor={borderColor}
                     headerText={headerText}
                     riverBasins={riverBasins}
+                    dateRange={dateRange}
+                    setDateRange={setDateRange}
                   />
                 </div>
               </>
