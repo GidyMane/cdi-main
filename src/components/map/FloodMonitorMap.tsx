@@ -8,156 +8,19 @@ import { capitalize } from "../../utils/capitalize";
 // import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import { X, Layers, Maximize2, Minimize2, Waves } from "lucide-react";
-import { formatDate, getLayerGroups, mapLayerName } from "@/utils/woker_fn";
+import {
+  formatDate,
+  getLayerGroups,
+  isPointInPolygon,
+  isValidGeoJSON,
+  mapLayerName,
+} from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-
-interface LegendItem {
-  label: string;
-  color: string;
-}
-
-interface UgandaBoundaryMapProps {
-  className?: string;
-  isDarkMode: boolean;
-  badgeText?: string;
-  legendTitle?: string;
-  legendItems?: LegendItem[];
-  district?: string;
-  setDistrict?: (name: string) => void;
-  getTheBounds?: string; // from reference: fits map to a named district
-  zoom?: number;
-  minZoom?: number;
-}
+import type { LayerDef, UgandaBoundaryMapProps } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
 
-// ── Ray-casting point-in-polygon ──────────────────────────────────────────────
-// Test whether a LatLng lies inside the actual polygon shape (not bounding box).
-// Handles both Polygon and MultiPolygon by flattening nested LatLng arrays.
-const isPointInPolygon = (latlng: L.LatLng, polyLatLngs: any): boolean => {
-  const rings: L.LatLng[][] = [];
-
-  const flatten = (arr: any) => {
-    if (!Array.isArray(arr) || arr.length === 0) return;
-    if (arr[0] instanceof L.LatLng) {
-      rings.push(arr as L.LatLng[]);
-    } else {
-      arr.forEach((item: any) => flatten(item));
-    }
-  };
-  flatten(polyLatLngs);
-
-  const x = latlng.lng;
-  const y = latlng.lat;
-
-  for (const ring of rings) {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const xi = ring[i].lng,
-        yi = ring[i].lat;
-      const xj = ring[j].lng,
-        yj = ring[j].lat;
-      const intersect =
-        yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
-    }
-    if (inside) return true;
-  }
-  return false;
-};
-
-interface LayerDef {
-  id: string;
-  label: string;
-  wms: string;
-  date?: string;
-  pages: string[]; // list of page paths where this layer should be available, e.g. ["/", "/flood", "/weather"]
-}
-
 // ── Layer panel definitions (matches screenshot) ──────────────────────────────
-// const today = new Date().toLocaleDateString("en-GB", {
-//   day: "2-digit",
-//   month: "short",
-//   year: "numeric",
-// });
-
-// const LAYER_GROUPS: { title: string; layers: LayerDef[] }[] = [
-//   {
-//     title: "FORECASTS",
-//     layers: [
-//       // flood monitor tab only
-//       {
-//         id: "flood",
-//         label: "Flood Forecast",
-//         wms: "flood_20260301_24h",
-//         date: today,
-//         pages: ["flood"],
-//       },
-//       // weather forecast tab only
-//       {
-//         id: "rainfall",
-//         label: "Rainfall (CHIRPS-GEFS)",
-//         wms: "chirps_gefs",
-//         date: today,
-//         pages: ["weather"],
-//       },
-//       {
-//         id: "heat_stress",
-//         label: "Heat Stress WBGT",
-//         wms: "wbgt",
-//         date: today,
-//         pages: ["weather"],
-//       },
-//       {
-//         id: "tmax",
-//         label: "Max Temp (Tmax)",
-//         wms: "chirts_tmax_20260428",
-//         date: today,
-//         pages: ["weather"],
-//       },
-//     ],
-//   },
-//   {
-//     title: "BOUNDARIES",
-//     layers: [
-//       { id: "country", label: "Country", wms: "country", pages: ["*"] },
-//       { id: "districts", label: "Districts", wms: "districts", pages: ["*"] },
-//     ],
-//   },
-//   {
-//     title: "HYDROLOGY",
-//     layers: [
-//       { id: "rivers", label: "Rivers", wms: "rivers", pages: ["flood"] },
-//       {
-//         id: "waterways",
-//         label: "Waterways",
-//         wms: "waterways",
-//         pages: ["flood"],
-//       },
-//       {
-//         id: "water_bodies",
-//         label: "Water Bodies",
-//         wms: "water_bodies",
-//         pages: ["flood"],
-//       },
-//     ],
-//   },
-//   {
-//     title: "INFRASTRUCTURE",
-//     layers: [
-//       { id: "roads", label: "Roads", wms: "roads", pages: ["*"] },
-//       { id: "places", label: "Places", wms: "places", pages: ["*"] },
-//       { id: "landuse", label: "Land Use", wms: "landuse", pages: ["*"] },
-//       { id: "buildings", label: "Buildings", wms: "buildings", pages: ["*"] },
-//     ],
-//   },
-//   // {
-//   //   title: "POPULATION",
-//   //   layers: [
-//   //     { id: "worldpop", label: "World Pop", wms: "worldpop", pages: ["*"] },
-//   //   ],
-//   // },
-// ];
 
 export default function FloodMonitorMap({
   className = "",
@@ -217,12 +80,6 @@ export default function FloodMonitorMap({
   const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  const isValidGeoJSON = (data: any): boolean =>
-    data &&
-    data.type === "FeatureCollection" &&
-    Array.isArray(data.features) &&
-    data.features.length > 0;
 
   // Draw / replace the blue boundary highlight around a district
   const drawBoundary = (geojson: any, color: string) => {
@@ -552,63 +409,63 @@ export default function FloodMonitorMap({
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Raster layer ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!FloodMonitormapRef.current) return;
+  // useEffect(() => {
+  //   if (!FloodMonitormapRef.current) return;
 
-    if (FloodMonitorrasterLayerRef.current) {
-      FloodMonitormapRef.current.removeLayer(
-        FloodMonitorrasterLayerRef.current,
-      );
-      FloodMonitorrasterLayerRef.current = null;
-    }
+  //   if (FloodMonitorrasterLayerRef.current) {
+  //     FloodMonitormapRef.current.removeLayer(
+  //       FloodMonitorrasterLayerRef.current,
+  //     );
+  //     FloodMonitorrasterLayerRef.current = null;
+  //   }
 
-    const hour =
-      sliderhourIndexValue === "000"
-        ? "00"
-        : String(sliderhourIndexValue).padStart(2, "0");
+  //   const hour =
+  //     sliderhourIndexValue === "000"
+  //       ? "00"
+  //       : String(sliderhourIndexValue).padStart(2, "0");
 
-    const layerName =
-      mapLayerName({
-        parameter: selectedParameter,
-        date: dateRange,
-        mode: "daily",
-        hour,
-      }) ??
-      mapLayerName({
-        parameter: selectedParameter,
-        date: dateRange,
-        mode: "monthly",
-      });
+  //   const layerName =
+  //     mapLayerName({
+  //       parameter: selectedParameter,
+  //       date: dateRange,
+  //       mode: "daily",
+  //       hour,
+  //     }) ??
+  //     mapLayerName({
+  //       parameter: selectedParameter,
+  //       date: dateRange,
+  //       mode: "monthly",
+  //     });
 
-    if (!layerName) return;
+  //   if (!layerName) return;
 
-    console.log("layerName", layerName);
+  //   console.log("layerName", layerName);
 
-    FloodMonitorrasterLayerRef.current = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: layerName,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      })
-      .on("loading", () => {
-        setRasterIsLoading(true);
-      })
-      .on("load", () => {
-        setRasterIsLoading(false);
-      })
-      .on("tileerror", () => {
-        setRasterIsLoading(false);
-      })
-      .addTo(FloodMonitormapRef.current);
-  }, [
-    geoData,
-    selectedParameter,
-    dateRange,
-    sliderhourIndexValue,
-    forecastStep,
-  ]);
+  //   FloodMonitorrasterLayerRef.current = L.tileLayer
+  //     .wms(GEO_SERVER_URL, {
+  //       layers: layerName,
+  //       format: "image/png",
+  //       transparent: true,
+  //       version: "1.1.0",
+  //       opacity: 1.0,
+  //     })
+  //     .on("loading", () => {
+  //       setRasterIsLoading(true);
+  //     })
+  //     .on("load", () => {
+  //       setRasterIsLoading(false);
+  //     })
+  //     .on("tileerror", () => {
+  //       setRasterIsLoading(false);
+  //     })
+  //     .addTo(FloodMonitormapRef.current);
+  // }, [
+  //   geoData,
+  //   selectedParameter,
+  //   dateRange,
+  //   sliderhourIndexValue,
+  //   forecastStep,
+  // ]);
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {

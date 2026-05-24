@@ -99,3 +99,30 @@ export interface district {
   id: number;
   name: string;
 }
+
+export interface LegendItem {
+  label: string;
+  color: string;
+}
+
+export interface UgandaBoundaryMapProps {
+  className?: string;
+  isDarkMode: boolean;
+  badgeText?: string;
+  legendTitle?: string;
+  legendItems?: LegendItem[];
+  district?: string;
+  setDistrict?: (name: string) => void;
+  getTheBounds?: string; // from reference: fits map to a named district
+  zoom?: number;
+  minZoom?: number;
+  district_list?: any;
+}
+
+export interface LayerDef {
+  id: string;
+  label: string;
+  wms: string;
+  date?: string;
+  pages: string[]; // list of page paths where this layer should be available, e.g. ["/", "/flood", "/weather"]
+}

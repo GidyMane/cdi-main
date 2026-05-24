@@ -367,6 +367,11 @@ export default function WeatherForecastPage({
   const statsId = selectedDistrictId?.id ?? kampala?.id;
   const statsLabel = selectedDistrictId?.name ?? kampala?.name ?? "Uganda";
 
+  //default layer mode
+  useEffect(() => {
+    setLayerMode("daily");
+  }, []);
+
   // Fetch dashboard + forecasts whenever the stats district changes
   useEffect(() => {
     (async () => {
