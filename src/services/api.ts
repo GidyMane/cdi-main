@@ -3,6 +3,8 @@
  * Uses environment variables for endpoints
  */
 
+import type { WeatherStation, StationReading, StationAlert, NetworkSummary } from "@/types/data_types";
+
 const API_BASE =
   import.meta.env.VITE_API_URL ||
   "https://multihazard.rosewillbome.com/api/v1/";
@@ -278,18 +280,43 @@ export const floodAPI = {
  * Weather Stations API
  */
 export const stationsAPI = {
-  getAll: async () => {
-    return fetchData(
-      import.meta.env.VITE_API_STATIONS_ENDPOINT || "stations/data",
-    );
+  getAll: async (region?: string, status?: "online" | "offline" | "maintenance") => {
+    let endpoint = "weather-stations/";
+    const params = new URLSearchParams();
+    if (region) params.append("region", region);
+    if (status) params.append("status", status);
+    if (params.toString()) endpoint += `?${params.toString()}`;
+    return fetchData<WeatherStation[]>(endpoint);
   },
 
   getById: async (stationId: string | number) => {
-    return fetchData(`stations/${stationId}`);
+    return fetchData<WeatherStation>(`weather-stations/${stationId}/`);
   },
 
-  getStatus: async () => {
-    return fetchData("stations/status");
+  getReadings: async (stationId: string | number, hours: number = 24) => {
+    return fetchData<StationReading[]>(
+      `weather-stations/${stationId}/readings/?hours=${hours}`
+    );
+  },
+
+  getAlerts: async () => {
+    return fetchData<StationAlert[]>("weather-stations/alerts/");
+  },
+
+  getNetworkSummary: async () => {
+    return fetchData<NetworkSummary>("weather-stations/network-summary/");
+  },
+
+  exportReadings: async (format: "csv" | "pdf" = "csv", stationId?: string | number, hours?: number) => {
+    let endpoint = `weather-stations/export/?format=${format}`;
+    if (stationId) endpoint += `&station_id=${stationId}`;
+    if (hours) endpoint += `&hours=${hours}`;
+    const url = `${API_BASE}${endpoint}`;
+    return fetch(url);
+  },
+
+  syncStatus: async () => {
+    return fetchData("weather-stations/sync/", { method: "POST" });
   },
 };
 
