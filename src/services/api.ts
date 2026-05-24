@@ -277,15 +277,29 @@ export const floodAPI = {
 /**
  * Weather Stations API
  */
+export interface WeatherStationAPI {
+  id: number;
+  code: string;
+  name: string;
+  region: string;
+  lat: number;
+  lon: number;
+  status: "online" | "maintenance" | "offline";
+  signal_pct: number;
+}
+
 export const stationsAPI = {
-  getAll: async () => {
-    return fetchData(
-      import.meta.env.VITE_API_STATIONS_ENDPOINT || "stations/data",
+  getAll: async (): Promise<WeatherStationAPI[]> => {
+    return fetchData<WeatherStationAPI[]>(
+      import.meta.env.VITE_API_STATIONS_ENDPOINT ||
+        "https://multihazard.rosewillbome.com/api/v1/weather-stations/",
     );
   },
 
-  getById: async (stationId: string | number) => {
-    return fetchData(`stations/${stationId}`);
+  getById: async (stationId: string | number): Promise<WeatherStationAPI> => {
+    return fetchData<WeatherStationAPI>(
+      `https://multihazard.rosewillbome.com/api/v1/weather-stations/${stationId}/`,
+    );
   },
 
   getStatus: async () => {

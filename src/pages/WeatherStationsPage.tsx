@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Radio,
   MapPin,
@@ -17,11 +17,13 @@ import {
   Filter,
   X,
 } from "lucide-react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import WeatherStationsMap from "../components/map/WeatherStationsMap";
+import type { WeatherStation } from "../components/map/WeatherStationsMap";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useQuery } from "@tanstack/react-query";
 import type { district } from "@/types/data_types";
-import { DistrictsAPI } from "@/services/api";
+import { DistrictsAPI, stationsAPI } from "@/services/api";
+import type { WeatherStationAPI } from "@/services/api";
 
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
@@ -35,112 +37,18 @@ const stationTabs = [
   { id: "alerts", label: "Alerts", icon: AlertTriangle },
 ];
 
-const stations = [
-  {
-    id: "AWS001",
-    name: "Entebbe Airport",
-    region: "Central",
-    status: "online",
-    temp: 26.5,
-    humidity: 78,
-    wind: 12,
-    pressure: 1013,
-    rain: 2.4,
-    signal: 95,
-    lastUpdate: "2 min ago",
-  },
-  {
-    id: "AWS002",
-    name: "Kampala City",
-    region: "Central",
-    status: "online",
-    temp: 25.8,
-    humidity: 82,
-    wind: 8,
-    pressure: 1012,
-    rain: 3.1,
-    signal: 88,
-    lastUpdate: "1 min ago",
-  },
-  {
-    id: "AWS003",
-    name: "Jinja",
-    region: "Eastern",
-    status: "online",
-    temp: 27.2,
-    humidity: 75,
-    wind: 10,
-    pressure: 1011,
-    rain: 1.8,
-    signal: 92,
-    lastUpdate: "5 min ago",
-  },
-  {
-    id: "AWS004",
-    name: "Mbale",
-    region: "Eastern",
-    status: "online",
-    temp: 23.4,
-    humidity: 85,
-    wind: 6,
-    pressure: 1010,
-    rain: 5.2,
-    signal: 85,
-    lastUpdate: "3 min ago",
-  },
-  {
-    id: "AWS005",
-    name: "Mbarara",
-    region: "Western",
-    status: "online",
-    temp: 24.1,
-    humidity: 70,
-    wind: 14,
-    pressure: 1014,
-    rain: 0.5,
-    signal: 90,
-    lastUpdate: "4 min ago",
-  },
-  {
-    id: "AWS006",
-    name: "Gulu",
-    region: "Northern",
-    status: "online",
-    temp: 28.5,
-    humidity: 65,
-    wind: 16,
-    pressure: 1009,
-    rain: 0,
-    signal: 87,
-    lastUpdate: "1 min ago",
-  },
-  {
-    id: "AWS007",
-    name: "Fort Portal",
-    region: "Western",
-    status: "maintenance",
-    temp: 22.8,
-    humidity: 80,
-    wind: 9,
-    pressure: 1015,
-    rain: 1.2,
-    signal: 60,
-    lastUpdate: "2 hours ago",
-  },
-  {
-    id: "AWS008",
-    name: "Lira",
-    region: "Northern",
-    status: "offline",
-    temp: 0,
-    humidity: 0,
-    wind: 0,
-    pressure: 0,
-    rain: 0,
-    signal: 0,
-    lastUpdate: "3 days ago",
-  },
-];
+/** Map API shape → WeatherStation used by the map component */
+function toMapStation(s: WeatherStationAPI): WeatherStation {
+  return {
+    id: String(s.id),
+    name: s.name,
+    region: s.region,
+    status: s.status,
+    lat: s.lat,
+    lng: s.lon,
+    signal: s.signal_pct,
+  };
+}
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -193,6 +101,7 @@ const FilterContent = ({
   headerText,
   onlineCount,
   offlineCount,
+  totalCount,
   district_list,
 }: {
   selectedRegion: string;
@@ -206,6 +115,7 @@ const FilterContent = ({
   headerText: string;
   onlineCount: number;
   offlineCount: number;
+  totalCount: number;
   district_list: district[] | undefined;
 }) => (
   <div className="space-y-3">
@@ -275,7 +185,7 @@ const FilterContent = ({
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Total Stations</span>
-          <span className={`font-medium ${headerText}`}>{stations.length}</span>
+          <span className={`font-medium ${headerText}`}>{totalCount}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Online</span>
@@ -296,25 +206,22 @@ const FilterContent = ({
   </div>
 );
 
-// Map Component with Legend
+// Map Component with station markers
 const StationMap = ({
   isDarkMode,
   className = "",
+  stations,
 }: {
   isDarkMode: boolean;
   className?: string;
+  stations: WeatherStation[];
 }) => {
   return (
-    <UgandaBoundaryMap
+    <WeatherStationsMap
       isDarkMode={isDarkMode}
       className={`rounded-lg md:rounded-xl ${className}`}
-      badgeText="7 Active"
-      legendTitle="Stations"
-      legendItems={[
-        { label: "Online", color: "#22c55e" },
-        { label: "Maintenance", color: "#eab308" },
-        { label: "Offline", color: "#ef4444" },
-      ]}
+      badgeText={`${stations.filter((s) => s.status === "online").length} Active`}
+      stations={stations}
     />
   );
 };
@@ -327,37 +234,22 @@ export default function WeatherStationsPage({
     queryKey: ["districts"],
     queryFn: DistrictsAPI.getAll,
   });
+
+  const { data: rawStations = [], isLoading: stationsLoading } = useQuery<
+    WeatherStationAPI[]
+  >({
+    queryKey: ["weather-stations"],
+    queryFn: stationsAPI.getAll,
+    refetchInterval: 60_000, // refresh every 60 s
+  });
+
+  // Map API shape → map-compatible shape
+  const stations: WeatherStation[] = rawStations.map(toMapStation);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [selectedStatus, setSelectedStatus] = useState("All Status");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
-
-  // const getMonthYear = (months: number) => {
-  //   const year = 2001 + Math.floor(months / 12);
-  //   const month = months % 12;
-  //   const monthNames = [
-  //     "Jan",
-  //     "Feb",
-  //     "Mar",
-  //     "Apr",
-  //     "May",
-  //     "Jun",
-  //     "Jul",
-  //     "Aug",
-  //     "Sep",
-  //     "Oct",
-  //     "Nov",
-  //     "Dec",
-  //   ];
-  //   return `${monthNames[month]} ${year}`;
-  // };
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
 
   const onlineCount = stations.filter((s) => s.status === "online").length;
   const offlineCount = stations.filter((s) => s.status === "offline").length;
@@ -371,7 +263,7 @@ export default function WeatherStationsPage({
   const borderColor = isDarkMode ? "border-slate-700/30" : "border-slate-200";
   const headerText = isDarkMode ? "text-white" : "text-slate-900";
 
-  if (isLoading) {
+  if (stationsLoading) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}
@@ -495,6 +387,7 @@ export default function WeatherStationsPage({
                   headerText={headerText}
                   onlineCount={onlineCount}
                   offlineCount={offlineCount}
+                  totalCount={stations.length}
                   district_list={district_list}
                 />
               </div>
@@ -573,6 +466,7 @@ export default function WeatherStationsPage({
                       <StationMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"
+                        stations={stations}
                       />
                     </div>
 
@@ -871,6 +765,7 @@ export default function WeatherStationsPage({
                   <StationMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
+                    stations={stations}
                   />
                 </div>
                 {/* Filter button on map */}
@@ -951,6 +846,7 @@ export default function WeatherStationsPage({
                     headerText={headerText}
                     onlineCount={onlineCount}
                     offlineCount={offlineCount}
+                    totalCount={stations.length}
                     district_list={district_list}
                   />
                 </div>
