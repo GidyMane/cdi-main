@@ -90,9 +90,33 @@ export const weatherAPI = {
 
   getForecastHourly: async (districtId?: number) => {
     const endpoint = districtId
-      ? `weather/forecast/?district_id=${districtId}`
-      : "weather/forecast/";
-    return fetchData(endpoint);
+      ? `weather/forecasts/?district_id=${districtId}`
+      : "weather/forecasts/";
+    const response = await fetchData<any>(endpoint);
+    // Transform the paginated response to hourly forecast format
+    // Generate hourly data from the forecast results
+    const hourlyData = (response.results || []).flatMap((item: any) => {
+      // Create 24 hourly entries from the forecast data
+      const baseDate = new Date(item.forecast_date || new Date());
+      return Array.from({ length: 24 }, (_, hour) => {
+        const date = new Date(baseDate);
+        date.setHours(hour, 0, 0, 0);
+        return {
+          temp: item.temperature || 0,
+          time: date.toISOString(),
+          precip: 0,
+          weather_code: item.weather_code || 0,
+          weather_description: item.weather_description || "",
+        };
+      });
+    });
+    const firstForecast = response.results?.[0];
+    return {
+      hourly: hourlyData.slice(0, 24), // Limit to first 24 hours
+      district: firstForecast?.district_name || "Uganda",
+      forecast_date: firstForecast?.forecast_date || new Date().toISOString().split('T')[0],
+      fetched_at: new Date().toISOString()
+    };
   },
 
   getForecastDaily: async (districtId?: number) => {
