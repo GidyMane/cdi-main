@@ -239,8 +239,7 @@ export const getLayerGroups = ({
         {
           id: "flood",
           label: "Flood Forecast",
-          // wms: `flood_forecast_${formattedDate}_${forecastStep}`,
-          wms: "",
+          wms: `flood_forecast_${formattedDate}_${forecastStep}`,
           date: today,
           pages: ["flood"],
         },
