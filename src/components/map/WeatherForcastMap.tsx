@@ -1339,7 +1339,7 @@ export default function WeatherForcastMap({
         );
       })()}
 
-      {/* Hover tooltip — follows cursor, shows district value */}
+      {/* Hover tooltip — text only, no background or border */}
       {hoveredDistrictName &&
         (() => {
           const param = selectedParameter?.toLowerCase() ?? "";
@@ -1349,78 +1349,48 @@ export default function WeatherForcastMap({
             : null;
           const color =
             config && value !== null ? getValueColor(value, param) : FAO_BLUE;
-          const tx = mousePos.x > 360 ? mousePos.x - 158 : mousePos.x + 14;
-          const ty = Math.max(mousePos.y - 62, 8);
+          const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;
+          const ty = Math.max(mousePos.y - 48, 8);
           return (
             <div
               className="absolute pointer-events-none z-[450]"
-              style={{
-                left: tx,
-                top: ty,
-                background: isDarkMode
-                  ? "rgba(8,12,24,0.9)"
-                  : "rgba(255,255,255,0.92)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
-                borderRadius: 10,
-                padding: "8px 12px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
-                minWidth: 140,
-              }}
+              style={{ left: tx, top: ty }}
             >
               <p
                 style={{
                   fontSize: 9,
                   letterSpacing: 1,
                   textTransform: "uppercase",
+                  fontWeight: 600,
                   color: isDarkMode
-                    ? "rgba(255,255,255,0.4)"
-                    : "rgba(0,0,0,0.4)",
-                  marginBottom: 4,
+                    ? "rgba(255,255,255,0.55)"
+                    : "rgba(0,0,0,0.55)",
+                  textShadow: isDarkMode
+                    ? "0 1px 3px rgba(0,0,0,0.8)"
+                    : "0 1px 3px rgba(255,255,255,0.9)",
+                  marginBottom: 2,
                 }}
               >
                 {hoveredDistrictName}
               </p>
               {config && value !== null && (
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
+                <p
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    color,
+                    textShadow: isDarkMode
+                      ? "0 1px 4px rgba(0,0,0,0.9)"
+                      : "0 1px 4px rgba(255,255,255,0.9)",
+                  }}
                 >
-                  <span
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 800,
-                      color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {value}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: isDarkMode
-                        ? "rgba(255,255,255,0.55)"
-                        : "rgba(0,0,0,0.5)",
-                    }}
-                  >
+                  {value}
+                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>
                     {config.unit}
                   </span>
-                </div>
+                </p>
               )}
-              <p
-                style={{
-                  fontSize: 9,
-                  color: isDarkMode
-                    ? "rgba(255,255,255,0.3)"
-                    : "rgba(0,0,0,0.3)",
-                  marginTop: 4,
-                  textTransform: "capitalize",
-                }}
-              >
-                {selectedParameter ?? "—"}
-              </p>
             </div>
           );
         })()}
