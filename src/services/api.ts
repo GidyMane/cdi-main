@@ -81,25 +81,34 @@ export const weatherAPI = {
     return fetchData(endpoint);
   },
 
+  getForecast: async (districtId?: number) => {
+    const endpoint = districtId
+      ? `weather/forecast/?district_id=${districtId}`
+      : "weather/forecast/";
+    return fetchData(endpoint);
+  },
+
   getForecastHourly: async (districtId?: number) => {
     const endpoint = districtId
-      ? `weather/forecast/hourly?district_id=${districtId}`
-      : "weather/hourly";
+      ? `weather/forecast/?district_id=${districtId}`
+      : "weather/forecast/";
     return fetchData(endpoint);
   },
+
   getForecastDaily: async (districtId?: number) => {
     const endpoint = districtId
-      ? `weather/forecast/forecast?district_id=${districtId}`
-      : "weather/forecast";
+      ? `weather/forecast/?district_id=${districtId}`
+      : "weather/forecast/";
     return fetchData(endpoint);
   },
+
   getExportData: async (districtId?: number) => {
     const endpoint = districtId
       ? `weather/export?district_id=${districtId}`
       : "weather/export";
 
     const url = `${API_BASE}${endpoint}`;
-    return fetch(url); // return raw Response, not fetchData()
+    return fetch(url);
   },
 };
 

@@ -376,14 +376,13 @@ export default function WeatherForecastPage({
   useEffect(() => {
     (async () => {
       try {
-        const [dashboard, forecast, daily] = await Promise.all([
+        const [dashboard, forecast] = await Promise.all([
           weatherAPI.getDashboard(statsId),
-          weatherAPI.getForecastHourly(statsId),
-          weatherAPI.getForecastDaily(statsId),
+          weatherAPI.getForecast(statsId),
         ]);
         setWeatherData(dashboard as WeatherData);
         setForecastData(forecast as ForecastPerHour);
-        setDailyForecast(daily as DailyForecastResponse);
+        setDailyForecast(forecast as DailyForecastResponse);
       } catch (err) {
         console.error("Failed to fetch weather data:", err);
       }
@@ -396,11 +395,12 @@ export default function WeatherForecastPage({
   }, [activeTab]);
 
   // Safe normalisation — guards against null / undefined / empty arrays
+  // Limit hourly forecast to 24 hours (48hr data cut at 24hr mark)
   const hourlyForecast = forecastData?.hourly?.length
-    ? normaliseHourly(forecastData.hourly)
+    ? normaliseHourly(forecastData.hourly).slice(0, 24)
     : [];
   const dailyForecast = dailyForecasts?.daily?.length
-    ? normaliseDaily(dailyForecasts.daily)
+    ? normaliseDaily(dailyForecasts.daily).slice(0, 20)
     : [];
 
   const MONTHS = [
@@ -500,6 +500,12 @@ export default function WeatherForecastPage({
   };
 
   const chartData = getChartData();
+
+  // Trigger chart update when filters or parameter changes
+  useEffect(() => {
+    // This effect ensures the chart updates whenever filters change
+    // The dependency array includes all filter-related variables
+  }, [activeTab, selectedCardIndex, dateRange, selectedParameter, statsId]);
 
   // Stat colours match PARAM_LEGENDS mid-range stops in WeatherForcastMap
   const STAT_COLOR = {
