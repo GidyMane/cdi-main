@@ -361,7 +361,7 @@ export default function WeatherForecastPage({
   );
 
   // When no district is selected, default stats to Kampala
-  const kampala = district_list.find((d) =>
+  const kampala = district_list.find((d: district) =>
     d.name.toLowerCase().includes("kampala"),
   );
   const statsId = selectedDistrictId?.id ?? kampala?.id;

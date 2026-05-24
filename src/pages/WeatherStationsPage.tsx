@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Radio,
   MapPin,
@@ -87,6 +87,7 @@ const FilterContent = ({
   onlineCount,
   offlineCount,
   district_list,
+  totalStations,
 }: {
   selectedRegion: string;
   setSelectedRegion: (val: string) => void;
@@ -100,6 +101,7 @@ const FilterContent = ({
   onlineCount: number;
   offlineCount: number;
   district_list: district[] | undefined;
+  totalStations: number;
 }) => (
   <div className="space-y-3">
     {/* <div>
@@ -169,7 +171,7 @@ const FilterContent = ({
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Total Stations</span>
-          <span className={`font-medium ${headerText}`}>{stations.length}</span>
+          <span className={`font-medium ${headerText}`}>{totalStations}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Online</span>
@@ -396,6 +398,7 @@ export default function WeatherStationsPage({
                   onlineCount={onlineCount}
                   offlineCount={offlineCount}
                   district_list={district_list}
+                  totalStations={stations.length}
                 />
               </div>
 
@@ -631,7 +634,7 @@ export default function WeatherStationsPage({
                               <p
                                 className={`text-xs font-medium ${headerText}`}
                               >
-                                {station.signal}%
+                                {station.signal_strength ?? 0}%
                               </p>
                             </div>
                             <div className="w-14">
@@ -854,6 +857,7 @@ export default function WeatherStationsPage({
                     onlineCount={onlineCount}
                     offlineCount={offlineCount}
                     district_list={district_list}
+                    totalStations={stations.length}
                   />
                 </div>
               </>
