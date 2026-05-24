@@ -14,58 +14,231 @@ interface HelpPageProps {
   isDarkMode?: boolean;
 }
 
+interface FAQItem {
+  q: string;
+  a: string | string[];
+}
+
+interface FAQCategory {
+  category: string;
+  questions: FAQItem[];
+}
+
 const FAO_BLUE = '#318DDE';
 
-const faqs = [
+const faqs: FAQCategory[] = [
   {
-    category: 'General',
+    category: 'General Overview',
     questions: [
       {
         q: 'What is the Uganda Multi-Hazard Observatory System?',
-        a: 'The Uganda Multi-Hazard Observatory System is a comprehensive monitoring platform developed in partnership with FAO to provide real-time data and early warnings for various environmental hazards, including drought, floods, and weather extremes across Uganda.'
+        a: 'Uganda Multi-Hazard Observatory System is a web-based platform designed to support climate and weather analysis, disaster awareness, and environmental risk visualization, developed in partnership with FAO.'
       },
       {
-        q: 'Who can access this data?',
-        a: 'The system is designed for use by government agencies, disaster management teams, agricultural extension workers, and the general public to aid in informed decision-making and disaster risk reduction.'
+        q: 'Who can use the platform?',
+        a: [
+          'Government agencies',
+          'Disaster management organizations',
+          'Researchers and NGOs',
+          'Climate analysts',
+          'Emergency responders',
+          'The general public',
+        ]
+      },
+      {
+        q: 'What types of hazards does the platform cover?',
+        a: 'The platform currently focuses on Floods, Droughts, and Extreme weather events. It also provides monitoring and visualization for weather parameters — Rainfall, Temperature, Humidity, and Wind speed — collected from both Satellite and Weather Stations.'
+      },
+      {
+        q: 'Is the platform free to use?',
+        a: 'Yes. Some features are publicly accessible, while advanced analytical or administrative tools may require authorized access.'
+      },
+      {
+        q: 'Is the platform available on mobile devices?',
+        a: 'Yes. The platform supports modern mobile browsers and responsive layouts.'
       }
     ]
   },
   {
-    category: 'Weather & Forecasts',
+    category: 'Hazard Monitoring & Data',
     questions: [
       {
-        q: 'How accurate are the weather forecasts?',
-        a: 'Our 24-hour nowcasts use high-resolution satellite and station data with approximately 87% accuracy. 7-day forecasts are updated every 6 hours to provide the most current predictions.'
+        q: 'Where does the platform get its hazard data?',
+        a: [
+          'Floods — Global Flood Awareness System (GloFAS), NASA Flood Monitoring Systems, UN Satellite Centre, Sentinel 1 & 2',
+          'Droughts — Combined Drought Index (CDI) computed from CHIRPS and CHIRTS data',
+          'Rainfall — OpenMeteo (hourly at towns), GSMaP_wGauge (district and basin)',
+          'Temperature — OpenMeteo (towns), ERA5 Land Hourly (district and basin)',
+          'Humidity & Wind Speed — OpenMeteo',
+          'Extreme Weather Events — Severe Weather Information Centre',
+          'Population — 2024 national census disaggregated to sub-county level',
+        ]
       },
       {
-        q: 'What is a "Nowcast"?',
-        a: 'A nowcast is a very short-term weather forecast (usually for the next few hours) that describes the current weather and how it is expected to change in the immediate future.'
+        q: 'How often is the data updated?',
+        a: 'Some datasets are updated near real-time, while others are refreshed daily or periodically depending on the source and availability.'
+      },
+      {
+        q: 'Can I view historical hazard data?',
+        a: 'Yes. Historical datasets for floods, rainfall, and droughts currently extend back to 2002.'
+      },
+      {
+        q: 'How accurate is the hazard information?',
+        a: 'Data accuracy depends on the original source, spatial resolution, update frequency, and observational coverage. Each dataset references its authoritative source.'
+      },
+      {
+        q: 'Does the platform provide predictive analytics or forecasting?',
+        a: 'The platform includes selected forecasting indicators and hazard trend visualizations, available depending on dataset availability.'
       }
     ]
   },
   {
-    category: 'Drought Monitoring (CDI)',
+    category: 'Maps & Visualization',
     questions: [
       {
-        q: 'What is the Combined Drought Index (CDI)?',
-        a: 'The CDI is a composite indicator used to identify areas at risk of drought. It integrates data from rainfall, soil moisture, and vegetation health to provide a holistic view of drought conditions.'
+        q: 'What map layers are available?',
+        a: [
+          'Flood extent maps',
+          'Rainfall amount',
+          'Temperature',
+          'Drought severity',
+          'Humidity',
+          'Wind speed',
+          'Administrative boundaries',
+        ]
       },
       {
-        q: 'How often is the drought data updated?',
-        a: 'CDI maps and drought indicators are updated on a monthly basis, with weekly updates for specific vegetation health indices.'
+        q: 'Can I customize map views?',
+        a: [
+          'Turn layers on or off',
+          'Zoom into specific areas of interest',
+          'Filter and switch displayed variables',
+        ]
+      },
+      {
+        q: 'Can I upload my own GIS data?',
+        a: 'Presently, the platform does not support user GIS data uploads. However, users can download cleaned datasets from the platform for further external analysis, and upload support is planned for future versions.'
+      },
+      {
+        q: 'Does the platform support spatial analysis?',
+        a: 'Currently, the platform performs selected spatial analyses internally and displays the resulting outputs dynamically through the interface. User-driven spatial analysis tools are planned for future releases.'
       }
     ]
   },
   {
-    category: 'Flood Monitoring',
+    category: 'Alerts & Notifications',
     questions: [
       {
-        q: 'How are river basin levels monitored?',
-        a: 'We use a combination of physical sensors at weather stations and satellite telemetry to monitor water levels in major river basins across Uganda.'
+        q: 'Can I receive hazard alerts?',
+        a: 'Yes. The platform provides notifications and alerts for selected hazard conditions and extreme weather events.'
       },
       {
-        q: 'What do the flood alert levels mean?',
-        a: 'Alerts are categorized into: Normal (No risk), Minor (Potential for localized issues), Moderate (Warning, preparation advised), and Severe (High risk of flooding, immediate action required).'
+        q: 'What notification methods are supported?',
+        a: [
+          'In-platform notifications',
+          'Email alerts',
+          'Dashboard indicators',
+        ]
+      },
+      {
+        q: 'Can I configure custom alert thresholds?',
+        a: 'Custom threshold configuration is planned for future versions of the platform.'
+      }
+    ]
+  },
+  {
+    category: 'Reporting & Data Export',
+    questions: [
+      {
+        q: 'Can I generate reports?',
+        a: 'Yes. Users can generate reports and export selected datasets and visualizations directly from the platform.'
+      },
+      {
+        q: 'What export formats are supported?',
+        a: ['PDF', 'CSV']
+      },
+      {
+        q: 'Can I download cleaned datasets?',
+        a: 'Yes. The platform allows users to download cleaned datasets for external analysis and research purposes.'
+      }
+    ]
+  },
+  {
+    category: 'Integration & API',
+    questions: [
+      {
+        q: 'Does the platform provide a public API?',
+        a: 'Currently, the platform does not provide a public API. Data access is available through the web interface.'
+      },
+      {
+        q: 'Will API access be available in the future?',
+        a: 'API integration is being considered for future platform releases to allow programmatic data access.'
+      },
+      {
+        q: 'Can the platform integrate with third-party systems?',
+        a: 'Future versions may support integrations with GIS tools, analytical platforms, and external monitoring systems.'
+      }
+    ]
+  },
+  {
+    category: 'Security & Privacy',
+    questions: [
+      {
+        q: 'How is user data protected?',
+        a: [
+          'Secure HTTPS connections',
+          'Authentication controls',
+          'Role-based permissions',
+          'Secure hosting infrastructure',
+        ]
+      },
+      {
+        q: 'Is user activity logged?',
+        a: 'Administrative logging and monitoring may be enabled for operational and security purposes.'
+      }
+    ]
+  },
+  {
+    category: 'Technical Support',
+    questions: [
+      {
+        q: 'What browsers are supported?',
+        a: ['Google Chrome', 'Mozilla Firefox', 'Microsoft Edge', 'Safari']
+      },
+      {
+        q: 'Why is the map loading slowly?',
+        a: [
+          'Internet connection speed',
+          'Number of active map layers',
+          'Device performance capability',
+          'Dataset size and resolution',
+        ]
+      },
+      {
+        q: 'How do I report a technical issue?',
+        a: 'Contact the platform support or administrative team through the designated support channels listed at the bottom of this page.'
+      }
+    ]
+  },
+  {
+    category: 'Future Enhancements',
+    questions: [
+      {
+        q: 'Will additional hazards and datasets be added?',
+        a: 'Yes. Future versions plan to expand coverage to include additional environmental and climate-related hazards beyond the current set.'
+      },
+      {
+        q: 'Will user GIS uploads be supported?',
+        a: 'Yes. User-upload functionality for custom GIS data is being considered for future platform updates.'
+      },
+      {
+        q: 'Are advanced analytical tools planned?',
+        a: [
+          'Enhanced analytics and statistical summaries',
+          'Interactive and configurable dashboards',
+          'Improved forecasting models',
+          'Expanded visualization capabilities',
+        ]
       }
     ]
   }
@@ -84,11 +257,14 @@ export default function HelpPage({ isDarkMode = true }: HelpPageProps) {
   const cardBg = isDarkMode ? 'bg-slate-800/50' : 'bg-white';
   const borderColor = isDarkMode ? 'border-slate-700' : 'border-slate-200';
 
+  const answerText = (a: string | string[]) =>
+    Array.isArray(a) ? a.join(' ') : a;
+
   const filteredFaqs = faqs.map(cat => ({
     ...cat,
-    questions: cat.questions.filter(q => 
-      q.q.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      q.a.toLowerCase().includes(searchQuery.toLowerCase())
+    questions: cat.questions.filter(q =>
+      q.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      answerText(q.a).toLowerCase().includes(searchQuery.toLowerCase())
     )
   })).filter(cat => cat.questions.length > 0);
 
@@ -165,7 +341,13 @@ export default function HelpPage({ isDarkMode = true }: HelpPageProps) {
                         </button>
                         {isExpanded && (
                           <div className="px-4 pb-4 animate-fade-in">
-                            <p className={`text-sm leading-relaxed ${textMuted}`}>{item.a}</p>
+                            {Array.isArray(item.a) ? (
+                              <ul className={`text-sm leading-relaxed ${textMuted} list-disc list-inside space-y-1`}>
+                                {item.a.map((point, i) => <li key={i}>{point}</li>)}
+                              </ul>
+                            ) : (
+                              <p className={`text-sm leading-relaxed ${textMuted}`}>{item.a}</p>
+                            )}
                           </div>
                         )}
                       </div>
