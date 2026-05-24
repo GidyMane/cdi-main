@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { stationsAPI } from '../services/api';
 import type { WeatherStation, StationAlert } from '../types/data_types';
 
-const CACHE_DURATION = 5 * 60 * 1000;
 let stationsCache = {
   all: null as WeatherStation[] | null,
   lastFetch: 0,
