@@ -376,13 +376,14 @@ export default function WeatherForecastPage({
   useEffect(() => {
     (async () => {
       try {
-        const [dashboard, forecast] = await Promise.all([
+        const [dashboard, hourlyForecast, dailyForecast] = await Promise.all([
           weatherAPI.getDashboard(statsId),
-          weatherAPI.getForecast(statsId),
+          weatherAPI.getForecastHourly(statsId),
+          weatherAPI.getForecastDaily(statsId),
         ]);
         setWeatherData(dashboard as WeatherData);
-        setForecastData(forecast as ForecastPerHour);
-        setDailyForecast(forecast as DailyForecastResponse);
+        setForecastData(hourlyForecast as ForecastPerHour);
+        setDailyForecast(dailyForecast as DailyForecastResponse);
       } catch (err) {
         console.error("Failed to fetch weather data:", err);
       }
