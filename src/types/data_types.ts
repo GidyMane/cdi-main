@@ -126,3 +126,46 @@ export interface LayerDef {
   date?: string;
   pages: string[]; // list of page paths where this layer should be available, e.g. ["/", "/flood", "/weather"]
 }
+
+export interface WeatherStation {
+  id: number;
+  name: string;
+  region?: string;
+  status: "online" | "offline" | "maintenance";
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;
+  last_update?: string;
+  signal_strength?: number;
+}
+
+export interface StationReading {
+  timestamp: string;
+  temperature?: number;
+  humidity?: number;
+  wind_speed?: number;
+  wind_direction?: number;
+  pressure?: number;
+  rainfall?: number;
+  rainfall_rate?: number;
+}
+
+export interface StationAlert {
+  id: number;
+  station_id: number;
+  station_name: string;
+  alert_type: string;
+  severity: "low" | "medium" | "high" | "critical";
+  message: string;
+  timestamp: string;
+  resolved: boolean;
+}
+
+export interface NetworkSummary {
+  total_stations: number;
+  online_count: number;
+  offline_count: number;
+  maintenance_count: number;
+  data_quality_percent: number;
+  network_uptime_percent: number;
+}

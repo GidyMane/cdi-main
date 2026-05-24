@@ -20,8 +20,8 @@ import {
 import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useQuery } from "@tanstack/react-query";
-import type { district } from "@/types/data_types";
-import { DistrictsAPI } from "@/services/api";
+import type { district, WeatherStation } from "@/types/data_types";
+import { DistrictsAPI, stationsAPI } from "@/services/api";
 
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
@@ -33,113 +33,6 @@ const stationTabs = [
   { id: "all", label: "All Stations", icon: Radio },
   { id: "readings", label: "Recent Readings", icon: BarChart3 },
   { id: "alerts", label: "Alerts", icon: AlertTriangle },
-];
-
-const stations = [
-  {
-    id: "AWS001",
-    name: "Entebbe Airport",
-    region: "Central",
-    status: "online",
-    temp: 26.5,
-    humidity: 78,
-    wind: 12,
-    pressure: 1013,
-    rain: 2.4,
-    signal: 95,
-    lastUpdate: "2 min ago",
-  },
-  {
-    id: "AWS002",
-    name: "Kampala City",
-    region: "Central",
-    status: "online",
-    temp: 25.8,
-    humidity: 82,
-    wind: 8,
-    pressure: 1012,
-    rain: 3.1,
-    signal: 88,
-    lastUpdate: "1 min ago",
-  },
-  {
-    id: "AWS003",
-    name: "Jinja",
-    region: "Eastern",
-    status: "online",
-    temp: 27.2,
-    humidity: 75,
-    wind: 10,
-    pressure: 1011,
-    rain: 1.8,
-    signal: 92,
-    lastUpdate: "5 min ago",
-  },
-  {
-    id: "AWS004",
-    name: "Mbale",
-    region: "Eastern",
-    status: "online",
-    temp: 23.4,
-    humidity: 85,
-    wind: 6,
-    pressure: 1010,
-    rain: 5.2,
-    signal: 85,
-    lastUpdate: "3 min ago",
-  },
-  {
-    id: "AWS005",
-    name: "Mbarara",
-    region: "Western",
-    status: "online",
-    temp: 24.1,
-    humidity: 70,
-    wind: 14,
-    pressure: 1014,
-    rain: 0.5,
-    signal: 90,
-    lastUpdate: "4 min ago",
-  },
-  {
-    id: "AWS006",
-    name: "Gulu",
-    region: "Northern",
-    status: "online",
-    temp: 28.5,
-    humidity: 65,
-    wind: 16,
-    pressure: 1009,
-    rain: 0,
-    signal: 87,
-    lastUpdate: "1 min ago",
-  },
-  {
-    id: "AWS007",
-    name: "Fort Portal",
-    region: "Western",
-    status: "maintenance",
-    temp: 22.8,
-    humidity: 80,
-    wind: 9,
-    pressure: 1015,
-    rain: 1.2,
-    signal: 60,
-    lastUpdate: "2 hours ago",
-  },
-  {
-    id: "AWS008",
-    name: "Lira",
-    region: "Northern",
-    status: "offline",
-    temp: 0,
-    humidity: 0,
-    wind: 0,
-    pressure: 0,
-    rain: 0,
-    signal: 0,
-    lastUpdate: "3 days ago",
-  },
 ];
 
 const getStatusColor = (status: string) => {
@@ -230,8 +123,9 @@ const FilterContent = ({
         onChange={(e) => setSelectedRegion(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
+        <option value="">All Districts</option>
         {district_list?.map((r) => (
-          <option key={r.id}>{r.name}</option>
+          <option key={r.id} value={r.name}>{r.name}</option>
         ))}
       </select>
     </div>
@@ -242,7 +136,7 @@ const FilterContent = ({
         onChange={(e) => setSelectedStatus(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        <option value="All Status">All Status</option>
+        <option value="">All Status</option>
         <option value="online">Online</option>
         <option value="maintenance">Maintenance</option>
         <option value="offline">Offline</option>
@@ -300,15 +194,17 @@ const FilterContent = ({
 const StationMap = ({
   isDarkMode,
   className = "",
+  activeCount = 0,
 }: {
   isDarkMode: boolean;
   className?: string;
+  activeCount?: number;
 }) => {
   return (
     <UgandaBoundaryMap
       isDarkMode={isDarkMode}
       className={`rounded-lg md:rounded-xl ${className}`}
-      badgeText="7 Active"
+      badgeText={`${activeCount} Active`}
       legendTitle="Stations"
       legendItems={[
         { label: "Online", color: "#22c55e" },
@@ -327,37 +223,16 @@ export default function WeatherStationsPage({
     queryKey: ["districts"],
     queryFn: DistrictsAPI.getAll,
   });
+
   const [activeTab, setActiveTab] = useState("all");
-  const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
 
-  // const getMonthYear = (months: number) => {
-  //   const year = 2001 + Math.floor(months / 12);
-  //   const month = months % 12;
-  //   const monthNames = [
-  //     "Jan",
-  //     "Feb",
-  //     "Mar",
-  //     "Apr",
-  //     "May",
-  //     "Jun",
-  //     "Jul",
-  //     "Aug",
-  //     "Sep",
-  //     "Oct",
-  //     "Nov",
-  //     "Dec",
-  //   ];
-  //   return `${monthNames[month]} ${year}`;
-  // };
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+  const { data: stations = [], isLoading, refetch } = useQuery<WeatherStation[]>({
+    queryKey: ["weather-stations", selectedRegion, selectedStatus],
+    queryFn: () => stationsAPI.getAll(selectedRegion || undefined, selectedStatus as any || undefined),
+  });
 
   const onlineCount = stations.filter((s) => s.status === "online").length;
   const offlineCount = stations.filter((s) => s.status === "offline").length;
@@ -370,6 +245,27 @@ export default function WeatherStationsPage({
   const textSecondary = isDarkMode ? "text-slate-300" : "text-slate-600";
   const borderColor = isDarkMode ? "border-slate-700/30" : "border-slate-200";
   const headerText = isDarkMode ? "text-white" : "text-slate-900";
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
+
+  const handleExport = async (format: "csv" | "pdf") => {
+    try {
+      const response = await stationsAPI.exportReadings(format);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `weather-stations.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Export failed:", error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -451,12 +347,16 @@ export default function WeatherStationsPage({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
+                <button
+                  onClick={() => handleExport("csv")}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors"
+                >
                   <Download className="w-3 h-3" />
                   <span className="hidden sm:inline">Export</span>
                 </button>
                 <button
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+                  onClick={handleRefresh}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-white transition-colors hover:opacity-90"
                   style={{ backgroundColor: FAO_BLUE }}
                 >
                   <RefreshCw className="w-3 h-3" />
@@ -573,6 +473,7 @@ export default function WeatherStationsPage({
                       <StationMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"
+                        activeCount={onlineCount}
                       />
                     </div>
 
@@ -871,6 +772,7 @@ export default function WeatherStationsPage({
                   <StationMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
+                    activeCount={onlineCount}
                   />
                 </div>
                 {/* Filter button on map */}
