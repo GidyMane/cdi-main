@@ -44,7 +44,7 @@ function clearLayer<T extends L.Layer>(
   }
 }
 
-// ── Station types ─────────────────────────────────────────────────────────────
+// ── Station type ─────────────────────────────────────────────────────────────
 export type StationStatus = "online" | "maintenance" | "offline";
 
 export interface WeatherStation {
