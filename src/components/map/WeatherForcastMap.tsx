@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useRainAnimation } from "./useRainAnimation";
-// import { geoAPI } from "../../services/api";
 import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
-// import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
 import {
@@ -20,7 +18,6 @@ import {
   Wind,
   Plus,
   Minus,
-  CloudCog,
 } from "lucide-react";
 import {
   formatDate,
@@ -41,6 +38,27 @@ import type {
 } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
+const GEO_SERVER_URL =
+  "https://multihazard.rosewillbome.com/geoserver/wfews/wms";
+
+/** Shared WMS options used for every raster layer */
+const WMS_BASE_OPTIONS = {
+  format: "image/png" as const,
+  transparent: true,
+  version: "1.1.0",
+  opacity: 0.85,
+};
+
+/** Remove a layer from the map and null the ref */
+function clearLayer<T extends L.Layer>(
+  map: L.Map,
+  ref: React.MutableRefObject<T | null>,
+) {
+  if (ref.current) {
+    map.removeLayer(ref.current);
+    ref.current = null;
+  }
+}
 
 function ParamIcon({
   param,
@@ -120,7 +138,9 @@ export default function WeatherForcastMap({
   );
   const weatherMarkersRef = useRef<L.Marker[]>([]);
 
-  // ── UI state ────────────────────────────────────────────────────────────────
+  const [selectedForcastData, setSelectedForcastData] = useState<string | null>(
+    null,
+  );
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(
     new Set(["country"]),
@@ -148,10 +168,6 @@ export default function WeatherForcastMap({
     weatherforcastMapRef,
     geoData as any,
   );
-
-  let selectedForcastData: string | null = null;
-
-  const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
   // Check whether a district label fits inside its polygon at current zoom
   // (exact port of doesNameFitInLeafletBoundary from reference)
@@ -186,13 +202,13 @@ export default function WeatherForcastMap({
 
   // Toggle a panel layer on/off
   const toggleLayer = (layerDef: LayerDef) => {
-    console.log("layerDef", layerDef?.id);
-    selectedForcastData =
+    const forecastParam =
       layerDef?.id === "tmax"
         ? "gfs_tmax"
         : layerDef?.id === "tmin"
           ? "gfs_tmin"
           : null;
+    setSelectedForcastData(forecastParam);
 
     if (!weatherforcastMapRef.current) return;
 
@@ -209,8 +225,8 @@ export default function WeatherForcastMap({
         return next;
       });
     } else {
-      if (layerDef?.id === "tmax" || layerDef?.id === "tmin") {
-      } else {
+      // tmax / tmin are handled via the raster useEffect; skip adding a WMS layer here
+      if (layerDef.id !== "tmax" && layerDef.id !== "tmin") {
         const wmsLayer = L.tileLayer
           .wms(GEO_SERVER_URL, {
             layers: `wfews:${layerDef.wms}`,
@@ -328,13 +344,8 @@ export default function WeatherForcastMap({
         setSelectedDistrictId(filtered);
       }
 
-      // Highlight only the clicked feature — pass the single Feature directly
-      if (weatherforcastboundaryLayerRef.current) {
-        weatherforcastMapRef.current!.removeLayer(
-          weatherforcastboundaryLayerRef.current,
-        );
-        weatherforcastboundaryLayerRef.current = null;
-      }
+      // Highlight only the clicked feature
+      clearLayer(weatherforcastMapRef.current!, weatherforcastboundaryLayerRef);
       weatherforcastboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
       })
@@ -342,13 +353,8 @@ export default function WeatherForcastMap({
         .bringToFront();
     });
 
-    // ── Water / lake overlay (from reference) ─────────────────────────────
-    if (weatherforcastriverLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastriverLayerRef.current,
-      );
-      weatherforcastriverLayerRef.current = null;
-    }
+    // ── Water / lake overlay ──────────────────────────────────────────────
+    clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
     if (waterAreas) {
       weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
         style: {
@@ -439,12 +445,7 @@ export default function WeatherForcastMap({
       getTheBounds.trim() === "" ||
       getTheBounds.trim().toLowerCase() === "all"
     ) {
-      if (weatherforcastboundaryLayerRef.current) {
-        weatherforcastMapRef.current.removeLayer(
-          weatherforcastboundaryLayerRef.current,
-        );
-        weatherforcastboundaryLayerRef.current = null;
-      }
+      clearLayer(weatherforcastMapRef.current, weatherforcastboundaryLayerRef);
       weatherforcastMapRef.current.setMaxBounds(
         L.latLngBounds([
           [-90, -180],
@@ -456,20 +457,13 @@ export default function WeatherForcastMap({
       return;
     }
 
-    console.log("getTheBounds ", getTheBounds);
-
     const matched = geoData.features.filter(
       (f: any) =>
         f?.properties?.name === capitalize(getTheBounds.toLowerCase()),
     );
     if (!matched.length) return;
 
-    if (weatherforcastboundaryLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastboundaryLayerRef.current,
-      );
-      weatherforcastboundaryLayerRef.current = null;
-    }
+    clearLayer(weatherforcastMapRef.current, weatherforcastboundaryLayerRef);
 
     weatherforcastboundaryLayerRef.current = L.geoJSON(
       { ...geoData, features: matched } as FeatureCollection,
@@ -485,68 +479,54 @@ export default function WeatherForcastMap({
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Raster layer — respects layerMode (daily / monthly / forecast) ──────────
+  // ── Raster layer — handles daily / monthly and forecast modes ───────────────
   useEffect(() => {
     if (!weatherforcastMapRef.current) return;
 
-    if (weatherforcastrasterLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastrasterLayerRef.current,
-      );
-      weatherforcastrasterLayerRef.current = null;
+    clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
+
+    if (layerMode === "forecast") {
+      if (!selectedForcastData) return;
+      const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) ?? "";
+      const layerName = `wfews:${selectedForcastData}_${forecastStep}h_${formattedDate}`;
+      weatherforcastrasterLayerRef.current = L.tileLayer
+        .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
+        .on("loading", () => setRasterIsLoading(true))
+        .on("load", () => setRasterIsLoading(false))
+        .on("tileerror", () => setRasterIsLoading(false))
+        .addTo(weatherforcastMapRef.current);
+      weatherforcastrasterLayerRef.current.bringToFront();
+      return;
     }
 
-    if (layerMode === "forecast") return;
-
+    // ── Daily / monthly branch ────────────────────────────────────────────
     const hour =
       sliderhourIndexValue === "000"
         ? "00"
         : String(sliderhourIndexValue).padStart(2, "0");
 
-    // Build layer name based on the active tab
-    const layerName = (() => {
-      // if (layerMode === "forecast") {
-      //   return mapLayerName({
-      //     parameter: selectedParameter,
-      //     date: dateRange,
-      //     mode: "forecast",
-      //     forecastStep,
-      //   });
-      // }
-      if (layerMode === "monthly") {
-        return mapLayerName({
-          parameter: selectedParameter,
-          date: dateRange,
-          mode: "monthly",
-        });
-      }
-      // daily — use selected hour, fall back to monthly if daily not available
-      return (
-        mapLayerName({
-          parameter: selectedParameter,
-          date: dateRange,
-          mode: "daily",
-          hour,
-        }) ??
-        mapLayerName({
-          parameter: selectedParameter,
-          date: dateRange,
-          mode: "monthly",
-        })
-      );
-    })();
-
-    console.log("layer name ", layerName);
+    const layerName =
+      layerMode === "monthly"
+        ? mapLayerName({
+            parameter: selectedParameter,
+            date: dateRange,
+            mode: "monthly",
+          })
+        : (mapLayerName({
+            parameter: selectedParameter,
+            date: dateRange,
+            mode: "daily",
+            hour,
+          }) ??
+          mapLayerName({
+            parameter: selectedParameter,
+            date: dateRange,
+            mode: "monthly",
+          }));
 
     if (layerName) {
       weatherforcastrasterLayerRef.current = L.tileLayer
-        .wms(GEO_SERVER_URL, {
-          layers: layerName,
-          format: "image/png",
-          transparent: true,
-          version: "1.1.0",
-          opacity: 0.85,
-        })
+        .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
         .on("loading", () => setRasterIsLoading(true))
         .on("load", () => setRasterIsLoading(false))
         .on("tileerror", () => setRasterIsLoading(false))
@@ -554,15 +534,13 @@ export default function WeatherForcastMap({
       weatherforcastrasterLayerRef.current.bringToFront();
     }
 
-    // ── Rain animation: magnitude-scaled drops per district ──────────────────
+    // ── Rain animation: magnitude-scaled drops per district ───────────────
     if (selectedParameter?.toLowerCase() === "rainfall" && geoData?.features) {
       const rainyDistricts = (geoData.features as any[])
         .filter((f: any) => f?.properties?.name)
         .map((f: any) => {
           const name = f.properties.name as string;
           const meanMm = getDistrictValue(name, "rainfall");
-
-          // Drop density, speed and line thickness scaled by rainfall intensity
           let rainyPct: number, speedScale: number, lineWidth: number;
           if (meanMm >= 75) {
             rainyPct = 90;
@@ -585,7 +563,6 @@ export default function WeatherForcastMap({
             speedScale = 0;
             lineWidth = 0;
           }
-
           return { name, meanMm, rainyPct, speedScale, lineWidth };
         })
         .filter((d) => d.meanMm >= 10);
@@ -600,38 +577,8 @@ export default function WeatherForcastMap({
     sliderhourIndexValue,
     layerMode,
     forecastStep,
+    selectedForcastData,
   ]);
-
-  // work on forcast data
-
-  useEffect(() => {
-    if (!weatherforcastMapRef.current) return;
-    if (!selectedForcastData) return;
-
-    if (weatherforcastrasterLayerRef.current) {
-      weatherforcastMapRef.current.removeLayer(
-        weatherforcastrasterLayerRef.current,
-      );
-      weatherforcastrasterLayerRef.current = null;
-    }
-    const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) || "";
-    let layerName = `wfews:${selectedForcastData}_${forecastStep}h_${formattedDate}`;
-    if (layerName) {
-      weatherforcastrasterLayerRef.current = L.tileLayer
-        .wms(GEO_SERVER_URL, {
-          layers: layerName,
-          format: "image/png",
-          transparent: true,
-          version: "1.1.0",
-          opacity: 0.85,
-        })
-        .on("loading", () => setRasterIsLoading(true))
-        .on("load", () => setRasterIsLoading(false))
-        .on("tileerror", () => setRasterIsLoading(false))
-        .addTo(weatherforcastMapRef.current);
-      weatherforcastrasterLayerRef.current.bringToFront();
-    }
-  }, [dateRange, forecastStep, selectedForcastData]);
 
   // ── Weather district markers — selected district or Kampala by default ────────
   useEffect(() => {
