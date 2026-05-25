@@ -727,7 +727,7 @@ export default function WeatherStationsPage({
           </div>
         </div>
 
-        {/* Mobile Layout */}
+        {/* Mobile Layouts */}
         <div className="block lg:hidden space-y-3">
           {/* Network Overview - Mobile (above map) */}
           <div
