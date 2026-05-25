@@ -335,47 +335,56 @@ export function FloodHourSlider({
         )}
       </button>
 
-      {isForecast ? (
-        /* ── Forecast mode: show step spinner ── */
-        <>
-          <Spinner
-            display={`+${forecastStep}h`}
-            onUp={stepUp}
-            onDown={stepDown}
-          />
-          <span className="text-white/50 text-xs font-medium whitespace-nowrap">
-            ahead
-          </span>
-        </>
-      ) : (
-        /* ── Daily mode: show date + hour ── */
-        <>
-          <Spinner
-            display={String(day).padStart(2, "0")}
-            onUp={dayUp}
-            onDown={dayDown}
-            disabledUp={isAtMax}
-            disabledDown={isAtMin}
-          />
-          {/* Month is read-only — it changes automatically with the day */}
-          <Spinner
-            display={MONTHS[month]}
-            onUp={() => {}}
-            onDown={() => {}}
-            disabled
-          />
-          <span className="text-white/50 font-bold text-xs leading-5 tabular-nums">
-            {year}
-          </span>
-          <span className="text-white/60 font-bold text-sm">·</span>
-          <Spinner
-            display={String(hour).padStart(2, "0")}
-            onUp={() => setHour((v) => clamp(v + 1, 0, 23))}
-            onDown={() => setHour((v) => clamp(v - 1, 0, 23))}
-          />
-          <span className="text-white font-bold text-sm -mx-1">:00</span>
-        </>
-      )}
+      {/* ── Always-visible: date · hour · forecast step ── */}
+      <>
+        {/* Day */}
+        <Spinner
+          display={String(day).padStart(2, "0")}
+          onUp={dayUp}
+          onDown={dayDown}
+          disabledUp={isAtMax}
+          disabledDown={isAtMin}
+        />
+        {/* Month — read-only, rolls automatically with day */}
+        <Spinner
+          display={MONTHS[month]}
+          onUp={() => {}}
+          onDown={() => {}}
+          disabled
+        />
+        {/* Year */}
+        <span className="text-white/50 font-bold text-xs leading-5 tabular-nums">
+          {year}
+        </span>
+
+        <span className="text-white/30 font-bold text-sm">·</span>
+
+        {/* Hour — hidden in forecast mode */}
+        {!isForecast && (
+          <>
+            <Spinner
+              display={String(hour).padStart(2, "0")}
+              onUp={() => setHour((v) => clamp(v + 1, 0, 23))}
+              onDown={() => setHour((v) => clamp(v - 1, 0, 23))}
+            />
+            <span className="text-white/50 text-xs font-medium">h</span>
+          </>
+        )}
+
+        {/* Forecast step — only shown in forecast mode */}
+        {isForecast && (
+          <>
+            <Spinner
+              display={`+${forecastStep}h`}
+              onUp={stepUp}
+              onDown={stepDown}
+            />
+            <span className="text-white/50 text-xs font-medium whitespace-nowrap">
+              ahead
+            </span>
+          </>
+        )}
+      </>
 
       {/* Skip to end */}
       <button

@@ -233,8 +233,8 @@ const FilterContent = ({
   textSecondary,
   borderColor,
   weatherData,
-  dateRange,
-  setDateRange,
+  // dateRange,
+  // setDateRange,
   district_list,
 }: {
   selectedRegion: string;
