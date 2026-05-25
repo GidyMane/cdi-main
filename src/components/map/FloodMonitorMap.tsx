@@ -89,10 +89,12 @@ export default function FloodMonitorMap({
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(
+    new Set(["flood"]),
+  );
   const [selectedFloodForecastData, setSelectedFloodForecastData] = useState<
     string | null
-  >(null);
+  >("flood_forecast");
   const [isRasterLoading, setRasterIsLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(
