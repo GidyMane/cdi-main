@@ -140,8 +140,11 @@ const FilterContent = ({
         onChange={(e) => setSelectedRegion(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
+        <option value="">All Districts</option>
         {district_list?.map((r) => (
-          <option key={r.id}>{r.name}</option>
+          <option key={r.id} value={r.name}>
+            {r.name}
+          </option>
         ))}
       </select>
     </div>
@@ -152,7 +155,7 @@ const FilterContent = ({
         onChange={(e) => setSelectedStatus(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        <option value="All Status">All Status</option>
+        <option value="">All Status</option>
         <option value="online">Online</option>
         <option value="maintenance">Maintenance</option>
         <option value="offline">Offline</option>
@@ -229,27 +232,34 @@ const StationMap = ({
 export default function WeatherStationsPage({
   isDarkMode = true,
 }: WeatherStationsPageProps) {
+  // ── State ────────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState("all");
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
   // ── Data ────────────────────────────────────────────────────────────────────
   const { data: district_list = [] } = useQuery<district[]>({
     queryKey: ["districts"],
     queryFn: DistrictsAPI.getAll,
   });
 
-  const { data: rawStations = [], isLoading: stationsLoading } = useQuery<
-    WeatherStationAPI[]
-  >({
-    queryKey: ["weather-stations"],
-    queryFn: stationsAPI.getAll,
-    refetchInterval: 60_000, // refresh every 60 s
+  const {
+    data: rawStations = [],
+    isLoading: stationsLoading,
+    refetch,
+  } = useQuery<WeatherStationAPI[]>({
+    queryKey: ["weather-stations", selectedRegion, selectedStatus],
+    queryFn: () =>
+      stationsAPI.getAll(
+        selectedRegion || undefined,
+        (selectedStatus as any) || undefined,
+      ),
+    refetchInterval: 60_000,
   });
 
   // Map API shape → map-compatible shape
   const stations: WeatherStation[] = rawStations.map(toMapStation);
-  const [activeTab, setActiveTab] = useState("all");
-  const [selectedRegion, setSelectedRegion] = useState("All Regions");
-  const [selectedStatus, setSelectedStatus] = useState("All Status");
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  // const [sliderValue, setSliderValue] = useState((2026 - 2001) * 12 + 2); // Mar 2026
 
   const onlineCount = stations.filter((s) => s.status === "online").length;
   const offlineCount = stations.filter((s) => s.status === "offline").length;
@@ -262,6 +272,27 @@ export default function WeatherStationsPage({
   const textSecondary = isDarkMode ? "text-slate-300" : "text-slate-600";
   const borderColor = isDarkMode ? "border-slate-700/30" : "border-slate-200";
   const headerText = isDarkMode ? "text-white" : "text-slate-900";
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
+
+  const handleExport = async (format: "csv" | "pdf") => {
+    try {
+      const response = await stationsAPI.exportReadings(format);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `weather-stations.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Export failed:", error);
+    }
+  };
 
   if (stationsLoading) {
     return (
@@ -343,12 +374,16 @@ export default function WeatherStationsPage({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
+                <button
+                  onClick={() => handleExport("csv")}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors"
+                >
                   <Download className="w-3 h-3" />
                   <span className="hidden sm:inline">Export</span>
                 </button>
                 <button
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+                  onClick={handleRefresh}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-white transition-colors hover:opacity-90"
                   style={{ backgroundColor: FAO_BLUE }}
                 >
                   <RefreshCw className="w-3 h-3" />
@@ -624,7 +659,7 @@ export default function WeatherStationsPage({
                               <p
                                 className={`text-xs font-medium ${headerText}`}
                               >
-                                {station.signal}%
+                                {station.signal ?? 0}%
                               </p>
                             </div>
                             <div className="w-14">
