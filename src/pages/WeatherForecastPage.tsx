@@ -275,7 +275,7 @@ const FilterContent = ({
         ))}
       </select>
     </div>
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
       <input
         type="date"
@@ -283,7 +283,7 @@ const FilterContent = ({
         onChange={(e) => setDateRange(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       />
-    </div>
+    </div> */}
     <div className={`pt-3 border-t ${borderColor}`}>
       <h4 className={`text-xs font-semibold mb-2 ${textSecondary}`}>
         Quick Stats

@@ -41,10 +41,16 @@ function Spinner({
   display,
   onUp,
   onDown,
+  disabledUp = false,
+  disabledDown = false,
+  disabled = false,
 }: {
   display: string;
   onUp: () => void;
   onDown: () => void;
+  disabledUp?: boolean;
+  disabledDown?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center select-none">
@@ -52,22 +58,24 @@ function Spinner({
         type="button"
         onMouseDown={(e) => {
           e.stopPropagation();
-          onUp();
+          if (!disabledUp && !disabled) onUp();
         }}
-        className="p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+        className={`p-0.5 transition-opacity ${disabledUp || disabled ? "opacity-20 cursor-not-allowed" : "opacity-70 hover:opacity-100"}`}
       >
         <ChevronUp className="w-3.5 h-3.5 text-white" />
       </button>
-      <span className="text-white font-bold text-sm w-10 text-center leading-5">
+      <span
+        className={`font-bold text-sm w-10 text-center leading-5 ${disabled ? "text-white/40" : "text-white"}`}
+      >
         {display}
       </span>
       <button
         type="button"
         onMouseDown={(e) => {
           e.stopPropagation();
-          onDown();
+          if (!disabledDown && !disabled) onDown();
         }}
-        className="p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+        className={`p-0.5 transition-opacity ${disabledDown || disabled ? "opacity-20 cursor-not-allowed" : "opacity-70 hover:opacity-100"}`}
       >
         <ChevronDown className="w-3.5 h-3.5 text-white" />
       </button>
@@ -90,6 +98,19 @@ export function FloodHourSlider({
   } = useAppStore((s) => s);
 
   const isForecast = layerMode === "forecast";
+
+  // ── Today's date — captured once, never changes ───────────────────────────
+  const todayRef = useRef(new Date());
+  const todayDay = todayRef.current.getDate();
+  const todayMonth = todayRef.current.getMonth();
+  const todayYear = todayRef.current.getFullYear();
+
+  // ── 10-day lookback lower bound ───────────────────────────────────────────
+  const minDate = new Date(todayRef.current);
+  minDate.setDate(minDate.getDate() - 10);
+  const minDay = minDate.getDate();
+  const minMonth = minDate.getMonth();
+  const minYear = minDate.getFullYear();
 
   // ── Date state — seed from store if valid, otherwise today ──────────────
   const initDate = (() => {
@@ -164,8 +185,6 @@ export function FloodHourSlider({
     setYear(parsed.getFullYear());
   }, [dateRange]);
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   // ── Sync day / month / year → store ──────────────────────────────────────
   useEffect(() => {
     const mon = String(month + 1).padStart(2, "0");
@@ -184,20 +203,32 @@ export function FloodHourSlider({
     if (playing) {
       intervalRef.current = setInterval(() => {
         if (isForecast) {
-          // Cycle through forecast steps
           setForecastStep((prev) => {
             const idx = FORECAST_STEPS.indexOf(prev);
             const next = FORECAST_STEPS[(idx + 1) % FORECAST_STEPS.length];
             return next;
           });
         } else {
-          // Advance hour, wrap day at midnight
           setHour((h) => {
             const next = (h + 1) % 24;
             if (next === 0) {
+              // Advance day — stop at today
               setDay((d) => {
-                const maxDay = new Date(year, month + 1, 0).getDate();
-                return d < maxDay ? d + 1 : 1;
+                const daysThisMonth = new Date(year, month + 1, 0).getDate();
+                if (d < daysThisMonth) return d + 1;
+                // Roll into next month, but not past today
+                const newMonth = (month + 1) % 12;
+                const newYear = month === 11 ? year + 1 : year;
+                if (
+                  newYear > todayYear ||
+                  (newYear === todayYear && newMonth > todayMonth)
+                ) {
+                  setPlaying(false);
+                  return d; // already at today's month boundary
+                }
+                setMonth(newMonth);
+                setYear(newYear);
+                return 1;
               });
             }
             return next;
@@ -210,15 +241,61 @@ export function FloodHourSlider({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [playing, isForecast, month, year, setForecastStep]);
+  }, [
+    playing,
+    isForecast,
+    month,
+    year,
+    setForecastStep,
+    todayYear,
+    todayMonth,
+  ]);
 
   const clamp = (v: number, min: number, max: number) =>
     Math.min(max, Math.max(min, v));
+
+  // ── Day navigation with automatic month/year rollover ────────────────────
+  const isAtMax = year === todayYear && month === todayMonth && day >= todayDay;
+  const isAtMin = year === minYear && month === minMonth && day <= minDay;
+
+  const dayUp = () => {
+    if (isAtMax) return;
+    const daysThisMonth = new Date(year, month + 1, 0).getDate();
+    if (day < daysThisMonth) {
+      setDay(day + 1);
+    } else {
+      // Roll forward into next month
+      const newMonth = (month + 1) % 12;
+      const newYear = month === 11 ? year + 1 : year;
+      setMonth(newMonth);
+      setYear(newYear);
+      setDay(1);
+    }
+  };
+
+  const dayDown = () => {
+    if (isAtMin) return;
+    if (day > 1) {
+      setDay(day - 1);
+    } else {
+      // Roll back into previous month
+      const newMonth = (month + 11) % 12;
+      const newYear = month === 0 ? year - 1 : year;
+      const daysInPrevMonth = new Date(newYear, newMonth + 1, 0).getDate();
+      setMonth(newMonth);
+      setYear(newYear);
+      setDay(daysInPrevMonth);
+    }
+  };
 
   const skipToEnd = () => {
     if (isForecast) {
       setForecastStep(FORECAST_STEPS[FORECAST_STEPS.length - 1]);
     } else {
+      // Skip to today at current hour
+      setDay(todayDay);
+      setMonth(todayMonth);
+      setYear(todayYear);
       setHour(23);
     }
     setPlaying(false);
@@ -275,13 +352,17 @@ export function FloodHourSlider({
         <>
           <Spinner
             display={String(day).padStart(2, "0")}
-            onUp={() => setDay((v) => clamp(v + 1, 1, daysInMonth))}
-            onDown={() => setDay((v) => clamp(v - 1, 1, daysInMonth))}
+            onUp={dayUp}
+            onDown={dayDown}
+            disabledUp={isAtMax}
+            disabledDown={isAtMin}
           />
+          {/* Month is read-only — it changes automatically with the day */}
           <Spinner
             display={MONTHS[month]}
-            onUp={() => setMonth((m) => (m + 1) % 12)}
-            onDown={() => setMonth((m) => (m + 11) % 12)}
+            onUp={() => {}}
+            onDown={() => {}}
+            disabled
           />
           <span className="text-white/50 font-bold text-xs leading-5 tabular-nums">
             {year}
