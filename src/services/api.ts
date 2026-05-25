@@ -354,7 +354,6 @@ export const stationsAPI = {
       `weather-stations/${stationId}/readings/?hours=${hours}`,
     );
   },
-
   getAlerts: async () => {
     return fetchData<StationAlert[]>("weather-stations/alerts/");
   },

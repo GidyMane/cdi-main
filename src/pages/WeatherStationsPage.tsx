@@ -243,7 +243,6 @@ export default function WeatherStationsPage({
     queryKey: ["districts"],
     queryFn: DistrictsAPI.getAll,
   });
-
   const {
     data: rawStations = [],
     isLoading: stationsLoading,
