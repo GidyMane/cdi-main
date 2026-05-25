@@ -418,7 +418,7 @@ export default function WeatherForecastPage({
     "Dec",
   ];
 
-  // Get chart data based on active tab, selected card, metric, and date filter
+  // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
     if (activeTab === "nowcast") {
       let filtered = hourlyForecast;
