@@ -3,7 +3,11 @@
  * Uses environment variables for endpoints
  */
 
-import type { WeatherStation, StationReading, StationAlert, NetworkSummary } from "@/types/data_types";
+import type {
+  StationReading,
+  StationAlert,
+  NetworkSummary,
+} from "@/types/data_types";
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
@@ -114,8 +118,9 @@ export const weatherAPI = {
     return {
       hourly: hourlyData.slice(0, 24), // Limit to first 24 hours
       district: firstForecast?.district_name || "Uganda",
-      forecast_date: firstForecast?.forecast_date || new Date().toISOString().split('T')[0],
-      fetched_at: new Date().toISOString()
+      forecast_date:
+        firstForecast?.forecast_date || new Date().toISOString().split("T")[0],
+      fetched_at: new Date().toISOString(),
     };
   },
 
@@ -312,26 +317,43 @@ export const floodAPI = {
 /**
  * Weather Stations API
  */
+export interface WeatherStationAPI {
+  id: number;
+  code: string;
+  name: string;
+  region: string;
+  lat: number;
+  lon: number;
+  status: "online" | "maintenance" | "offline";
+  signal_pct: number;
+}
+
 export const stationsAPI = {
-  getAll: async (region?: string, status?: "online" | "offline" | "maintenance") => {
-    let endpoint = "weather-stations/";
+  getAll: async (
+    region?: string,
+    status?: "online" | "offline" | "maintenance",
+  ): Promise<WeatherStationAPI[]> => {
+    const base =
+      import.meta.env.VITE_API_STATIONS_ENDPOINT ||
+      "https://multihazard.rosewillbome.com/api/v1/weather-stations/";
     const params = new URLSearchParams();
     if (region) params.append("region", region);
     if (status) params.append("status", status);
-    if (params.toString()) endpoint += `?${params.toString()}`;
-    return fetchData<WeatherStation[]>(endpoint);
+    const url = params.toString() ? `${base}?${params.toString()}` : base;
+    return fetchData<WeatherStationAPI[]>(url);
   },
 
-  getById: async (stationId: string | number) => {
-    return fetchData<WeatherStation>(`weather-stations/${stationId}/`);
+  getById: async (stationId: string | number): Promise<WeatherStationAPI> => {
+    return fetchData<WeatherStationAPI>(
+      `https://multihazard.rosewillbome.com/api/v1/weather-stations/${stationId}/`,
+    );
   },
 
   getReadings: async (stationId: string | number, hours: number = 24) => {
     return fetchData<StationReading[]>(
-      `weather-stations/${stationId}/readings/?hours=${hours}`
+      `weather-stations/${stationId}/readings/?hours=${hours}`,
     );
   },
-
   getAlerts: async () => {
     return fetchData<StationAlert[]>("weather-stations/alerts/");
   },
@@ -340,7 +362,11 @@ export const stationsAPI = {
     return fetchData<NetworkSummary>("weather-stations/network-summary/");
   },
 
-  exportReadings: async (format: "csv" | "pdf" = "csv", stationId?: string | number, hours?: number) => {
+  exportReadings: async (
+    format: "csv" | "pdf" = "csv",
+    stationId?: string | number,
+    hours?: number,
+  ) => {
     let endpoint = `weather-stations/export/?format=${format}`;
     if (stationId) endpoint += `&station_id=${stationId}`;
     if (hours) endpoint += `&hours=${hours}`;

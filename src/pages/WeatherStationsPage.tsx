@@ -17,11 +17,13 @@ import {
   Filter,
   X,
 } from "lucide-react";
-import UgandaBoundaryMap from "../components/map/UgandaBoundaryMap";
+import WeatherStationsMap from "../components/map/WeatherStationsMap";
+import type { WeatherStation } from "../components/map/WeatherStationsMap";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useQuery } from "@tanstack/react-query";
-import type { district, WeatherStation } from "@/types/data_types";
+import type { district } from "@/types/data_types";
 import { DistrictsAPI, stationsAPI } from "@/services/api";
+import type { WeatherStationAPI } from "@/services/api";
 
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
@@ -34,6 +36,19 @@ const stationTabs = [
   { id: "readings", label: "Recent Readings", icon: BarChart3 },
   { id: "alerts", label: "Alerts", icon: AlertTriangle },
 ];
+
+/** Map API shape → WeatherStation used by the map component */
+function toMapStation(s: WeatherStationAPI): WeatherStation {
+  return {
+    id: String(s.id),
+    name: s.name,
+    region: s.region,
+    status: s.status,
+    lat: s.lat,
+    lng: s.lon,
+    signal: s.signal_pct,
+  };
+}
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -86,8 +101,8 @@ const FilterContent = ({
   headerText,
   onlineCount,
   offlineCount,
+  totalCount,
   district_list,
-  totalStations,
 }: {
   selectedRegion: string;
   setSelectedRegion: (val: string) => void;
@@ -100,8 +115,8 @@ const FilterContent = ({
   headerText: string;
   onlineCount: number;
   offlineCount: number;
+  totalCount: number;
   district_list: district[] | undefined;
-  totalStations: number;
 }) => (
   <div className="space-y-3">
     {/* <div>
@@ -127,7 +142,9 @@ const FilterContent = ({
       >
         <option value="">All Districts</option>
         {district_list?.map((r) => (
-          <option key={r.id} value={r.name}>{r.name}</option>
+          <option key={r.id} value={r.name}>
+            {r.name}
+          </option>
         ))}
       </select>
     </div>
@@ -171,7 +188,7 @@ const FilterContent = ({
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Total Stations</span>
-          <span className={`font-medium ${headerText}`}>{totalStations}</span>
+          <span className={`font-medium ${headerText}`}>{totalCount}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Online</span>
@@ -192,27 +209,22 @@ const FilterContent = ({
   </div>
 );
 
-// Map Component with Legend
+// Map Component with station markers
 const StationMap = ({
   isDarkMode,
   className = "",
-  activeCount = 0,
+  stations,
 }: {
   isDarkMode: boolean;
   className?: string;
-  activeCount?: number;
+  stations: WeatherStation[];
 }) => {
   return (
-    <UgandaBoundaryMap
+    <WeatherStationsMap
       isDarkMode={isDarkMode}
       className={`rounded-lg md:rounded-xl ${className}`}
-      badgeText={`${activeCount} Active`}
-      legendTitle="Stations"
-      legendItems={[
-        { label: "Online", color: "#22c55e" },
-        { label: "Maintenance", color: "#eab308" },
-        { label: "Offline", color: "#ef4444" },
-      ]}
+      badgeText={`${stations.filter((s) => s.status === "online").length} Active`}
+      stations={stations}
     />
   );
 };
@@ -220,21 +232,33 @@ const StationMap = ({
 export default function WeatherStationsPage({
   isDarkMode = true,
 }: WeatherStationsPageProps) {
-  // ── Data ────────────────────────────────────────────────────────────────────
-  const { data: district_list = [] } = useQuery<district[]>({
-    queryKey: ["districts"],
-    queryFn: DistrictsAPI.getAll,
-  });
-
+  // ── State ────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("all");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  const { data: stations = [], isLoading, refetch } = useQuery<WeatherStation[]>({
-    queryKey: ["weather-stations", selectedRegion, selectedStatus],
-    queryFn: () => stationsAPI.getAll(selectedRegion || undefined, selectedStatus as any || undefined),
+  // ── Data ────────────────────────────────────────────────────────────────────
+  const { data: district_list = [] } = useQuery<district[]>({
+    queryKey: ["districts"],
+    queryFn: DistrictsAPI.getAll,
   });
+  const {
+    data: rawStations = [],
+    isLoading: stationsLoading,
+    refetch,
+  } = useQuery<WeatherStationAPI[]>({
+    queryKey: ["weather-stations", selectedRegion, selectedStatus],
+    queryFn: () =>
+      stationsAPI.getAll(
+        selectedRegion || undefined,
+        (selectedStatus as any) || undefined,
+      ),
+    refetchInterval: 60_000,
+  });
+
+  // Map API shape → map-compatible shape
+  const stations: WeatherStation[] = rawStations.map(toMapStation);
 
   const onlineCount = stations.filter((s) => s.status === "online").length;
   const offlineCount = stations.filter((s) => s.status === "offline").length;
@@ -269,7 +293,7 @@ export default function WeatherStationsPage({
     }
   };
 
-  if (isLoading) {
+  if (stationsLoading) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${isDarkMode ? "bg-slate-900" : "bg-slate-50"}`}
@@ -397,8 +421,8 @@ export default function WeatherStationsPage({
                   headerText={headerText}
                   onlineCount={onlineCount}
                   offlineCount={offlineCount}
+                  totalCount={stations.length}
                   district_list={district_list}
-                  totalStations={stations.length}
                 />
               </div>
 
@@ -476,7 +500,7 @@ export default function WeatherStationsPage({
                       <StationMap
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"
-                        activeCount={onlineCount}
+                        stations={stations}
                       />
                     </div>
 
@@ -634,7 +658,7 @@ export default function WeatherStationsPage({
                               <p
                                 className={`text-xs font-medium ${headerText}`}
                               >
-                                {station.signal_strength ?? 0}%
+                                {station.signal ?? 0}%
                               </p>
                             </div>
                             <div className="w-14">
@@ -653,7 +677,7 @@ export default function WeatherStationsPage({
               </div>
             </div>
 
-            {/* About AWS Network */}
+            {/* About AWS Networks */}
             <div
               className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
             >
@@ -703,7 +727,7 @@ export default function WeatherStationsPage({
           </div>
         </div>
 
-        {/* Mobile Layout */}
+        {/* Mobile Layouts */}
         <div className="block lg:hidden space-y-3">
           {/* Network Overview - Mobile (above map) */}
           <div
@@ -775,7 +799,7 @@ export default function WeatherStationsPage({
                   <StationMap
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
-                    activeCount={onlineCount}
+                    stations={stations}
                   />
                 </div>
                 {/* Filter button on map */}
@@ -856,8 +880,8 @@ export default function WeatherStationsPage({
                     headerText={headerText}
                     onlineCount={onlineCount}
                     offlineCount={offlineCount}
+                    totalCount={stations.length}
                     district_list={district_list}
-                    totalStations={stations.length}
                   />
                 </div>
               </>
