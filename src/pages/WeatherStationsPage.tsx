@@ -678,7 +678,7 @@ export default function WeatherStationsPage({
               </div>
             </div>
 
-            {/* About AWS Network */}
+            {/* About AWS Networks */}
             <div
               className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
             >
