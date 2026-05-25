@@ -505,24 +505,12 @@ export default function WeatherForcastMap({
         ? "00"
         : String(sliderhourIndexValue).padStart(2, "0");
 
-    const layerName =
-      layerMode === "monthly"
-        ? mapLayerName({
-            parameter: selectedParameter,
-            date: dateRange,
-            mode: "monthly",
-          })
-        : (mapLayerName({
-            parameter: selectedParameter,
-            date: dateRange,
-            mode: "daily",
-            hour,
-          }) ??
-          mapLayerName({
-            parameter: selectedParameter,
-            date: dateRange,
-            mode: "monthly",
-          }));
+    const layerName = mapLayerName({
+      parameter: selectedParameter,
+      date: dateRange,
+      mode: "nowcast",
+      hour,
+    });
 
     if (layerName) {
       weatherforcastrasterLayerRef.current = L.tileLayer
@@ -1000,7 +988,9 @@ export default function WeatherForcastMap({
                   }}
                 >
                   {value}
-                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>
+                  <span
+                    style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}
+                  >
                     {config.unit}
                   </span>
                 </p>

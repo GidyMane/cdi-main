@@ -1,4 +1,7 @@
+import { useAppStore } from "@/store/useAppStore";
 import { Calendar, Clock } from "lucide-react";
+import { useEffect } from "react";
+
 function TabBar({
   mobile = false,
   activeTab,
@@ -14,6 +17,10 @@ function TabBar({
   isDarkMode: boolean;
   FAO_BLUE: string;
 }) {
+  const { setLayerMode } = useAppStore((state) => state);
+  useEffect(() => {
+    setLayerMode(activeTab);
+  }, [activeTab]);
   return (
     <div className={`flex border-b ${borderColor}`}>
       {(["nowcast", "forecast"] as const).map((tab) => (

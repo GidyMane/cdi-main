@@ -520,11 +520,11 @@ export default function WeatherStationsPage({
                         {getMonthYear(sliderValue)}
                       </span>
                     </div> */}
-                    <FloodHourSlider
+                    {/* <FloodHourSlider
                       isDarkMode={isDarkMode}
                       borderColor={borderColor}
                       textMuted={textMuted}
-                    />
+                    /> */}
                   </div>
                 </div>
               </div>

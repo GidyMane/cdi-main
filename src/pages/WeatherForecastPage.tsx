@@ -233,8 +233,8 @@ const FilterContent = ({
   textSecondary,
   borderColor,
   weatherData,
-  dateRange,
-  setDateRange,
+  // dateRange,
+  // setDateRange,
   district_list,
 }: {
   selectedRegion: string;
@@ -275,7 +275,7 @@ const FilterContent = ({
         ))}
       </select>
     </div>
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
       <input
         type="date"
@@ -283,7 +283,7 @@ const FilterContent = ({
         onChange={(e) => setDateRange(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       />
-    </div>
+    </div> */}
     <div className={`pt-3 border-t ${borderColor}`}>
       <h4 className={`text-xs font-semibold mb-2 ${textSecondary}`}>
         Quick Stats
@@ -340,7 +340,6 @@ export default function WeatherForecastPage({
     dateRange,
     setDateRange,
     selectedDistrictId,
-    layerMode,
     setLayerMode,
   } = useAppStore((state) => state);
 
@@ -369,7 +368,7 @@ export default function WeatherForecastPage({
 
   //default layer mode
   useEffect(() => {
-    setLayerMode("daily");
+    setLayerMode("nowcast");
   }, []);
 
   // Fetch dashboard + forecasts whenever the stats district changes
@@ -419,7 +418,7 @@ export default function WeatherForecastPage({
     "Dec",
   ];
 
-  // Get chart data based on active tab, selected card, metric, and date filter
+  // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
     if (activeTab === "nowcast") {
       let filtered = hourlyForecast;
@@ -810,7 +809,7 @@ export default function WeatherForecastPage({
 
                     {/* Daily / Monthly / Forecast tabs */}
                     <div className="flex items-center gap-0.5">
-                      {(["daily", "monthly", "forecast"] as const).map(
+                      {/* {(["daily", "monthly", "forecast"] as const).map(
                         (mode) => (
                           <button
                             key={mode}
@@ -835,7 +834,15 @@ export default function WeatherForecastPage({
                               : mode.charAt(0).toUpperCase() + mode.slice(1)}
                           </button>
                         ),
-                      )}
+                      )} */}
+                      <TabBar
+                        mobile={false}
+                        activeTab={activeTab}
+                        setActiveTab={setActiveTab}
+                        borderColor={borderColor}
+                        isDarkMode={isDarkMode}
+                        FAO_BLUE={FAO_BLUE}
+                      />
                     </div>
 
                     <span
@@ -1052,7 +1059,7 @@ export default function WeatherForecastPage({
 
                 {/* Daily / Monthly / Forecast tabs */}
                 <div className="flex items-center gap-0.5">
-                  {(["daily", "monthly", "forecast"] as const).map((mode) => (
+                  {/* {(["daily", "monthly", "forecast"] as const).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setLayerMode(mode)}
@@ -1075,7 +1082,15 @@ export default function WeatherForecastPage({
                         ? "Forecast"
                         : mode.charAt(0).toUpperCase() + mode.slice(1)}
                     </button>
-                  ))}
+                  ))} */}
+                  <TabBar
+                    mobile={true}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    borderColor={borderColor}
+                    isDarkMode={isDarkMode}
+                    FAO_BLUE={FAO_BLUE}
+                  />
                 </div>
 
                 <span

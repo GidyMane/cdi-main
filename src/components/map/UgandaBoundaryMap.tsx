@@ -518,13 +518,13 @@ export default function UgandaBoundaryMap({
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "daily",
+        mode: "nowcast",
         hour,
       }) ??
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "monthly",
+        mode: "nowcast",
       });
 
     if (!layerName) return;
