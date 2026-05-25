@@ -41,6 +41,11 @@ const FAO_BLUE = "#318DDE";
 const GEO_SERVER_URL =
   "https://multihazard.rosewillbome.com/geoserver/wfews/wms";
 
+// Local Uganda Weather GeoServer (ICON, GFS, IMERG satellite precipitation)
+const LOCAL_GEO_SERVER_URL =
+  (import.meta.env.VITE_LOCAL_GEOSERVER_URL as string) ||
+  "http://localhost:8080/geoserver/uganda_weather/wms";
+
 /** Shared WMS options used for every raster layer */
 const WMS_BASE_OPTIONS = {
   format: "image/png" as const,
@@ -166,7 +171,7 @@ export default function WeatherForcastMap({
   // ── Rain animation ──────────────────────────────────────────────────────────
   const { canvasRef: rainCanvasRef, setRainyDistricts } = useRainAnimation(
     weatherforcastMapRef,
-    geoData as any,
+    geoData as any, 
   );
 
   // Check whether a district label fits inside its polygon at current zoom
@@ -227,13 +232,20 @@ export default function WeatherForcastMap({
     } else {
       // tmax / tmin are handled via the raster useEffect; skip adding a WMS layer here
       if (layerDef.id !== "tmax" && layerDef.id !== "tmin") {
+        // Route to local GeoServer for ICON/GFS/IMERG layers
+        const isLocal = layerDef.wms.startsWith("local:");
+        const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
+        const layerName = isLocal
+          ? layerDef.wms.replace("local:", "")
+          : `wfews:${layerDef.wms}`;
+
         const wmsLayer = L.tileLayer
-          .wms(GEO_SERVER_URL, {
-            layers: `wfews:${layerDef.wms}`,
+          .wms(serverUrl, {
+            layers: layerName,
             format: "image/png",
             transparent: true,
             version: "1.1.0",
-            opacity: 1.0,
+            opacity: isLocal ? 0.75 : 1.0,
           })
           .addTo(weatherforcastMapRef.current);
         wmsLayer.bringToFront();
