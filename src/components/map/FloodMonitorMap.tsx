@@ -456,13 +456,13 @@ export default function FloodMonitorMap({
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "daily",
+        mode: "nowcast",
         hour,
       }) ??
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "monthly",
+        mode: "forecast",
       });
 
     if (!layerName) return;

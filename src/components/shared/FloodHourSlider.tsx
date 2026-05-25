@@ -91,7 +91,7 @@ export function FloodHourSlider({
 
   const isForecast = layerMode === "forecast";
 
-  // ── Date state ────────────────────────────────────────────────────────────
+  // ── Date state — seed from store if valid, otherwise today ──────────────
   const initDate = (() => {
     if (dateRange) {
       const p = new Date(dateRange + "T00:00:00");
@@ -103,12 +103,54 @@ export function FloodHourSlider({
   const [day, setDay] = useState(initDate.getDate());
   const [month, setMonth] = useState(initDate.getMonth());
   const [year, setYear] = useState(initDate.getFullYear());
+  // Always start at the real current hour, not midnight
   const [hour, setHour] = useState(new Date().getHours());
   const [playing, setPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const internalWrite = useRef(false);
+
+  // ── On mount: get authoritative server time, fall back to local clock ─────
+  // Fetches Africa/Kampala time from worldtimeapi.org so a misconfigured
+  // local clock doesn't load the wrong WMS layer. Falls back to new Date()
+  // after 3 s if the request is slow or fails.
+  useEffect(() => {
+    let cancelled = false;
+
+    const apply = (now: Date) => {
+      if (cancelled) return;
+      const mon = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      setDay(now.getDate());
+      setMonth(now.getMonth());
+      setYear(now.getFullYear());
+      setHour(now.getHours());
+      internalWrite.current = true;
+      setDateRange(`${now.getFullYear()}-${mon}-${d}`);
+      setSliderhourIndexValue(now.getHours());
+    };
+
+    // Fallback fires after 3 s if the API is slow
+    const fallbackTimer = setTimeout(() => apply(new Date()), 3000);
+
+    fetch("https://worldtimeapi.org/api/timezone/Africa/Kampala")
+      .then((r) => r.json())
+      .then((data) => {
+        clearTimeout(fallbackTimer);
+        const serverNow = new Date(data.datetime);
+        apply(isNaN(serverNow.getTime()) ? new Date() : serverNow);
+      })
+      .catch(() => {
+        clearTimeout(fallbackTimer);
+        apply(new Date());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Sync FROM store dateRange → local state ───────────────────────────────
-  const internalWrite = useRef(false);
   useEffect(() => {
     if (internalWrite.current) {
       internalWrite.current = false;

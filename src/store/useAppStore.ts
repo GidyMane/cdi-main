@@ -83,8 +83,8 @@ export interface AppStoreState {
   setSliderhourIndexValue: (value: any) => void;
 
   // Map layer mode
-  layerMode: "daily" | "monthly" | "forecast";
-  setLayerMode: (mode: "daily" | "monthly" | "forecast") => void;
+  layerMode: "nowcast" | "forecast";
+  setLayerMode: (mode: "nowcast" | "forecast") => void;
 
   // Forecast step in hours (24, 48, 72, 96, 120, 144, 168)
   forecastStep: number;
@@ -168,7 +168,7 @@ export const useAppStore = create<AppStoreState>()(
         set({ sliderhourIndexValue: value }),
 
       // Map layer mode
-      layerMode: "daily",
+      layerMode: "nowcast",
       setLayerMode: (mode) => set({ layerMode: mode }),
 
       // Forecast step

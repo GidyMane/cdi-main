@@ -340,7 +340,6 @@ export default function WeatherForecastPage({
     dateRange,
     setDateRange,
     selectedDistrictId,
-    layerMode,
     setLayerMode,
   } = useAppStore((state) => state);
 
@@ -369,7 +368,7 @@ export default function WeatherForecastPage({
 
   //default layer mode
   useEffect(() => {
-    setLayerMode("daily");
+    setLayerMode("nowcast");
   }, []);
 
   // Fetch dashboard + forecasts whenever the stats district changes
@@ -810,7 +809,7 @@ export default function WeatherForecastPage({
 
                     {/* Daily / Monthly / Forecast tabs */}
                     <div className="flex items-center gap-0.5">
-                      {(["daily", "monthly", "forecast"] as const).map(
+                      {/* {(["daily", "monthly", "forecast"] as const).map(
                         (mode) => (
                           <button
                             key={mode}
@@ -835,7 +834,15 @@ export default function WeatherForecastPage({
                               : mode.charAt(0).toUpperCase() + mode.slice(1)}
                           </button>
                         ),
-                      )}
+                      )} */}
+                      <TabBar
+                        mobile={false}
+                        activeTab={activeTab}
+                        setActiveTab={setActiveTab}
+                        borderColor={borderColor}
+                        isDarkMode={isDarkMode}
+                        FAO_BLUE={FAO_BLUE}
+                      />
                     </div>
 
                     <span
@@ -1052,7 +1059,7 @@ export default function WeatherForecastPage({
 
                 {/* Daily / Monthly / Forecast tabs */}
                 <div className="flex items-center gap-0.5">
-                  {(["daily", "monthly", "forecast"] as const).map((mode) => (
+                  {/* {(["daily", "monthly", "forecast"] as const).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setLayerMode(mode)}
@@ -1075,7 +1082,15 @@ export default function WeatherForecastPage({
                         ? "Forecast"
                         : mode.charAt(0).toUpperCase() + mode.slice(1)}
                     </button>
-                  ))}
+                  ))} */}
+                  <TabBar
+                    mobile={true}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    borderColor={borderColor}
+                    isDarkMode={isDarkMode}
+                    FAO_BLUE={FAO_BLUE}
+                  />
                 </div>
 
                 <span
