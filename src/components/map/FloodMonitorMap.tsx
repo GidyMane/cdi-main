@@ -83,7 +83,6 @@ export default function FloodMonitorMap({
   const FloodMonitorboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitorriverLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitortileLayerRef = useRef<L.TileLayer | null>(null);
-  const FloodMonitorLabelsLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorrasterLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
 
@@ -213,26 +212,19 @@ export default function FloodMonitorMap({
       FloodMonitormapRef.current = null;
     }
 
-    // ── Satellite base + labels overlay ──────────────────────────────────
+    // ── CartoDB base tile (dark / light matches system theme) ────────────
     FloodMonitortileLayerRef.current = L.tileLayer(
-      "https://server.arcgisonline.com/ArcGIS/Rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { maxZoom: 19, attribution: "© Esri" },
-    );
-    FloodMonitorLabelsLayerRef.current = L.tileLayer(
       isDarkMode
-        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
-      { opacity: 0.9, zIndex: 2 },
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, attribution: "© CartoDB" },
     );
 
     FloodMonitormapRef.current = L.map(FloodMonitormapContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [
-        FloodMonitortileLayerRef.current,
-        FloodMonitorLabelsLayerRef.current,
-      ],
+      layers: [FloodMonitortileLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
@@ -328,6 +320,19 @@ export default function FloodMonitorMap({
       FloodMonitorriverLayerRef.current.bringToBack();
     }
 
+    // ── Country boundary on by default ───────────────────────────────────
+    const countryWms = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: "wfews:country",
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      })
+      .addTo(FloodMonitormapRef.current);
+    countryWms.bringToFront();
+    FloodMonitorwmsLayersRef.current["country"] = countryWms;
+
     // ── Hover: district detection on mouse move ───────────────────────────
     FloodMonitormapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
       setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
@@ -356,16 +361,17 @@ export default function FloodMonitorMap({
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Swap labels overlay on dark/light toggle ─────────────────────────────────
+  // ── Swap CartoDB base tile on dark/light toggle ──────────────────────────────
   useEffect(() => {
-    if (!FloodMonitormapRef.current) return;
-    clearLayer(FloodMonitormapRef.current, FloodMonitorLabelsLayerRef);
-    FloodMonitorLabelsLayerRef.current = L.tileLayer(
+    if (!FloodMonitormapRef.current || !FloodMonitortileLayerRef.current) return;
+    FloodMonitormapRef.current.removeLayer(FloodMonitortileLayerRef.current);
+    FloodMonitortileLayerRef.current = L.tileLayer(
       isDarkMode
-        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
-      { opacity: 0.9, zIndex: 2 },
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, attribution: "© CartoDB" },
     ).addTo(FloodMonitormapRef.current);
+    FloodMonitortileLayerRef.current.bringToBack();
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
@@ -560,12 +566,11 @@ export default function FloodMonitorMap({
       <button
         onClick={toggleFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all"
         style={{
-          background: "rgba(10,15,30,0.65)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          border: `1px solid ${FAO_BLUE}55`,
+          background: "transparent",
+          border: "none",
+          filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
         }}
       >
         {isFullscreen ? (
@@ -578,15 +583,12 @@ export default function FloodMonitorMap({
       {/* MAP LAYERS toggle button */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
         style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
+          backgroundColor: showLayerPanel ? FAO_BLUE : "transparent",
           color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
+          border: showLayerPanel ? `1px solid ${FAO_BLUE}` : "none",
+          filter: showLayerPanel ? "none" : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
         }}
       >
         <Layers className="w-3.5 h-3.5" />
@@ -611,10 +613,11 @@ export default function FloodMonitorMap({
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all hover:opacity-90"
+            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all hover:opacity-80"
             style={{
-              backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
-              border: `1px solid ${FAO_BLUE}55`,
+              backgroundColor: "transparent",
+              border: "none",
+              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))",
             }}
           >
             <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
@@ -757,59 +760,52 @@ export default function FloodMonitorMap({
         </>
       )}
 
-      {/* Legend — gradient bar with Waves icon */}
-      {legendTitle &&
-        legendItems.length > 0 &&
-        (() => {
-          const gradientStops = legendItems
-            .map(
-              (item, i) =>
-                `${item.color} ${Math.round((i / (legendItems.length - 1)) * 100)}%`,
-            )
-            .join(", ");
-          return (
-            <div
-              className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
+      {/* Legend — vertical list, no background */}
+      {legendTitle && legendItems.length > 0 && (
+        <div className="absolute bottom-4 left-2 z-[400]">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Waves
+              className="w-3 h-3"
               style={{
-                background: "rgba(8,12,24,0.68)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                minWidth: 172,
+                color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+                filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.9))",
+              }}
+            />
+            <span
+              className="text-[9px] font-bold tracking-widest uppercase"
+              style={{
+                color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+                textShadow: isDarkMode
+                  ? "0 1px 3px rgba(0,0,0,0.9)"
+                  : "0 1px 4px rgba(255,255,255,1)",
               }}
             >
-              <div className="flex items-center gap-1.5 mb-2">
-                <Waves
-                  className="w-3.5 h-3.5"
-                  style={{ color: legendItems[legendItems.length - 1].color }}
+              {legendTitle}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {legendItems.map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
                 />
                 <span
-                  className="text-[10px] font-bold tracking-widest uppercase"
-                  style={{ color: legendItems[legendItems.length - 1].color }}
+                  className="text-[9px] font-medium"
+                  style={{
+                    color: isDarkMode ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)",
+                    textShadow: isDarkMode
+                      ? "0 1px 3px rgba(0,0,0,0.9)"
+                      : "0 1px 4px rgba(255,255,255,1)",
+                  }}
                 >
-                  {legendTitle}
+                  {item.label}
                 </span>
               </div>
-              <div
-                className="h-2.5 rounded-full w-full"
-                style={{
-                  background: `linear-gradient(to right, ${gradientStops})`,
-                }}
-              />
-              <div className="flex justify-between mt-1">
-                {legendItems.map((item) => (
-                  <span
-                    key={item.label}
-                    className="text-[8px] font-medium"
-                    style={{ color: "rgba(255,255,255,0.55)" }}
-                  >
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Hover tooltip — follows cursor, shows district value */}
       {hoveredDistrictName &&
