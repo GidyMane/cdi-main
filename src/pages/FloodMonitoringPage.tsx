@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Waves,
   MapPin,
@@ -11,7 +11,6 @@ import {
   ChevronUp,
   ChevronDown,
   Minus,
-  Users,
   Filter,
   X,
   RefreshCw,
@@ -53,24 +52,6 @@ const fallbackTimeSeriesData = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "severe":   return "text-red-500";
-    case "moderate": return "text-orange-500";
-    case "minor":    return "text-yellow-500";
-    default:         return "text-green-500";
-  }
-};
-
-const getStatusBg = (status: string) => {
-  switch (status) {
-    case "severe":   return "bg-red-500/20";
-    case "moderate": return "bg-orange-500/20";
-    case "minor":    return "bg-yellow-500/20";
-    default:         return "bg-green-500/20";
-  }
-};
-
 const getTrendIcon = (trend: string) => {
   switch (trend) {
     case "up":   return <ChevronUp   className="w-4 h-4 text-red-500"    />;
@@ -243,7 +224,6 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
   const [timeRange, setTimeRange]               = useState("Last 24 Hours");
   const [selectedBasin, setSelectedBasin]       = useState("Nile Basin");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const svgRef = useRef<SVGSVGElement>(null);
 
   // Fetch flood data from API
   const {
