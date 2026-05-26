@@ -42,12 +42,12 @@ function TabBar({
           {tab === "nowcast" ? (
             <>
               <Clock className="w-3.5 h-3.5" />
-              {mobile ? "Nowcast" : "24-Hour Nowcast"}
+              {mobile ? "Hourly" : "Hourly Nowcast"}
             </>
           ) : (
             <>
               <Calendar className="w-3.5 h-3.5" />
-              {mobile ? "Forecast" : "7-Day Forecast"}
+              {mobile ? "7-Day" : "7-Day Forecast"}
             </>
           )}
         </button>
