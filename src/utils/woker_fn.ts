@@ -108,7 +108,7 @@ export function removeLastTwoDigits(value: string) {
 //
 //  humidity   → MISSING on all resolutions
 
-export type LayerMode = "monthly" | "daily" | "forecast";
+export type LayerMode = "nowcast" | "forecast";
 
 export interface LayerNameOptions {
   /** e.g. "temperature" | "rainfall" | "wind" | "humidity" | "precipitation" */
@@ -131,7 +131,7 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
   const {
     parameter,
     date,
-    mode = "daily",
+    mode = "nowcast",
     hour = "00",
     forecastStep = 24,
   } = opts;
@@ -150,24 +150,24 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
   console.log("yyyymmdd ", yyyymmdd, "hh ", hh);
 
   // ── Monthly ────────────────────────────────────────────────────────────────
-  if (mode === "monthly") {
-    switch (param) {
-      case "rainfall":
-        return `wfews:chirps_rainfall_${yyyymm}`;
-      case "temperature":
-        return `wfews:era5_temperature_${yyyymm}`;
-      case "wind":
-        return `wfews:era5_wind_${yyyymm}`;
-      case "humidity":
-        return `wfews:era5_humidity_${yyyymm}`; // MISSING
-      default:
-        return null;
-    }
-  }
+  // if (mode === "monthly") {
+  //   switch (param) {
+  //     case "rainfall":
+  //       return `wfews:chirps_rainfall_${yyyymm}`;
+  //     case "temperature":
+  //       return `wfews:era5_temperature_${yyyymm}`;
+  //     case "wind":
+  //       return `wfews:era5_wind_${yyyymm}`;
+  //     case "humidity":
+  //       return `wfews:era5_humidity_${yyyymm}`; // MISSING
+  //     default:
+  //       return null;
+  //   }
+  // }
 
   // ── Daily ──────────────────────────────────────────────────────────────────
 
-  if (mode === "daily") {
+  if (mode === "nowcast") {
     if (!yyyymmdd) return null;
     switch (param) {
       case "rainfall":

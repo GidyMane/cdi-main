@@ -88,7 +88,9 @@ export default function FloodMonitorMap({
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set(["flood", "country"]));
+  const [activeLayers, setActiveLayers] = useState<Set<string>>(
+    new Set(["flood"]),
+  );
   const [selectedFloodForecastData, setSelectedFloodForecastData] = useState<
     string | null
   >("flood_forecast");
@@ -462,13 +464,13 @@ export default function FloodMonitorMap({
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "daily",
+        mode: "nowcast",
         hour,
       }) ??
       mapLayerName({
         parameter: selectedParameter,
         date: dateRange,
-        mode: "monthly",
+        mode: "forecast",
       });
 
     if (!layerName) return;

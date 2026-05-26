@@ -86,75 +86,13 @@ const confidenceColor = (c: number) =>
 function TrendSparkline({
   readings,
   isDarkMode,
-}: {
-  readings: { level: number }[];
-  isDarkMode: boolean;
-}) {
-  if (readings.length < 2) return null;
-  const vals = readings.map((r) => r.level);
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
-  const range = hi - lo || 1;
-  const W = 260, H = 48;
-  const pts = vals.map((v, i) => [
-    (i / (vals.length - 1)) * W,
-    H - ((v - lo) / range) * H,
-  ]);
-  const line = pts
-    .map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 48 }} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={FAO_BLUE} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={FAO_BLUE} stopOpacity="0"    />
-        </linearGradient>
-      </defs>
-      {[0.25, 0.5, 0.75].map((f, i) => (
-        <line key={i} x1="0" y1={H * f} x2={W} y2={H * f}
-          stroke={isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}
-          strokeWidth="1" />
-      ))}
-      <path d={`${line} L${W},${H} L0,${H} Z`} fill="url(#sparkGrad)" />
-      <path d={line} fill="none" stroke={FAO_BLUE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="3" fill={FAO_BLUE} />
-    </svg>
-  );
-}
-
-// ── FloodMap wrapper (preserves main-branch abstraction) ─────────────────────
-const FloodMap = ({
-  isDarkMode,
-  className = "",
-  badgeText = "Forecast",
-}: {
-  isDarkMode: boolean;
-  className?: string;
-  badgeText?: string;
-}) => (
-  <FloodMonitorMap
-    isDarkMode={isDarkMode}
-    className={`rounded-lg md:rounded-xl ${className}`}
-    badgeText={badgeText}
-    legendTitle="Flood Levels"
-    legendItems={[
-      { label: "Extreme Flood", color: "#b91c1c" },
-      { label: "Severe Flood",  color: "#ef4444" },
-      { label: "Moderate Flood",color: "#f97316" },
-      { label: "Minor Flood",   color: "#eab308" },
-      { label: "Normal",        color: "#22c55e" },
-    ]}
-  />
-);
-
-// ── FilterContent ─────────────────────────────────────────────────────────────
-const FilterContent = ({
-  timeRange, setTimeRange,
-  selectedBasin, setSelectedBasin,
-  dateRange, setDateRange,
-  isDarkMode, textMuted, textSecondary,
-  borderColor, headerText, riverBasins,
+  textMuted,
+  textSecondary,
+  borderColor,
+  headerText,
+  riverBasins,
+  // dateRange,
+  // setDateRange,
 }: {
   timeRange: string;
   setTimeRange: (val: string) => void;
@@ -173,7 +111,7 @@ const FilterContent = ({
   }>;
 }) => (
   <div className="space-y-3">
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
       <input
         type="date"
@@ -181,7 +119,7 @@ const FilterContent = ({
         onChange={(e) => setDateRange(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       />
-    </div>
+    </div> */}
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Time Range</label>
       <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}
