@@ -24,7 +24,7 @@ import {
   PARAM_LEGENDS,
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-import type { LayerDef, UgandaBoundaryMapProps } from "@/types/data_types";
+import type { LayerDef, UgandaBoundaryMapProps, FloodHoverBasin } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
 const GEO_SERVER_URL =
@@ -49,6 +49,51 @@ function clearLayer<T extends L.Layer>(
 
 // ── Layer panel definitions (matches screenshot) ──────────────────────────────
 
+// ── Flood hover sparkline (inline, no external dep) ──────────────────────────
+function FloodMiniSparkline({ readings, isDark }: { readings: { level: number }[]; isDark: boolean }) {
+  if (readings.length < 2) return null;
+  const vals = readings.map((r) => r.level);
+  const lo = Math.min(...vals), hi = Math.max(...vals), range = hi - lo || 1;
+  const W = 220, H = 36;
+  const pts = vals.map((v, i) => [
+    (i / (vals.length - 1)) * W,
+    H - ((v - lo) / range) * H,
+  ]);
+  const d = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H }} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="fhGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#318DDE" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#318DDE" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${d} L${W},${H} L0,${H} Z`} fill="url(#fhGrad)" />
+      <path d={d} fill="none" stroke="#318DDE" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="2.5" fill="#318DDE" />
+      {[0.33, 0.66].map((f, i) => (
+        <line key={i} x1="0" y1={H * f} x2={W} y2={H * f}
+          stroke={isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"} strokeWidth="1" />
+      ))}
+    </svg>
+  );
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+const FLOOD_STATUS_COLOR: Record<string, string> = {
+  extreme: "#991b1b", severe: "#ef4444", moderate: "#f97316",
+  minor: "#eab308", normal: "#22c55e",
+};
+
+function pickBasin(districts: string, basins: FloodHoverBasin[]): FloodHoverBasin | null {
+  if (!basins.length) return null;
+  const dn = districts.toLowerCase();
+  return (
+    basins.find((b) => b.name.toLowerCase().includes(dn) || dn.includes(b.name.toLowerCase().split(" ")[0])) ??
+    [...basins].sort((a, b) => b.level - a.level)[0]
+  );
+}
+
 export default function FloodMonitorMap({
   className = "",
   isDarkMode,
@@ -60,6 +105,7 @@ export default function FloodMonitorMap({
   getTheBounds,
   zoom = 6.8,
   minZoom = 6.8,
+  floodHoverData,
 }: UgandaBoundaryMapProps) {
   const {
     selectedParameter,
@@ -83,7 +129,6 @@ export default function FloodMonitorMap({
   const FloodMonitorboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitorriverLayerRef = useRef<L.GeoJSON | null>(null);
   const FloodMonitortileLayerRef = useRef<L.TileLayer | null>(null);
-  const FloodMonitorLabelsLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorrasterLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
 
@@ -213,26 +258,19 @@ export default function FloodMonitorMap({
       FloodMonitormapRef.current = null;
     }
 
-    // ── Satellite base + labels overlay ──────────────────────────────────
+    // ── CartoDB base tile (dark / light matches system theme) ────────────
     FloodMonitortileLayerRef.current = L.tileLayer(
-      "https://server.arcgisonline.com/ArcGIS/Rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { maxZoom: 19, attribution: "© Esri" },
-    );
-    FloodMonitorLabelsLayerRef.current = L.tileLayer(
       isDarkMode
-        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
-      { opacity: 0.9, zIndex: 2 },
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, attribution: "© CartoDB" },
     );
 
     FloodMonitormapRef.current = L.map(FloodMonitormapContainerRef.current, {
       center: [1.3733, 32.2903],
       zoom,
       minZoom,
-      layers: [
-        FloodMonitortileLayerRef.current,
-        FloodMonitorLabelsLayerRef.current,
-      ],
+      layers: [FloodMonitortileLayerRef.current],
       zoomControl: false,
       attributionControl: false,
     });
@@ -328,6 +366,19 @@ export default function FloodMonitorMap({
       FloodMonitorriverLayerRef.current.bringToBack();
     }
 
+    // ── Country boundary on by default ───────────────────────────────────
+    const countryWms = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: "wfews:country",
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      })
+      .addTo(FloodMonitormapRef.current);
+    countryWms.bringToFront();
+    FloodMonitorwmsLayersRef.current["country"] = countryWms;
+
     // ── Hover: district detection on mouse move ───────────────────────────
     FloodMonitormapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
       setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
@@ -356,16 +407,17 @@ export default function FloodMonitorMap({
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Swap labels overlay on dark/light toggle ─────────────────────────────────
+  // ── Swap CartoDB base tile on dark/light toggle ──────────────────────────────
   useEffect(() => {
-    if (!FloodMonitormapRef.current) return;
-    clearLayer(FloodMonitormapRef.current, FloodMonitorLabelsLayerRef);
-    FloodMonitorLabelsLayerRef.current = L.tileLayer(
+    if (!FloodMonitormapRef.current || !FloodMonitortileLayerRef.current) return;
+    FloodMonitormapRef.current.removeLayer(FloodMonitortileLayerRef.current);
+    FloodMonitortileLayerRef.current = L.tileLayer(
       isDarkMode
-        ? "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png",
-      { opacity: 0.9, zIndex: 2 },
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, attribution: "© CartoDB" },
     ).addTo(FloodMonitormapRef.current);
+    FloodMonitortileLayerRef.current.bringToBack();
   }, [isDarkMode]);
 
   // ── Highlight district when `district` prop changes externally ──────────────
@@ -560,12 +612,11 @@ export default function FloodMonitorMap({
       <button
         onClick={toggleFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all"
         style={{
-          background: "rgba(10,15,30,0.65)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          border: `1px solid ${FAO_BLUE}55`,
+          background: "transparent",
+          border: "none",
+          filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
         }}
       >
         {isFullscreen ? (
@@ -578,15 +629,12 @@ export default function FloodMonitorMap({
       {/* MAP LAYERS toggle button */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
         style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
+          backgroundColor: showLayerPanel ? FAO_BLUE : "transparent",
           color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
+          border: showLayerPanel ? `1px solid ${FAO_BLUE}` : "none",
+          filter: showLayerPanel ? "none" : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
         }}
       >
         <Layers className="w-3.5 h-3.5" />
@@ -611,10 +659,11 @@ export default function FloodMonitorMap({
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all hover:opacity-90"
+            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all hover:opacity-80"
             style={{
-              backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
-              border: `1px solid ${FAO_BLUE}55`,
+              backgroundColor: "transparent",
+              border: "none",
+              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))",
             }}
           >
             <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
@@ -757,140 +806,182 @@ export default function FloodMonitorMap({
         </>
       )}
 
-      {/* Legend — gradient bar with Waves icon */}
-      {legendTitle &&
-        legendItems.length > 0 &&
-        (() => {
-          const gradientStops = legendItems
-            .map(
-              (item, i) =>
-                `${item.color} ${Math.round((i / (legendItems.length - 1)) * 100)}%`,
-            )
-            .join(", ");
-          return (
-            <div
-              className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
+      {/* Legend — vertical list, no background */}
+      {legendTitle && legendItems.length > 0 && (
+        <div className="absolute bottom-4 left-2 z-[400]">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Waves
+              className="w-3 h-3"
               style={{
-                background: "rgba(8,12,24,0.68)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                minWidth: 172,
+                color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+                filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.9))",
+              }}
+            />
+            <span
+              className="text-[9px] font-bold tracking-widest uppercase"
+              style={{
+                color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)",
+                textShadow: isDarkMode
+                  ? "0 1px 3px rgba(0,0,0,0.9)"
+                  : "0 1px 4px rgba(255,255,255,1)",
               }}
             >
-              <div className="flex items-center gap-1.5 mb-2">
-                <Waves
-                  className="w-3.5 h-3.5"
-                  style={{ color: legendItems[legendItems.length - 1].color }}
+              {legendTitle}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {legendItems.map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
                 />
                 <span
-                  className="text-[10px] font-bold tracking-widest uppercase"
-                  style={{ color: legendItems[legendItems.length - 1].color }}
+                  className="text-[9px] font-medium"
+                  style={{
+                    color: isDarkMode ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)",
+                    textShadow: isDarkMode
+                      ? "0 1px 3px rgba(0,0,0,0.9)"
+                      : "0 1px 4px rgba(255,255,255,1)",
+                  }}
                 >
-                  {legendTitle}
+                  {item.label}
                 </span>
               </div>
-              <div
-                className="h-2.5 rounded-full w-full"
-                style={{
-                  background: `linear-gradient(to right, ${gradientStops})`,
-                }}
-              />
-              <div className="flex justify-between mt-1">
-                {legendItems.map((item) => (
-                  <span
-                    key={item.label}
-                    className="text-[8px] font-medium"
-                    style={{ color: "rgba(255,255,255,0.55)" }}
-                  >
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Hover tooltip — follows cursor, shows district value */}
+      {/* Hover tooltip — flood-aware */}
       {hoveredDistrictName &&
         (() => {
+          const tx = mousePos.x > 360 ? mousePos.x - 250 : mousePos.x + 14;
+          const ty = Math.max(mousePos.y - 80, 8);
+          const bg = isDarkMode ? "rgba(15,23,42,0.18)" : "rgba(255,255,255,0.18)";
+          const border = isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+          const dimText = isDarkMode ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)";
+          const bodyText = isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)";
+          const headText = isDarkMode ? "#fff" : "#0f172a";
+          const divider = isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+
+          // ── Flood mode ────────────────────────────────────────────────────────
+          if (layerMode === "forecast" && floodHoverData && floodHoverData.basinStatus.length > 0) {
+            const basin = pickBasin(hoveredDistrictName, floodHoverData.basinStatus);
+            const trend = floodHoverData.basinTrend?.trend ?? "stable";
+            const readings = floodHoverData.basinTrend?.readings ?? [];
+            const currentLevel = floodHoverData.basinTrend?.current_level_m ?? basin?.level ?? 0;
+            const statusColor = FLOOD_STATUS_COLOR[basin?.status ?? "normal"];
+            const trendLabel = trend === "rising" ? "↑ Rising" : trend === "falling" ? "↓ Falling" : "→ Stable";
+            const trendColor = trend === "rising" ? "#ef4444" : trend === "falling" ? "#22c55e" : "#eab308";
+            const topForecast = floodHoverData.forecasts?.[0];
+            const popStr = basin && basin.population_at_risk >= 1_000_000
+              ? `${(basin.population_at_risk / 1_000_000).toFixed(1)}M`
+              : basin ? `${(basin.population_at_risk / 1_000).toFixed(0)}K` : "—";
+
+            return (
+              <div
+                className="absolute pointer-events-none z-[450]"
+                style={{ left: tx, top: ty, background: bg, backdropFilter: "blur(20px) saturate(180%)",
+                  WebkitBackdropFilter: "blur(20px) saturate(180%)", border: `1px solid ${border}`,
+                  borderRadius: 12, boxShadow: "0 6px 28px rgba(0,0,0,0.4)", minWidth: 230, maxWidth: 250 }}
+              >
+                {/* Header */}
+                <div style={{ padding: "9px 12px 7px", borderBottom: `1px solid ${divider}` }}>
+                  <p style={{ fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: dimText, marginBottom: 3 }}>
+                    {hoveredDistrictName}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: headText }}>
+                      {basin?.name ?? "River Network"}
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+                      backgroundColor: `${statusColor}22`, color: statusColor, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                      {basin?.status ?? "normal"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Level + trend */}
+                <div style={{ padding: "8px 12px 4px", display: "flex", alignItems: "flex-end", gap: 10 }}>
+                  <div>
+                    <p style={{ fontSize: 8, color: dimText, marginBottom: 1, textTransform: "uppercase", letterSpacing: 1 }}>Level</p>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                      <span style={{ fontSize: 26, fontWeight: 900, color: statusColor, lineHeight: 1 }}>
+                        {currentLevel.toFixed(1)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: dimText }}>m</span>
+                    </div>
+                  </div>
+                  <div style={{ paddingBottom: 3 }}>
+                    <p style={{ fontSize: 8, color: dimText, marginBottom: 1, textTransform: "uppercase", letterSpacing: 1 }}>Trend</p>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: trendColor }}>{trendLabel}</span>
+                  </div>
+                  {basin && (
+                    <div style={{ paddingBottom: 3, marginLeft: "auto" }}>
+                      <p style={{ fontSize: 8, color: dimText, marginBottom: 1, textTransform: "uppercase", letterSpacing: 1 }}>Discharge</p>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: bodyText }}>{basin.discharge_rate.toFixed(0)} <span style={{ fontSize: 9, color: dimText }}>m³/s</span></span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sparkline */}
+                {readings.length >= 2 && (
+                  <div style={{ padding: "0 12px 6px" }}>
+                    <FloodMiniSparkline readings={readings} isDark={isDarkMode} />
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div style={{ padding: "6px 12px 8px", borderTop: `1px solid ${divider}`,
+                  display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px" }}>
+                  <div>
+                    <p style={{ fontSize: 8, color: dimText, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 1 }}>Pop. at risk</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#f97316" }}>{popStr}</p>
+                  </div>
+                  {topForecast && (
+                    <div>
+                      <p style={{ fontSize: 8, color: dimText, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 1 }}>Forecast</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: bodyText }}>{topForecast.expected_level.toFixed(1)}m</p>
+                        <div style={{ flex: 1, height: 3, borderRadius: 2, background: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${(topForecast.confidence ?? 0) * 100}%`,
+                            backgroundColor: topForecast.confidence >= 0.8 ? "#22c55e" : topForecast.confidence >= 0.6 ? "#eab308" : "#f97316",
+                            borderRadius: 2 }} />
+                        </div>
+                        <span style={{ fontSize: 8, color: dimText }}>{Math.round((topForecast.confidence ?? 0) * 100)}%</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // ── Weather / default mode ────────────────────────────────────────────
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
-          const value = config
-            ? getDistrictValue(hoveredDistrictName, param)
-            : null;
-          const color =
-            config && value !== null ? getValueColor(value, param) : FAO_BLUE;
-          const tx = mousePos.x > 360 ? mousePos.x - 158 : mousePos.x + 14;
-          const ty = Math.max(mousePos.y - 62, 8);
+          const value = config ? getDistrictValue(hoveredDistrictName, param) : null;
+          const color = config && value !== null ? getValueColor(value, param) : FAO_BLUE;
           return (
             <div
               className="absolute pointer-events-none z-[450]"
-              style={{
-                left: tx,
-                top: ty,
-                background: isDarkMode
-                  ? "rgba(8,12,24,0.9)"
-                  : "rgba(255,255,255,0.92)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
-                borderRadius: 10,
-                padding: "8px 12px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
-                minWidth: 140,
-              }}
+              style={{ left: tx, top: ty, background: bg, backdropFilter: "blur(20px) saturate(180%)",
+                WebkitBackdropFilter: "blur(20px) saturate(180%)", border: `1px solid ${border}`,
+                borderRadius: 10, padding: "8px 12px", boxShadow: "0 4px 20px rgba(0,0,0,0.35)", minWidth: 140 }}
             >
-              <p
-                style={{
-                  fontSize: 9,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  color: isDarkMode
-                    ? "rgba(255,255,255,0.4)"
-                    : "rgba(0,0,0,0.4)",
-                  marginBottom: 4,
-                }}
-              >
+              <p style={{ fontSize: 9, letterSpacing: 1, textTransform: "uppercase", color: dimText, marginBottom: 4 }}>
                 {hoveredDistrictName}
               </p>
               {config && value !== null && (
-                <div
-                  style={{ display: "flex", alignItems: "baseline", gap: 3 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 800,
-                      color,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {value}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: isDarkMode
-                        ? "rgba(255,255,255,0.55)"
-                        : "rgba(0,0,0,0.5)",
-                    }}
-                  >
+                <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+                  <span style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)" }}>
                     {config.unit}
                   </span>
                 </div>
               )}
-              <p
-                style={{
-                  fontSize: 9,
-                  color: isDarkMode
-                    ? "rgba(255,255,255,0.3)"
-                    : "rgba(0,0,0,0.3)",
-                  marginTop: 4,
-                  textTransform: "capitalize",
-                }}
-              >
+              <p style={{ fontSize: 9, color: isDarkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", marginTop: 4, textTransform: "capitalize" }}>
                 {selectedParameter ?? "—"}
               </p>
             </div>

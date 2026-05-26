@@ -105,6 +105,38 @@ export interface LegendItem {
   color: string;
 }
 
+export interface FloodHoverBasin {
+  name: string;
+  level: number;
+  status: "normal" | "minor" | "moderate" | "severe" | "extreme";
+  population_at_risk: number;
+  discharge_rate: number;
+}
+
+export interface FloodHoverData {
+  basinStatus: FloodHoverBasin[];
+  basinTrend?: {
+    trend: "unknown" | "rising" | "falling" | "stable";
+    current_level_m: number | null;
+    readings: { level: number; timestamp?: string }[];
+  } | null;
+  forecasts?: Array<{
+    id?: number;
+    basin: string;
+    expected_level: number;
+    confidence: number;
+    forecast_date: string;
+  }>;
+}
+
+export interface DistrictWeatherEntry {
+  temperature?: number;
+  humidity?: number;
+  wind_speed?: number;
+  rainfall?: number;
+  weather_description?: string;
+}
+
 export interface UgandaBoundaryMapProps {
   className?: string;
   isDarkMode: boolean;
@@ -117,6 +149,8 @@ export interface UgandaBoundaryMapProps {
   zoom?: number;
   minZoom?: number;
   district_list?: any;
+  floodHoverData?: FloodHoverData;
+  districtWeatherMap?: Record<string, DistrictWeatherEntry>;
 }
 
 export interface LayerDef {
