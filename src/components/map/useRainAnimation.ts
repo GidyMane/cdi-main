@@ -18,6 +18,7 @@ interface RainDrop {
   opacity: number;
   angle: number;
   width: number;   // stroke width
+  drift: number;
 }
 
 type Bbox = { minX: number; minY: number; maxX: number; maxY: number };
@@ -27,6 +28,7 @@ interface RainZone {
   r: number; g: number; b: number;
   drops: RainDrop[];
   normDrops: { nx: number; ny: number }[]; // normalised [0,1] positions
+  cells: { nx: number; ny: number; radius: number; opacity: number; speed: number }[];
   _path: Path2D | null;   // cached clip path; null = needs rebuild after map move
   _bbox: Bbox | null;
 }
@@ -34,11 +36,11 @@ interface RainZone {
 // ── Colour ramp ───────────────────────────────────────────────────────────────
 
 function rainColor(meanMm: number): [number, number, number] {
-  if (meanMm >= 300) return [  3,  20,  58];
-  if (meanMm >= 150) return [  8,  48, 107];
-  if (meanMm >= 50)  return [ 33, 113, 181];
-  if (meanMm >= 10)  return [107, 174, 214];
-  return                    [198, 219, 239];
+  if (meanMm >= 80) return [255, 205, 66];
+  if (meanMm >= 50) return [ 76, 214, 91];
+  if (meanMm >= 25) return [ 35, 166, 255];
+  if (meanMm >= 10) return [ 69, 211, 255];
+  return                   [137, 231, 255];
 }
 
 // ── GeoJSON → canvas helpers ──────────────────────────────────────────────────
@@ -136,7 +138,8 @@ export function useRainAnimation(
         const [r, g, b] = rainColor(d.meanMm);
         const pct      = d.rainyPct ?? 60;
         const sScale   = d.speedScale ?? 1;
-        const count    = Math.max(8, Math.round((pct / 100) * 90));
+        const count    = Math.max(18, Math.round((pct / 100) * 120));
+        const cellCount = Math.max(3, Math.round((pct / 100) * 10));
 
         const lw = d.lineWidth ?? 1;
 
@@ -148,12 +151,21 @@ export function useRainAnimation(
         const drops: RainDrop[] = Array.from({ length: count }, () => ({
           len:     Math.random() * 10 + 8,              // 8–18 px — consistent streak length
           speed:   (Math.random() * 3 + 3.5) * sScale, // 3.5–6.5 px/frame
-          opacity: Math.random() * 0.30 + 0.15,        // subtle: 0.15–0.45
-          angle:   0.18 + (Math.random() - 0.5) * 0.06, // ~10° lean, very consistent
-          width:   Math.max(0.3, lw + (Math.random() - 0.5) * 0.25),
+          opacity: Math.random() * 0.22 + 0.10,
+          angle:   0.34 + (Math.random() - 0.5) * 0.08,
+          width:   Math.max(0.25, lw * 0.65 + (Math.random() - 0.5) * 0.18),
+          drift:   0.08 + Math.random() * 0.16,
         }));
 
-        zones.push({ geometry: geo, r, g, b, drops, normDrops, _path: null, _bbox: null });
+        const cells = Array.from({ length: cellCount }, () => ({
+          nx: Math.random(),
+          ny: Math.random(),
+          radius: 0.16 + Math.random() * 0.24,
+          opacity: 0.08 + Math.random() * 0.14,
+          speed: 0.00045 + Math.random() * 0.00075,
+        }));
+
+        zones.push({ geometry: geo, r, g, b, drops, normDrops, cells, _path: null, _bbox: null });
       });
 
       zonesRef.current = zones;
@@ -199,7 +211,26 @@ export function useRainAnimation(
         ctx.save();
         ctx.clip(z._path, "evenodd");
 
-        const { r, g, b, drops, normDrops } = z;
+        const { r, g, b, drops, normDrops, cells } = z;
+
+        ctx.globalCompositeOperation = "screen";
+
+        cells.forEach((cell) => {
+          const cx = bb.minX + cell.nx * w;
+          const cy = bb.minY + cell.ny * h;
+          const radius = Math.max(w, h) * cell.radius;
+          const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+          gradient.addColorStop(0, `rgba(${r},${g},${b},${cell.opacity})`);
+          gradient.addColorStop(0.45, `rgba(${r},${g},${b},${cell.opacity * 0.42})`);
+          gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          ctx.fillStyle = gradient;
+          ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+          cell.nx += cell.speed * dt;
+          cell.ny += cell.speed * 0.45 * dt;
+          if (cell.nx > 1.18) cell.nx = -0.18;
+          if (cell.ny > 1.18) cell.ny = -0.18;
+        });
 
         for (let i = 0; i < drops.length; i++) {
           const d  = drops[i];
@@ -211,13 +242,14 @@ export function useRainAnimation(
           ctx.beginPath();
           ctx.strokeStyle = `rgba(${r},${g},${b},${d.opacity})`;
           ctx.lineWidth   = d.width;
+          ctx.lineCap = "round";
           ctx.moveTo(px, py);
-          ctx.lineTo(px + Math.sin(d.angle) * d.len, py + d.len);
+          ctx.lineTo(px + Math.sin(d.angle) * d.len, py + d.len * 1.35);
           ctx.stroke();
 
           // Advance normalised position (scaled by delta-time)
           nd.ny += (d.speed / h) * dt;
-          nd.nx += (Math.sin(d.angle) * d.speed * 0.35 / w) * dt;
+          nd.nx += ((Math.sin(d.angle) * d.speed * 0.35 + d.drift) / w) * dt;
 
           if (nd.ny > 1 + d.len / h) {
             nd.nx = Math.random();
@@ -228,6 +260,7 @@ export function useRainAnimation(
         }
 
         ctx.restore();
+        ctx.globalCompositeOperation = "source-over";
       });
 
       frameRef.current = requestAnimationFrame(tick);

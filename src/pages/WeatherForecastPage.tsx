@@ -789,7 +789,7 @@ export default function WeatherForecastPage({
               style={{ height: "clamp(480px, 58vh, 900px)" }}
             >
               {/* Map — left */}
-              <div className="col-span-7 flex h-full">
+              <div className="col-span-8 flex h-full">
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl overflow-hidden shadow-sm flex-1 flex flex-col`}
                 >
@@ -803,7 +803,7 @@ export default function WeatherForecastPage({
                         style={{ color: FAO_BLUE }}
                       />
                       <h3 className={`text-sm font-semibold ${headerText}`}>
-                        Weather Map
+                        Precipitation Forecast
                       </h3>
                     </div>
 
@@ -838,7 +838,7 @@ export default function WeatherForecastPage({
                         color: FAO_BLUE,
                       }}
                     >
-                      Live
+                      GFS
                     </span>
                   </div>
                   <div className="flex-1 relative min-h-0">
@@ -862,7 +862,7 @@ export default function WeatherForecastPage({
               </div>
 
               {/* Right panel — forecast cards (top) + trend chart (bottom) */}
-              <div className="col-span-5 h-full min-h-0 flex flex-col gap-2">
+              <div className="col-span-4 h-full min-h-0 flex flex-col gap-2">
                 {/* Nowcast / Forecast cards — natural height, capped at 56%, scrolls inside */}
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg shadow-sm flex flex-col flex-shrink-0`}

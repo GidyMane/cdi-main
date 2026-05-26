@@ -35,16 +35,17 @@ interface WindParticle {
   age: number;
   maxAge: number;
   speed: number;
+  phase: number;
 }
 
 // ── Colour ramp ───────────────────────────────────────────────────────────────
 
 function windColorBase(speed: number): string {
-  if (speed >= 7) return "rgba(128,0,38,";
-  if (speed >= 5) return "rgba(227,26,28,";
-  if (speed >= 3) return "rgba(252,78,42,";
-  if (speed >= 1) return "rgba(254,178,76,";
-  return                  "rgba(255,255,204,";
+  if (speed >= 7) return "rgba(255,238,153,";
+  if (speed >= 5) return "rgba(126,240,255,";
+  if (speed >= 3) return "rgba(79,196,255,";
+  if (speed >= 1) return "rgba(137,226,255,";
+  return                  "rgba(210,245,255,";
 }
 
 // ── Bilinear interpolation ────────────────────────────────────────────────────
@@ -100,27 +101,6 @@ function buildUgandaClipPath(geoData: FeatureCollection, map: L.Map): Path2D {
   return path;
 }
 
-// ── Arrowhead ─────────────────────────────────────────────────────────────────
-
-function drawArrow(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number,
-  angle: number, size: number, color: string,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(-size, -size * 0.5);
-  ctx.lineTo(-size * 0.6, 0);
-  ctx.lineTo(-size, size * 0.5);
-  ctx.closePath();
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.restore();
-}
-
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -157,17 +137,18 @@ export function useWindAnimation(
   const syncCanvasSize = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
     const { offsetWidth: w, offsetHeight: h } = canvas;
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width  = w;
-      canvas.height = h;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width  = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
     }
   }, []);
 
   // ── Particle factory — stores normalised geo position ─────────────────────
   const newParticle = useCallback((): WindParticle => {
     const field = fieldRef.current;
-    if (!field) return { nLon: 0, nLat: 0, lon: 0, lat: 0, age: 0, maxAge: 60, speed: 0 };
+    if (!field) return { nLon: 0, nLat: 0, lon: 0, lat: 0, age: 0, maxAge: 90, speed: 0, phase: 0 };
     const nLon = Math.random();
     const nLat = Math.random();
     const lon  = field.lo1 + nLon * (field.lo2 - field.lo1);
@@ -175,8 +156,9 @@ export function useWindAnimation(
     return {
       nLon, nLat, lon, lat,
       age:    Math.floor(Math.random() * 60),
-      maxAge: 40 + Math.floor(Math.random() * 60),
+      maxAge: 70 + Math.floor(Math.random() * 100),
       speed:  0,
+      phase: Math.random() * Math.PI * 2,
     };
   }, []);
 
@@ -188,7 +170,8 @@ export function useWindAnimation(
     p.lon    = field.lo1 + p.nLon * (field.lo2 - field.lo1);
     p.lat    = field.la2 + p.nLat * (field.la1 - field.la2);
     p.age    = 0;
-    p.maxAge = 40 + Math.floor(Math.random() * 60);
+    p.maxAge = 70 + Math.floor(Math.random() * 100);
+    p.phase  = Math.random() * Math.PI * 2;
   }, []);
 
   // ── Animation loop ────────────────────────────────────────────────────────
@@ -210,16 +193,21 @@ export function useWindAnimation(
       if (!field) { frameRef.current = requestAnimationFrame(tick); return; }
 
       const ctx = canvas.getContext("2d")!;
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = canvas.offsetWidth;
+      const cssHeight = canvas.offsetHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // Rebuild clip path every frame so it tracks pan/zoom
       const clipPath = geoData ? buildUgandaClipPath(geoData, map) : null;
 
-      // Semi-transparent fill for trail fade
-      ctx.fillStyle = "rgba(0,0,0,0.04)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(3, 9, 19, 0.075)";
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
 
       ctx.save();
       if (clipPath) ctx.clip(clipPath, "evenodd");
+      ctx.globalCompositeOperation = "lighter";
 
       particlesRef.current.forEach((p) => {
         const u     = interpWind(field.uDat, p.lon, p.lat, field);
@@ -228,7 +216,7 @@ export function useWindAnimation(
         p.speed = speed;
 
         // Advance geographic position
-        const dt     = 0.003;
+        const dt     = 0.0021;
         const newLon = p.lon + u * dt;
         const newLat = p.lat + v * dt;
 
@@ -247,36 +235,30 @@ export function useWindAnimation(
         // Reset stale / out-of-bounds / stalled particles
         if (
           p.age > p.maxAge || speed < 0.05 ||
-          newPx.x < -10 || newPx.x > canvas.width  + 10 ||
-          newPx.y < -10 || newPx.y > canvas.height + 10
+          newPx.x < -10 || newPx.x > cssWidth  + 10 ||
+          newPx.y < -10 || newPx.y > cssHeight + 10
         ) {
           resetParticle(p);
           return;
         }
 
         const colorBase = windColorBase(speed);
-        const opacity   = Math.min(0.7, 0.2 + (speed / 8) * 0.5);
+        const life = Math.sin(Math.min(1, p.age / Math.max(p.maxAge, 1)) * Math.PI);
+        const pulse = 0.78 + Math.sin(p.age * 0.12 + p.phase) * 0.22;
+        const opacity = Math.min(0.62, (0.16 + (speed / 8) * 0.42) * life * pulse);
 
-        // Streak line
         ctx.beginPath();
         ctx.strokeStyle = `${colorBase}${opacity})`;
-        ctx.lineWidth   = Math.max(0.8, Math.min(2.5, speed * 0.4));
+        ctx.lineWidth   = Math.max(0.65, Math.min(1.8, speed * 0.28));
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.moveTo(prevPx.x, prevPx.y);
         ctx.lineTo(newPx.x, newPx.y);
         ctx.stroke();
-
-        // Arrowhead every ~20 frames
-        if (p.age % 20 === 0 && speed > 0.3) {
-          const angle = Math.atan2(newPx.y - prevPx.y, newPx.x - prevPx.x);
-          drawArrow(
-            ctx, newPx.x, newPx.y, angle,
-            5 + speed * 0.8,
-            `${colorBase}${Math.min(opacity + 0.2, 0.9)})`,
-          );
-        }
       });
 
       ctx.restore();
+      ctx.globalCompositeOperation = "source-over";
       frameRef.current = requestAnimationFrame(tick);
     };
 
@@ -337,8 +319,7 @@ export function useWindAnimation(
           lo1, la1, lo2, la2, nx, ny, dx, dy,
         };
 
-        // Seed 300 particles
-        particlesRef.current = Array.from({ length: 300 }, () => newParticle());
+        particlesRef.current = Array.from({ length: 560 }, () => newParticle());
 
         if (enabledRef.current) startAnimation();
       } catch (e) {
@@ -401,8 +382,7 @@ export function useWindAnimation(
         lo1, la1, lo2, la2, nx, ny, dx, dy,
       };
 
-      // Seed 300 particles
-      particlesRef.current = Array.from({ length: 300 }, () => newParticle());
+      particlesRef.current = Array.from({ length: 560 }, () => newParticle());
 
       if (enabledRef.current) startAnimation();
     },

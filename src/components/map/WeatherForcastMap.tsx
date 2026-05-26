@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useRainAnimation } from "./useRainAnimation";
 import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
 import type { FeatureCollection } from "geojson";
@@ -148,7 +147,7 @@ export default function WeatherForcastMap({
   );
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(
-    new Set(["country"]),
+    new Set(["country", "gfs_precipitation"]),
   );
   const [isRasterLoading, setRasterIsLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -156,7 +155,6 @@ export default function WeatherForcastMap({
     null,
   );
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -167,12 +165,6 @@ export default function WeatherForcastMap({
     if (!document.fullscreenElement) rootRef.current?.requestFullscreen?.();
     else document.exitFullscreen?.();
   };
-
-  // ── Rain animation ──────────────────────────────────────────────────────────
-  const { canvasRef: rainCanvasRef, setRainyDistricts } = useRainAnimation(
-    weatherforcastMapRef,
-    geoData as any, 
-  );
 
   // Check whether a district label fits inside its polygon at current zoom
   // (exact port of doesNameFitInLeafletBoundary from reference)
@@ -412,9 +404,23 @@ export default function WeatherForcastMap({
         format: "image/png",
         transparent: true,
         version: "1.1.0",
-        opacity: 1.0,
+        opacity: 0.92,
       })
       .addTo(weatherforcastMapRef.current);
+    // Default the weather map to the GFS precipitation layer so the first view
+    // behaves like a forecast animation map instead of an empty basemap.
+    const gfsPrecipitationWms = L.tileLayer
+      .wms(LOCAL_GEO_SERVER_URL, {
+        layers: "gfs_precipitation",
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 0.78,
+      })
+      .addTo(weatherforcastMapRef.current);
+    gfsPrecipitationWms.bringToFront();
+    weatherforcastwmsLayersRef.current["gfs_precipitation"] =
+      gfsPrecipitationWms;
     countryWms.bringToFront();
     weatherforcastwmsLayersRef.current["country"] = countryWms;
 
@@ -525,8 +531,11 @@ export default function WeatherForcastMap({
     });
 
     if (layerName) {
+      const isLocal = layerName.startsWith("local:");
+      const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
+      const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
       weatherforcastrasterLayerRef.current = L.tileLayer
-        .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
+        .wms(serverUrl, { ...WMS_BASE_OPTIONS, layers: wmsLayerName })
         .on("loading", () => setRasterIsLoading(true))
         .on("load", () => setRasterIsLoading(false))
         .on("tileerror", () => setRasterIsLoading(false))
@@ -534,42 +543,6 @@ export default function WeatherForcastMap({
       weatherforcastrasterLayerRef.current.bringToFront();
     }
 
-    // ── Rain animation: magnitude-scaled drops per district ───────────────
-    if (selectedParameter?.toLowerCase() === "rainfall" && geoData?.features) {
-      const rainyDistricts = (geoData.features as any[])
-        .filter((f: any) => f?.properties?.name)
-        .map((f: any) => {
-          const name = f.properties.name as string;
-          const meanMm = getDistrictValue(name, "rainfall");
-          let rainyPct: number, speedScale: number, lineWidth: number;
-          if (meanMm >= 75) {
-            rainyPct = 90;
-            speedScale = 1.6;
-            lineWidth = 1.8;
-          } else if (meanMm >= 50) {
-            rainyPct = 70;
-            speedScale = 1.3;
-            lineWidth = 1.3;
-          } else if (meanMm >= 25) {
-            rainyPct = 45;
-            speedScale = 1.0;
-            lineWidth = 0.9;
-          } else if (meanMm >= 10) {
-            rainyPct = 22;
-            speedScale = 0.8;
-            lineWidth = 0.5;
-          } else {
-            rainyPct = 0;
-            speedScale = 0;
-            lineWidth = 0;
-          }
-          return { name, meanMm, rainyPct, speedScale, lineWidth };
-        })
-        .filter((d) => d.meanMm >= 10);
-      setRainyDistricts(rainyDistricts);
-    } else {
-      setRainyDistricts([]);
-    }
   }, [
     geoData,
     selectedParameter,
@@ -633,15 +606,8 @@ export default function WeatherForcastMap({
         ref={mapWeatherforcastContainerRef}
         className="absolute inset-0 z-0"
         style={{
-          background: isDarkMode ? "#0f172a" : "#f1f5f9",
+          background: isDarkMode ? "#07111f" : "#dceaf4",
         }}
-      />
-
-      {/* Rain animation canvas — sits above the map, below UI controls */}
-      <canvas
-        ref={rainCanvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ zIndex: 450 }}
       />
 
       {/* Loading overlay */}
@@ -679,16 +645,13 @@ export default function WeatherForcastMap({
         </div>
       </div>
 
-      {/* Badge */}
-      <div className="absolute top-2 left-2 z-[400]">
-        <span
-          className="rounded px-2 py-0.5 text-[10px] font-medium shadow-sm"
-          style={{
-            backgroundColor: isDarkMode ? `${FAO_BLUE}33` : `${FAO_BLUE}22`,
-            color: FAO_BLUE,
-          }}
-        >
+      {/* Forecast status */}
+      <div className="absolute top-2 left-2 z-[500] flex items-center gap-2">
+        <span className="rounded bg-black/65 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg backdrop-blur-md">
           {badgeText}
+        </span>
+        <span className="rounded bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
+          GFS Precipitation · UTC
         </span>
       </div>
 
@@ -696,7 +659,7 @@ export default function WeatherForcastMap({
       <button
         onClick={toggleFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
+        className="absolute top-[44px] left-2 z-[500] flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all"
         style={{
           background: "rgba(10,15,30,0.65)",
           backdropFilter: "blur(8px)",
@@ -714,7 +677,7 @@ export default function WeatherForcastMap({
       {/* MAP LAYERS toggle button */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all"
+        className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
           backgroundColor: showLayerPanel
             ? FAO_BLUE
@@ -730,7 +693,7 @@ export default function WeatherForcastMap({
       </button>
 
       {/* Zoom controls — below MAP LAYERS button */}
-      <div className="absolute top-[46px] right-2 z-[400] flex flex-col gap-1">
+      <div className="absolute top-[46px] right-2 z-[500] flex flex-col gap-1">
         {[
           {
             icon: Plus,
@@ -747,7 +710,7 @@ export default function WeatherForcastMap({
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all hover:opacity-90"
+            className="flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all hover:opacity-90"
             style={{
               backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
               border: `1px solid ${FAO_BLUE}55`,

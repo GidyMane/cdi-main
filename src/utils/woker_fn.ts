@@ -106,7 +106,7 @@ export function removeLastTwoDigits(value: string) {
 //             wfews:gfs_10m_windspd_<step>h_YYYYMMDD
 //             wfews:gfs_10m_winddir_<step>h_YYYYMMDD
 //
-//  humidity   → MISSING on all resolutions
+//  humidity   → available from local GFS/ICON task rasters
 
 export type LayerMode = "nowcast" | "forecast";
 
@@ -202,7 +202,7 @@ export function mapLayerName(opts: LayerNameOptions): string | null {
       case "wind_direction":
         return `wfews:gfs_10m_winddir_${step}h_${yyyymmdd}`;
       case "humidity":
-        return null; // MISSING
+        return `local:gfs_humidity`;
       default:
         return null;
     }
@@ -258,6 +258,13 @@ export const getLayerGroups = ({
           pages: ["weather"],
         },
         {
+          id: "icon_humidity",
+          label: "Humidity (ICON)",
+          wms: "local:humidity",
+          date: today,
+          pages: ["weather"],
+        },
+        {
           id: "icon_precipitation",
           label: "Precipitation (ICON)",
           wms: "local:precipitation",
@@ -282,6 +289,13 @@ export const getLayerGroups = ({
           id: "gfs_temperature",
           label: "Temperature (GFS 25km)",
           wms: "local:gfs_temperature_2m",
+          date: today,
+          pages: ["weather"],
+        },
+        {
+          id: "gfs_humidity",
+          label: "Humidity (GFS)",
+          wms: "local:gfs_humidity",
           date: today,
           pages: ["weather"],
         },
