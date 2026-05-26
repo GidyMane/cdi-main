@@ -895,14 +895,8 @@ export default function WeatherForcastMap({
         const accentColor = config.stops[config.stops.length - 1].color;
         return (
           <div
-            className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
-            style={{
-              background: "rgba(8,12,24,0.68)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              minWidth: 172,
-            }}
+            className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl"
+            style={{ minWidth: 172 }}
           >
             {/* Icon + unit label */}
             <div className="flex items-center gap-1.5 mb-2">
@@ -913,7 +907,12 @@ export default function WeatherForcastMap({
               />
               <span
                 className="text-[10px] font-bold tracking-widest uppercase"
-                style={{ color: accentColor }}
+                style={{
+                  color: accentColor,
+                  textShadow: isDarkMode
+                    ? "0 1px 3px rgba(0,0,0,0.9)"
+                    : "0 1px 4px rgba(255,255,255,0.9)",
+                }}
               >
                 {config.unit}
               </span>
@@ -923,6 +922,7 @@ export default function WeatherForcastMap({
               className="h-2.5 rounded-full w-full"
               style={{
                 background: `linear-gradient(to right, ${gradientStops})`,
+                boxShadow: "0 1px 6px rgba(0,0,0,0.4)",
               }}
             />
             {/* Value labels */}
@@ -930,8 +930,15 @@ export default function WeatherForcastMap({
               {config.stops.map((s) => (
                 <span
                   key={s.label}
-                  className="text-[8px] font-medium"
-                  style={{ color: "rgba(255,255,255,0.55)" }}
+                  className="text-[8px] font-semibold"
+                  style={{
+                    color: isDarkMode
+                      ? "rgba(255,255,255,0.85)"
+                      : "rgba(0,0,0,0.8)",
+                    textShadow: isDarkMode
+                      ? "0 1px 3px rgba(0,0,0,0.9)"
+                      : "0 1px 4px rgba(255,255,255,0.9)",
+                  }}
                 >
                   {s.label}
                 </span>

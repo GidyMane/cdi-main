@@ -109,10 +109,12 @@ const FloodMap = ({
   isDarkMode,
   className = "",
   badgeText = "Forecast",
+  floodHoverData,
 }: {
   isDarkMode: boolean;
   className?: string;
   badgeText?: string;
+  floodHoverData?: import("@/types/data_types").FloodHoverData;
 }) => (
   <FloodMonitorMap
     isDarkMode={isDarkMode}
@@ -126,6 +128,7 @@ const FloodMap = ({
       { label: "Minor Flood",   color: "#eab308" },
       { label: "Normal",        color: "#22c55e" },
     ]}
+    floodHoverData={floodHoverData}
   />
 );
 
@@ -290,6 +293,31 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
   const currentLevel  = basinTrend?.current_level_m ?? timeSeriesData[timeSeriesData.length - 1]?.level ?? 0;
   const peakLevel     = Math.max(...timeSeriesData.map((d) => d.level));
 
+  // Flood hover data — passed to map for on-hover tooltips
+  const floodHoverData = {
+    basinStatus: riverBasins.map((b) => ({
+      name: b.name,
+      level: b.level,
+      status: b.status as "normal" | "minor" | "moderate" | "severe" | "extreme",
+      population_at_risk: b.population,
+      discharge_rate: b.discharge,
+    })),
+    basinTrend: basinTrend
+      ? {
+          trend: basinTrend.trend as "unknown" | "rising" | "falling" | "stable",
+          current_level_m: basinTrend.current_level_m,
+          readings: (basinTrend.readings ?? []).map((r) => ({ level: r.level ?? 0 })),
+        }
+      : null,
+    forecasts: forecasts.map((f) => ({
+      id: f.id,
+      basin: f.basin,
+      expected_level: f.expected_level,
+      confidence: f.confidence,
+      forecast_date: f.forecast_date,
+    })),
+  };
+
   const isUsingFallback =
     basinStatus.length === 0 || Object.values(partialErrors).some((v) => v === true);
 
@@ -426,6 +454,7 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"
                         badgeText={`+${forecastStep}h Forecast`}
+                        floodHoverData={floodHoverData}
                       />
                     </div>
                     <FloodHourSlider
@@ -649,7 +678,7 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
               <div className="relative aspect-video flex flex-col">
                 <div className="flex-1 relative">
                   <FloodMap isDarkMode={isDarkMode} className="absolute inset-0 w-full h-full"
-                    badgeText={`+${forecastStep}h`} />
+                    badgeText={`+${forecastStep}h`} floodHoverData={floodHoverData} />
                 </div>
                 <button onClick={() => setShowMobileFilters(!showMobileFilters)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center shadow-md z-[1001] text-white"
