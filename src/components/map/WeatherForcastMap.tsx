@@ -796,7 +796,12 @@ export default function WeatherForcastMap({
 
             {/* Scrollable layer list */}
             <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-              {visibleGroups?.map((group) => (
+              {visibleGroups?.map((group) => {
+                const displayLayers = group.layers.filter(
+                  (l) => l.id !== "country" && l.id !== "districts",
+                );
+                if (!displayLayers.length) return null;
+                return (
                 <div key={group.title} className="mb-1">
                   {/* Group heading */}
                   <p
@@ -807,7 +812,7 @@ export default function WeatherForcastMap({
                   </p>
 
                   {/* Layer rows */}
-                  {group.layers.map((layerDef) => {
+                  {displayLayers.map((layerDef) => {
                     const isActive = activeLayers.has(layerDef.id);
 
                     return (
@@ -875,7 +880,8 @@ export default function WeatherForcastMap({
                     );
                   })}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         </>

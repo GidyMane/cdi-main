@@ -806,9 +806,16 @@ export default function FloodMonitorMap({
         </>
       )}
 
-      {/* Legend — vertical list, no background */}
+      {/* Legend */}
       {legendTitle && legendItems.length > 0 && (
-        <div className="absolute bottom-4 left-2 z-[400]">
+        <div
+          className="absolute bottom-4 left-2 z-[400] px-2.5 py-2 rounded-xl"
+          style={{
+            background: isDarkMode ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.65)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
           <div className="flex items-center gap-1.5 mb-1.5">
             <Waves
               className="w-3 h-3"

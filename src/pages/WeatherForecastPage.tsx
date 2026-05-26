@@ -538,7 +538,7 @@ export default function WeatherForecastPage({
       ],
     },
     {
-      label: "Rainfall (24h)",
+      label: "Rainfall (Hourly)",
       icon: CloudRain,
       color: STAT_COLOR.rainfall,
       min: 0,
@@ -807,42 +807,26 @@ export default function WeatherForecastPage({
                       </h3>
                     </div>
 
-                    {/* Daily / Monthly / Forecast tabs */}
-                    <div className="flex items-center gap-0.5">
-                      {/* {(["daily", "monthly", "forecast"] as const).map(
-                        (mode) => (
-                          <button
-                            key={mode}
-                            onClick={() => setLayerMode(mode)}
-                            className="px-2.5 py-1 text-[11px] font-semibold capitalize rounded-t transition-all"
-                            style={{
-                              color:
-                                layerMode === mode
-                                  ? FAO_BLUE
-                                  : isDarkMode
-                                    ? "#64748b"
-                                    : "#94a3b8",
-                              borderBottom:
-                                layerMode === mode
-                                  ? `2px solid ${FAO_BLUE}`
-                                  : "2px solid transparent",
-                              background: "transparent",
-                            }}
-                          >
-                            {mode === "forecast"
-                              ? "Forecast"
-                              : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                          </button>
-                        ),
-                      )} */}
-                      <TabBar
-                        mobile={false}
-                        activeTab={activeTab}
-                        setActiveTab={setActiveTab}
-                        borderColor={borderColor}
-                        isDarkMode={isDarkMode}
-                        FAO_BLUE={FAO_BLUE}
-                      />
+                    {/* Compact pill tab switcher */}
+                    <div
+                      className="flex items-center rounded-full overflow-hidden"
+                      style={{
+                        border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      }}
+                    >
+                      {(["nowcast", "forecast"] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className="px-2.5 py-0.5 text-[10px] font-semibold transition-all whitespace-nowrap"
+                          style={{
+                            backgroundColor: activeTab === tab ? FAO_BLUE : "transparent",
+                            color: activeTab === tab ? "#fff" : isDarkMode ? "#94a3b8" : "#64748b",
+                          }}
+                        >
+                          {tab === "nowcast" ? "Hourly" : "7-Day"}
+                        </button>
+                      ))}
                     </div>
 
                     <span
@@ -1057,40 +1041,26 @@ export default function WeatherForecastPage({
                   </h3>
                 </div>
 
-                {/* Daily / Monthly / Forecast tabs */}
-                <div className="flex items-center gap-0.5">
-                  {/* {(["daily", "monthly", "forecast"] as const).map((mode) => (
+                {/* Compact pill tab switcher */}
+                <div
+                  className="flex items-center rounded-full overflow-hidden"
+                  style={{
+                    border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                  }}
+                >
+                  {(["nowcast", "forecast"] as const).map((tab) => (
                     <button
-                      key={mode}
-                      onClick={() => setLayerMode(mode)}
-                      className="px-2 py-1 text-[10px] font-semibold capitalize rounded-t transition-all"
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className="px-2.5 py-0.5 text-[10px] font-semibold transition-all whitespace-nowrap"
                       style={{
-                        color:
-                          layerMode === mode
-                            ? FAO_BLUE
-                            : isDarkMode
-                              ? "#64748b"
-                              : "#94a3b8",
-                        borderBottom:
-                          layerMode === mode
-                            ? `2px solid ${FAO_BLUE}`
-                            : "2px solid transparent",
-                        background: "transparent",
+                        backgroundColor: activeTab === tab ? FAO_BLUE : "transparent",
+                        color: activeTab === tab ? "#fff" : isDarkMode ? "#94a3b8" : "#64748b",
                       }}
                     >
-                      {mode === "forecast"
-                        ? "Forecast"
-                        : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                      {tab === "nowcast" ? "Hourly" : "7-Day"}
                     </button>
-                  ))} */}
-                  <TabBar
-                    mobile={true}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                    borderColor={borderColor}
-                    isDarkMode={isDarkMode}
-                    FAO_BLUE={FAO_BLUE}
-                  />
+                  ))}
                 </div>
 
                 <span
