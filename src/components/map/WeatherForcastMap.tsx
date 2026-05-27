@@ -513,11 +513,9 @@ export default function WeatherForcastMap({
     wmsUrl: string;
   } | null>(null);
 
-  // Pre-loaded WMS layers keyed by forecast_hour
-  const preloadedLayersRef = useRef<Map<number, L.TileLayer>>(new Map());
+  // Only ONE active raster layer at a time
   const activeFrameHourRef = useRef<number>(-1);
   const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [animating, _setAnimating] = useState(false);
 
   // Fetch frame metadata when model or parameter changes
   useEffect(() => {
@@ -534,16 +532,13 @@ export default function WeatherForcastMap({
     const apiParam = paramMap[selectedParameter?.toLowerCase()] || selectedParameter?.toLowerCase();
     const model = layerMode === "forecast" ? "gfs" : "icon";
 
-    // Clear old preloaded layers
+    // Remove current raster layer
     if (weatherforcastMapRef.current) {
-      preloadedLayersRef.current.forEach((layer) => {
-        if (weatherforcastMapRef.current!.hasLayer(layer)) {
-          weatherforcastMapRef.current!.removeLayer(layer);
-        }
-      });
+      clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
     }
-    preloadedLayersRef.current.clear();
     activeFrameHourRef.current = -1;
+
+    setRasterIsLoading(true);
 
     weatherAPI.getRasterFrames(model, apiParam)
       .then((data) => {
@@ -554,36 +549,31 @@ export default function WeatherForcastMap({
           wmsUrl: data.geoserver.wms_url,
         };
 
-        // Pre-load first 24 frames (or all if fewer) for smooth animation
-        if (!weatherforcastMapRef.current) return;
-        const map = weatherforcastMapRef.current;
-        const framesToPreload = data.frames.slice(0, 48);
-
-        framesToPreload.forEach((frame) => {
-          const layerName = frame.future_wms_layer || frame.wms_layer;
-          const layer = clippedWms(data.geoserver.wms_url, {
-            ...WMS_BASE_OPTIONS,
-            layers: layerName,
-            opacity: 0,
-          }).addTo(map) as any;
-          preloadedLayersRef.current.set(frame.forecast_hour, layer);
-        });
-
-        // Show the first frame
-        if (framesToPreload.length > 0) {
-          const firstHour = framesToPreload[0].forecast_hour;
-          const firstLayer = preloadedLayersRef.current.get(firstHour);
-          if (firstLayer) {
-            firstLayer.setOpacity(0.85);
-            firstLayer.bringToFront();
-            activeFrameHourRef.current = firstHour;
-          }
+        if (!weatherforcastMapRef.current || !data.frames.length) {
           setRasterIsLoading(false);
+          return;
         }
+
+        // Show the first frame only
+        const firstFrame = data.frames[0];
+        const layerName = firstFrame.future_wms_layer || firstFrame.wms_layer;
+
+        clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
+        weatherforcastrasterLayerRef.current = clippedWms(data.geoserver.wms_url, {
+          ...WMS_BASE_OPTIONS,
+          layers: layerName,
+          opacity: 0.85,
+        })
+          .on("load", () => setRasterIsLoading(false))
+          .on("tileerror", () => setRasterIsLoading(false))
+          .addTo(weatherforcastMapRef.current!) as any;
+        weatherforcastrasterLayerRef.current!.bringToFront();
+        activeFrameHourRef.current = firstFrame.forecast_hour;
       })
       .catch((err) => {
         console.warn("Failed to fetch raster frames:", err);
         framesRef.current = null;
+        setRasterIsLoading(false);
         // Fallback
         const layerName = mapLayerName({
           parameter: selectedParameter,
@@ -615,10 +605,9 @@ export default function WeatherForcastMap({
     };
   }, [selectedParameter, layerMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Show frame matching current hour (manual scrubbing) ─────────────────────
+  // ── Show frame matching current hour (single layer swap) ─────────────────────
   useEffect(() => {
     if (!weatherforcastMapRef.current || !framesRef.current) return;
-    if (animating) return; // Don't interfere with animation
 
     const cached = framesRef.current;
     if (!cached.frames.length) return;
@@ -645,34 +634,25 @@ export default function WeatherForcastMap({
     const targetHour = bestFrame.forecast_hour;
     if (targetHour === activeFrameHourRef.current) return;
 
-    // Hide current frame, show target frame
-    const currentLayer = preloadedLayersRef.current.get(activeFrameHourRef.current);
-    const targetLayer = preloadedLayersRef.current.get(targetHour);
+    // Remove old layer, add new one (single layer at a time)
+    const map = weatherforcastMapRef.current!;
+    clearLayer(map, weatherforcastrasterLayerRef);
 
-    if (currentLayer) currentLayer.setOpacity(0);
-
-    if (targetLayer) {
-      targetLayer.setOpacity(0.85);
-      targetLayer.bringToFront();
-      activeFrameHourRef.current = targetHour;
-    } else {
-      // Frame not preloaded — load it on demand
-      const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
-      const newLayer = clippedWms(cached.wmsUrl, {
-        ...WMS_BASE_OPTIONS,
-        layers: layerName,
-        opacity: 0.85,
-      }).addTo(weatherforcastMapRef.current!) as any;
-      newLayer.bringToFront();
-      preloadedLayersRef.current.set(targetHour, newLayer);
-      activeFrameHourRef.current = targetHour;
-    }
-  }, [sliderhourIndexValue, dateRange, forecastStep, animating]);
+    const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
+    weatherforcastrasterLayerRef.current = clippedWms(cached.wmsUrl, {
+      ...WMS_BASE_OPTIONS,
+      layers: layerName,
+      opacity: 0.85,
+    })
+      .on("load", () => setRasterIsLoading(false))
+      .on("tileerror", () => setRasterIsLoading(false))
+      .addTo(map) as any;
+    weatherforcastrasterLayerRef.current!.bringToFront();
+    activeFrameHourRef.current = targetHour;
+  }, [sliderhourIndexValue, dateRange, forecastStep]);
 
   // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
-  // Listen to the store's playing state via sliderhourIndexValue changes.
-  // The FloodHourSlider advances the hour — we just need to make the frame
-  // swap instant (no network delay since frames are pre-loaded).
+  // The FloodHourSlider advances the hour — the effect above swaps the layer.
 
   // ── Weather district markers — real data from weather/map API ──────────────
   const districtWeatherRef = useRef<Record<string, any>>({});
