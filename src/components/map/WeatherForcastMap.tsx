@@ -686,45 +686,126 @@ export default function WeatherForcastMap({
         </span>
       </div>
 
-      {/* Fullscreen button */}
-      <button
-        onClick={toggleFullscreen}
-        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[500] flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all"
+      {/* ── Model Switcher (zoom.earth style) ─────────────────────────────── */}
+      <div
+        className="absolute top-2 left-1/2 -translate-x-1/2 z-[500] flex items-center rounded-full overflow-hidden shadow-lg"
         style={{
-          background: "rgba(10,15,30,0.65)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          border: `1px solid ${FAO_BLUE}55`,
+          background: "rgba(10,15,30,0.72)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.12)",
         }}
       >
-        {isFullscreen ? (
-          <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-        ) : (
-          <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-        )}
-      </button>
+        {([
+          { id: "icon", label: "ICON" },
+          { id: "gfs", label: "GFS" },
+          { id: "imerg", label: "Satellite" },
+        ] as const).map((model) => {
+          const isSelected = (() => {
+            if (model.id === "imerg") return activeLayers.has("imerg_precip");
+            if (model.id === "gfs") return layerMode === "forecast";
+            return layerMode === "nowcast" && !activeLayers.has("imerg_precip");
+          })();
+          return (
+            <button
+              key={model.id}
+              onClick={() => {
+                if (model.id === "imerg") {
+                  // Toggle IMERG satellite layer
+                  const imergLayer = LAYER_GROUPS.flatMap(g => g.layers).find(l => l.id === "imerg_precip");
+                  if (imergLayer) toggleLayer(imergLayer);
+                } else if (model.id === "gfs") {
+                  useAppStore.getState().setLayerMode("forecast");
+                } else {
+                  useAppStore.getState().setLayerMode("nowcast");
+                }
+              }}
+              className="px-4 py-1.5 text-[11px] font-bold tracking-wide transition-all whitespace-nowrap"
+              style={{
+                backgroundColor: isSelected ? FAO_BLUE : "transparent",
+                color: isSelected ? "#fff" : "rgba(255,255,255,0.6)",
+              }}
+            >
+              {model.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* MAP LAYERS toggle button */}
+      {/* ── Parameter Quick-Select (vertical toolbar, left side) ───────────── */}
+      <div
+        className="absolute top-[52px] left-2 z-[500] flex flex-col gap-1 rounded-lg overflow-hidden shadow-lg"
+        style={{
+          background: "rgba(10,15,30,0.72)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        {([
+          { param: "temperature", icon: Thermometer, label: "Temp" },
+          { param: "rainfall", icon: CloudRain, label: "Rain" },
+          { param: "humidity", icon: Droplets, label: "Humid" },
+          { param: "wind", icon: Wind, label: "Wind" },
+        ] as const).map(({ param, icon: Icon, label }) => {
+          const isActive = selectedParameter?.toLowerCase() === param;
+          return (
+            <button
+              key={param}
+              onClick={() => useAppStore.getState().setSelectedParameter(param)}
+              title={label}
+              className="flex items-center justify-center w-[34px] h-[34px] transition-all"
+              style={{
+                backgroundColor: isActive ? `${FAO_BLUE}` : "transparent",
+              }}
+            >
+              <Icon
+                className="w-4 h-4"
+                style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.55)" }}
+              />
+            </button>
+          );
+        })}
+        {/* Fullscreen */}
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          className="flex items-center justify-center w-[34px] h-[34px] transition-all border-t border-white/10"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
+          ) : (
+            <Maximize2 className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
+          )}
+        </button>
+      </div>
+
+      {/* ── MAP LAYERS toggle + Zoom (top-right) ──────────────────────────── */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
         className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
           backgroundColor: showLayerPanel
             ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
-          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
+            : "rgba(10,15,30,0.72)",
+          color: showLayerPanel ? "#ffffff" : "rgba(255,255,255,0.8)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.12)",
         }}
       >
         <Layers className="w-3.5 h-3.5" />
-        MAP LAYERS
+        Layers
       </button>
 
-      {/* Zoom controls — below MAP LAYERS button */}
-      <div className="absolute top-[46px] right-2 z-[500] flex flex-col gap-1">
+      {/* Zoom controls */}
+      <div
+        className="absolute top-[46px] right-2 z-[500] flex flex-col rounded-lg overflow-hidden shadow-lg"
+        style={{
+          background: "rgba(10,15,30,0.72)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
         {[
           {
             icon: Plus,
@@ -736,18 +817,17 @@ export default function WeatherForcastMap({
             title: "Zoom out",
             action: () => weatherforcastMapRef.current?.zoomOut(),
           },
-        ].map(({ icon: Icon, title, action }) => (
+        ].map(({ icon: Icon, title, action }, i) => (
           <button
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all hover:opacity-90"
+            className="flex items-center justify-center w-[30px] h-[30px] transition-all hover:bg-white/10"
             style={{
-              backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
-              border: `1px solid ${FAO_BLUE}55`,
+              borderTop: i > 0 ? "1px solid rgba(255,255,255,0.1)" : undefined,
             }}
           >
-            <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+            <Icon className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.7)" }} />
           </button>
         ))}
       </div>
