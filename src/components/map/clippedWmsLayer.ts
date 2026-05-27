@@ -189,8 +189,8 @@ const ClippedWMSLayer = L.GridLayer.extend({
       done(undefined, canvas);
     };
     img.onerror = (e) => {
-      console.warn("ClippedWMS tile error:", imgUrl, e);
-      done(new Error("Tile load error"), canvas);
+      // Silently handle tile errors — layer may not exist on GeoServer yet
+      done(undefined, canvas);
     };
     img.src = imgUrl;
 

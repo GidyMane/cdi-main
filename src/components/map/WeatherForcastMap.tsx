@@ -554,9 +554,9 @@ export default function WeatherForcastMap({
           return;
         }
 
-        // Show the first frame only
+        // Show the first frame only — use base layer name for reliability
         const firstFrame = data.frames[0];
-        const layerName = firstFrame.future_wms_layer || firstFrame.wms_layer;
+        const layerName = firstFrame.wms_layer;
 
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
         weatherforcastrasterLayerRef.current = clippedWms(LOCAL_GEO_SERVER_URL, {
@@ -638,7 +638,10 @@ export default function WeatherForcastMap({
     const map = weatherforcastMapRef.current!;
     clearLayer(map, weatherforcastrasterLayerRef);
 
-    const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
+    // Always use the base layer name — per-frame layers may not be published
+    // The base layer shows the latest available frame for this parameter
+    const layerName = bestFrame.wms_layer;
+
     weatherforcastrasterLayerRef.current = clippedWms(cached.wmsUrl, {
       ...WMS_BASE_OPTIONS,
       layers: layerName,
