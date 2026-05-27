@@ -53,6 +53,35 @@ const WMS_BASE_OPTIONS = {
   opacity: 0.85,
 };
 
+/** Map layer names to their GeoServer SLD style names */
+const LAYER_STYLE_MAP: Record<string, string> = {
+  precipitation: "precipitation_style",
+  temperature_2m: "temperature_2m_style",
+  humidity: "humidity_style",
+  wind_u_10m: "wind_u_10m_style",
+  wind_v_10m: "wind_v_10m_style",
+  cloud_cover: "cloud_cover_style",
+  pressure_msl: "pressure_msl_style",
+  gfs_precipitation: "precipitation_style",
+  gfs_temperature_2m: "temperature_2m_style",
+  gfs_humidity: "humidity_style",
+  gfs_wind_u_10m: "wind_u_10m_style",
+  gfs_wind_v_10m: "wind_v_10m_style",
+  gfs_cloud_cover: "cloud_cover_style",
+  gfs_pressure_msl: "pressure_msl_style",
+  imerg_precip: "precipitation_style",
+};
+
+/** Get WMS options with the correct style for a layer */
+function getWmsOptions(layerName: string, opacity = 0.85) {
+  return {
+    ...WMS_BASE_OPTIONS,
+    layers: layerName,
+    styles: LAYER_STYLE_MAP[layerName] || "",
+    opacity,
+  };
+}
+
 /** Remove a layer from the map and null the ref */
 function clearLayer<T extends L.Layer>(
   map: L.Map,
