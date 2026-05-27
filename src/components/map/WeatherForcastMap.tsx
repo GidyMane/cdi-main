@@ -634,23 +634,41 @@ export default function WeatherForcastMap({
     const targetHour = bestFrame.forecast_hour;
     if (targetHour === activeFrameHourRef.current) return;
 
-    // Remove old layer, add new one (single layer at a time)
+    // Remove old layer, add new one with slide-in animation
     const map = weatherforcastMapRef.current!;
-    clearLayer(map, weatherforcastrasterLayerRef);
+    const prevLayer = weatherforcastrasterLayerRef.current;
 
     // Always use the base layer name — per-frame layers may not be published
-    // The base layer shows the latest available frame for this parameter
     const layerName = bestFrame.wms_layer;
 
-    weatherforcastrasterLayerRef.current = clippedWms(cached.wmsUrl, {
+    const newLayer = clippedWms(cached.wmsUrl, {
       ...WMS_BASE_OPTIONS,
       layers: layerName,
-      opacity: 0.85,
+      opacity: 0,
     })
-      .on("load", () => setRasterIsLoading(false))
+      .on("load", () => {
+        setRasterIsLoading(false);
+        // Slide-in: fade from 0 to 0.85 over 400ms
+        let opacity = 0;
+        const step = 0.85 / 8; // 8 steps × 50ms = 400ms
+        const fadeIn = setInterval(() => {
+          opacity += step;
+          if (opacity >= 0.85) {
+            opacity = 0.85;
+            clearInterval(fadeIn);
+            // Remove old layer after transition
+            if (prevLayer && map.hasLayer(prevLayer)) {
+              map.removeLayer(prevLayer);
+            }
+          }
+          try { (newLayer as any).setOpacity(opacity); } catch {}
+        }, 50);
+      })
       .on("tileerror", () => setRasterIsLoading(false))
       .addTo(map) as any;
-    weatherforcastrasterLayerRef.current!.bringToFront();
+    newLayer.bringToFront();
+
+    weatherforcastrasterLayerRef.current = newLayer;
     activeFrameHourRef.current = targetHour;
   }, [sliderhourIndexValue, dateRange, forecastStep]);
 

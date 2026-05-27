@@ -166,29 +166,36 @@ const ClippedWMSLayer = L.GridLayer.extend({
     img.onload = () => {
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        done(new Error("No canvas context"), canvas);
+        done(undefined, canvas);
         return;
       }
 
-      // If boundary is loaded, clip; otherwise render unclipped
-      if (this._boundaryGeoJson) {
-        const clipPath = buildClipPath(
-          this._boundaryGeoJson,
-          tileSize.x,
-          tilePoint,
-          zoom,
-        );
-        ctx.save();
-        ctx.clip(clipPath);
-        ctx.drawImage(img, 0, 0, tileSize.x, tileSize.y);
-        ctx.restore();
-      } else {
-        ctx.drawImage(img, 0, 0, tileSize.x, tileSize.y);
-      }
+      // Staggered reveal: each tile fades in with a slight delay based on position
+      const delay = ((coords.x + coords.y) % 6) * 60; // 0-360ms stagger
+      canvas.style.opacity = "0";
+      canvas.style.transition = "opacity 0.4s ease-in";
 
-      done(undefined, canvas);
+      setTimeout(() => {
+        // If boundary is loaded, clip; otherwise render unclipped
+        if (this._boundaryGeoJson) {
+          const clipPath = buildClipPath(
+            this._boundaryGeoJson,
+            tileSize.x,
+            tilePoint,
+            zoom,
+          );
+          ctx.save();
+          ctx.clip(clipPath);
+          ctx.drawImage(img, 0, 0, tileSize.x, tileSize.y);
+          ctx.restore();
+        } else {
+          ctx.drawImage(img, 0, 0, tileSize.x, tileSize.y);
+        }
+        canvas.style.opacity = "1";
+        done(undefined, canvas);
+      }, delay);
     };
-    img.onerror = (e) => {
+    img.onerror = () => {
       // Silently handle tile errors — layer may not exist on GeoServer yet
       done(undefined, canvas);
     };

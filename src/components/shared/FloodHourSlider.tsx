@@ -259,7 +259,7 @@ export function FloodHourSlider({
             return next;
           });
         }
-      }, 600);
+      }, 1800);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
