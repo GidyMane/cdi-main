@@ -780,7 +780,7 @@ export default function WeatherForcastMap({
           {badgeText}
         </span>
         <span className="rounded bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
-          GFS Precipitation · UTC
+          {layerMode === "forecast" ? "GFS" : "ICON"} {selectedParameter ?? "Temperature"} · UTC
         </span>
       </div>
 
