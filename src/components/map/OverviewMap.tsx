@@ -11,6 +11,7 @@ import { X, Layers } from "lucide-react";
 import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
+import { GEOSERVER_WFEWS_WMS } from "@/config";
 
 interface LegendItem {
   label: string;
@@ -189,7 +190,7 @@ export default function OverviewMap({
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
   const [isRasterLoading, setRasterIsLoading] = useState(false);
 
-  const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
+  const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
 
   // ── Data ────────────────────────────────────────────────────────────────────
   // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({

@@ -40,6 +40,4 @@ next-env.d.ts
 
 dist/
 
-
-
-
+dist/index.html

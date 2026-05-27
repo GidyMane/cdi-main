@@ -25,11 +25,11 @@ import {
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
+import { GEOSERVER_WFEWS_WMS } from "@/config";
 import type { LayerDef, UgandaBoundaryMapProps } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
-const GEO_SERVER_URL =
-  "https://multihazard.rosewillbome.com/geoserver/wfews/wms";
+const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
 
 const WMS_BASE_OPTIONS = {
   format: "image/png" as const,

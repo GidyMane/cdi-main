@@ -25,7 +25,7 @@ let _boundaryPromise: Promise<FeatureCollection> | null = null;
 
 function fetchUgandaBoundary(): Promise<FeatureCollection> {
   if (!_boundaryPromise) {
-    _boundaryPromise = fetch(`${GEOJSON_BASE_URL}/UG.json`)
+    _boundaryPromise = fetch(`${GEOJSON_BASE_URL}/uganda.json`)
       .then((res) => {
         if (!res.ok) throw new Error(`Boundary fetch failed: ${res.status}`);
         return res.json() as Promise<FeatureCollection>;
@@ -105,11 +105,10 @@ const ClippedWMSLayer = L.GridLayer.extend({
       layers: options.layers || "",
       styles: options.styles || "",
       format: options.format || "image/png",
-      transparent: options.transparent !== false,
-      width: 256,
-      height: 256,
+      transparent: options.transparent !== false ? "true" : "false",
+      width: "256",
+      height: "256",
       srs: "EPSG:3857",
-      crs: undefined,
     };
     // Remove WMS-specific keys from tile layer options
     const tileOpts = { ...options };
@@ -138,16 +137,17 @@ const ClippedWMSLayer = L.GridLayer.extend({
     canvas.width = tileSize.x;
     canvas.height = tileSize.y;
 
-    // Compute BBOX for this tile (EPSG:3857)
-    const nwPoint = coords.multiplyBy(tileSize.x);
-    const sePoint = nwPoint.add(tileSize);
     const map = this._map;
     const zoom = coords.z;
+
+    // Compute BBOX for this tile in EPSG:3857
+    const tilePoint = L.point(coords.x, coords.y);
+    const nwPoint = tilePoint.multiplyBy(tileSize.x);
+    const sePoint = nwPoint.add(tileSize);
 
     const nw = map.unproject(nwPoint, zoom);
     const se = map.unproject(sePoint, zoom);
 
-    // Convert to EPSG:3857 meters for WMS BBOX
     const nw3857 = L.CRS.EPSG3857.project(nw);
     const se3857 = L.CRS.EPSG3857.project(se);
     const bbox = `${nw3857.x},${se3857.y},${se3857.x},${nw3857.y}`;
@@ -175,7 +175,7 @@ const ClippedWMSLayer = L.GridLayer.extend({
         const clipPath = buildClipPath(
           this._boundaryGeoJson,
           tileSize.x,
-          coords,
+          tilePoint,
           zoom,
         );
         ctx.save();
@@ -188,7 +188,8 @@ const ClippedWMSLayer = L.GridLayer.extend({
 
       done(undefined, canvas);
     };
-    img.onerror = () => {
+    img.onerror = (e) => {
+      console.warn("ClippedWMS tile error:", imgUrl, e);
       done(new Error("Tile load error"), canvas);
     };
     img.src = imgUrl;

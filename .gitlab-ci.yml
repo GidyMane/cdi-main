@@ -10,6 +10,8 @@ deploy:
   script:
     - rm -rf dist node_modules
     - docker ps
+    - echo "VITE_API_URL=https://multihazard.rosewillbome.com/api/v1/" >> .env
+    - echo "VITE_GEOSERVER_URL=https://multihazard.rosewillbome.com/geoserver" >> .env
     - ls
     - docker build -t cdi_main .
     - docker stop cdi_main_container || true

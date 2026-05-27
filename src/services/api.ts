@@ -3,15 +3,8 @@
  * Uses environment variables for endpoints
  */
 
-import type {
-  StationReading,
-  StationAlert,
-  NetworkSummary,
-} from "@/types/data_types";
-
-const API_BASE =
-  import.meta.env.VITE_API_URL ||
-  "https://multihazard.rosewillbome.com/api/v1/";
+import type { WeatherStation, StationReading, StationAlert, NetworkSummary } from "@/types/data_types";
+import { API_BASE } from "@/config";
 
 interface FetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -92,6 +85,35 @@ export const weatherAPI = {
     return fetchData(endpoint);
   },
 
+  /**
+   * Fetch available raster frames from the weather raster API.
+   * Returns frames with wms_layer names and geoserver WMS URL.
+   */
+  getRasterFrames: async (model: string, parameter?: string) => {
+    let endpoint = `weather/raster/frames/${model}/`;
+    if (parameter) endpoint += `?parameter=${parameter}`;
+    return fetchData<{
+      model: string;
+      count: number;
+      frames: Array<{
+        model: string;
+        parameter: string;
+        level: string;
+        run: string;
+        run_epoch: number;
+        forecast_hour: number;
+        file: string;
+        wms_layer: string;
+        future_wms_layer: string;
+        frame_url: string;
+      }>;
+      geoserver: {
+        workspace: string;
+        wms_url: string;
+      };
+    }>(endpoint);
+  },
+
   getForecastHourly: async (districtId?: number) => {
     const endpoint = districtId
       ? `weather/forecasts/?district_id=${districtId}`
@@ -118,9 +140,8 @@ export const weatherAPI = {
     return {
       hourly: hourlyData.slice(0, 24), // Limit to first 24 hours
       district: firstForecast?.district_name || "Uganda",
-      forecast_date:
-        firstForecast?.forecast_date || new Date().toISOString().split("T")[0],
-      fetched_at: new Date().toISOString(),
+      forecast_date: firstForecast?.forecast_date || new Date().toISOString().split('T')[0],
+      fetched_at: new Date().toISOString()
     };
   },
 
@@ -317,43 +338,26 @@ export const floodAPI = {
 /**
  * Weather Stations API
  */
-export interface WeatherStationAPI {
-  id: number;
-  code: string;
-  name: string;
-  region: string;
-  lat: number;
-  lon: number;
-  status: "online" | "maintenance" | "offline";
-  signal_pct: number;
-}
-
 export const stationsAPI = {
-  getAll: async (
-    region?: string,
-    status?: "online" | "offline" | "maintenance",
-  ): Promise<WeatherStationAPI[]> => {
-    const base =
-      import.meta.env.VITE_API_STATIONS_ENDPOINT ||
-      "https://multihazard.rosewillbome.com/api/v1/weather-stations/";
+  getAll: async (region?: string, status?: "online" | "offline" | "maintenance") => {
+    let endpoint = "weather-stations/";
     const params = new URLSearchParams();
     if (region) params.append("region", region);
     if (status) params.append("status", status);
-    const url = params.toString() ? `${base}?${params.toString()}` : base;
-    return fetchData<WeatherStationAPI[]>(url);
+    if (params.toString()) endpoint += `?${params.toString()}`;
+    return fetchData<WeatherStation[]>(endpoint);
   },
 
-  getById: async (stationId: string | number): Promise<WeatherStationAPI> => {
-    return fetchData<WeatherStationAPI>(
-      `https://multihazard.rosewillbome.com/api/v1/weather-stations/${stationId}/`,
-    );
+  getById: async (stationId: string | number) => {
+    return fetchData<WeatherStation>(`weather-stations/${stationId}/`);
   },
 
   getReadings: async (stationId: string | number, hours: number = 24) => {
     return fetchData<StationReading[]>(
-      `weather-stations/${stationId}/readings/?hours=${hours}`,
+      `weather-stations/${stationId}/readings/?hours=${hours}`
     );
   },
+
   getAlerts: async () => {
     return fetchData<StationAlert[]>("weather-stations/alerts/");
   },
@@ -362,11 +366,7 @@ export const stationsAPI = {
     return fetchData<NetworkSummary>("weather-stations/network-summary/");
   },
 
-  exportReadings: async (
-    format: "csv" | "pdf" = "csv",
-    stationId?: string | number,
-    hours?: number,
-  ) => {
+  exportReadings: async (format: "csv" | "pdf" = "csv", stationId?: string | number, hours?: number) => {
     let endpoint = `weather-stations/export/?format=${format}`;
     if (stationId) endpoint += `&station_id=${stationId}`;
     if (hours) endpoint += `&hours=${hours}`;
