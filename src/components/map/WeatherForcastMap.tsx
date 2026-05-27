@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { AnimatePresence, motion } from "framer-motion";
 import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
 import type { FeatureCollection } from "geojson";
@@ -506,8 +507,6 @@ export default function WeatherForcastMap({
   useEffect(() => {
     if (!weatherforcastMapRef.current) return;
 
-    clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
-
     // Map UI parameter names to API parameter names
     const paramMap: Record<string, string> = {
       rainfall: "precipitation",
@@ -534,25 +533,63 @@ export default function WeatherForcastMap({
         if (!weatherforcastMapRef.current) return;
         if (!data.frames.length) return;
 
-        // Find the frame matching the selected hour (or closest)
-        const frame = data.frames.find((f) => f.forecast_hour === hour)
-          || data.frames[0];
+        // Build target datetime from dateRange + hour for matching
+        const targetDate = dateRange || new Date().toISOString().split("T")[0];
+        const targetHour = hour;
+
+        // Find the best matching frame by effective time
+        let bestFrame = data.frames[0];
+        let bestDiff = Infinity;
+
+        for (const frame of data.frames) {
+          const runDate = new Date(frame.run);
+          const effectiveTime = new Date(runDate.getTime() + frame.forecast_hour * 3600000);
+          const targetTime = new Date(`${targetDate}T${String(targetHour).padStart(2, "0")}:00:00Z`);
+          const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
+
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestFrame = frame;
+          }
+        }
 
         const wmsUrl = data.geoserver.wms_url;
-        const layerName = frame.wms_layer;
+        // Use future_wms_layer for per-frame animation; fall back to wms_layer
+        const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
 
-        // Clear any previous raster and add the new one
-        clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
+        // Clear previous raster and add the new one with crossfade
+        const map = weatherforcastMapRef.current!;
+        const prevLayer = weatherforcastrasterLayerRef.current;
 
-        weatherforcastrasterLayerRef.current = clippedWms(wmsUrl, {
+        // Create new layer
+        const newLayer = clippedWms(wmsUrl, {
           ...WMS_BASE_OPTIONS,
           layers: layerName,
+          opacity: 0,
         })
           .on("loading", () => setRasterIsLoading(true))
-          .on("load", () => setRasterIsLoading(false))
+          .on("load", () => {
+            setRasterIsLoading(false);
+            // Crossfade: fade in new layer, then remove old
+            let opacity = 0;
+            const fadeIn = setInterval(() => {
+              opacity += 0.15;
+              if (opacity >= 0.85) {
+                opacity = 0.85;
+                clearInterval(fadeIn);
+                // Remove old layer after fade completes
+                if (prevLayer && map.hasLayer(prevLayer)) {
+                  map.removeLayer(prevLayer);
+                }
+              }
+              try { newLayer.setOpacity(opacity); } catch {}
+            }, 30);
+          })
           .on("tileerror", () => setRasterIsLoading(false))
-          .addTo(weatherforcastMapRef.current!) as any;
-        weatherforcastrasterLayerRef.current!.bringToFront();
+          .addTo(map) as any;
+        newLayer.bringToFront();
+
+        weatherforcastrasterLayerRef.current = newLayer;
       })
       .catch((err) => {
         console.warn("Failed to fetch raster frames:", err);
@@ -563,6 +600,7 @@ export default function WeatherForcastMap({
           mode: layerMode === "forecast" ? "forecast" : "daily",
         });
         if (layerName && weatherforcastMapRef.current) {
+          clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
           const isLocal = layerName.startsWith("local:");
           const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
           const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
@@ -580,6 +618,7 @@ export default function WeatherForcastMap({
   }, [
     selectedParameter,
     sliderhourIndexValue,
+    dateRange,
     layerMode,
     forecastStep,
   ]);
@@ -642,39 +681,27 @@ export default function WeatherForcastMap({
       />
 
       {/* Loading overlay */}
-      <div
-        className={`
-      absolute inset-0 z-[500]
-      flex items-center justify-center
-      transition-all duration-300
-      ${
-        !geoData || isRasterLoading
-          ? "opacity-100 visible"
-          : "opacity-0 invisible pointer-events-none"
-      }
-      ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
-    `}
-      >
-        <div className="flex flex-col items-center gap-3">
-          {/* Spinner */}
-          <div
-            className="w-8 h-8 rounded-full border-2 animate-spin"
-            style={{
-              borderColor: `${FAO_BLUE}30`,
-              borderTopColor: FAO_BLUE,
-            }}
-          />
-
-          {/* Loading text */}
-          {/* <span
-        className={`text-xs font-medium tracking-wide ${
-          isDarkMode ? "text-slate-300" : "text-slate-600"
-        }`}
-      >
-        Loading weather layers...
-      </span> */}
-        </div>
-      </div>
+      <AnimatePresence>
+        {(!geoData || isRasterLoading) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`absolute inset-0 z-[500] flex items-center justify-center ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}`}
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-full border-2 animate-spin"
+                style={{
+                  borderColor: `${FAO_BLUE}30`,
+                  borderTopColor: FAO_BLUE,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Forecast status */}
       <div className="absolute top-2 left-2 z-[500] flex items-center gap-2">
@@ -833,28 +860,33 @@ export default function WeatherForcastMap({
       </div>
 
       {/* Layer panel */}
-      {showLayerPanel && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-[600]"
-            onClick={() => setShowLayerPanel(false)}
-          />
+      <AnimatePresence>
+        {showLayerPanel && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-[600]"
+              onClick={() => setShowLayerPanel(false)}
+            />
 
-          <div
-            className={`
-          absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
-          flex flex-col
-          ${
-            isDarkMode
-              ? "bg-slate-800 border border-slate-700"
-              : "bg-white border border-slate-200"
-          }
-        `}
-            style={{
-              maxHeight: "90%",
-            }}
-          >
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className={`
+            absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
+            flex flex-col
+            ${
+              isDarkMode
+                ? "bg-slate-800 border border-slate-700"
+                : "bg-white border border-slate-200"
+            }
+          `}
+              style={{
+                maxHeight: "90%",
+              }}
+            >
             {/* Panel header */}
             <div
               className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
@@ -963,9 +995,10 @@ export default function WeatherForcastMap({
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Legend — gradient bar with parameter icon + unit labels */}
       {(() => {
