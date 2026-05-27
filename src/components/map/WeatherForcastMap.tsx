@@ -546,7 +546,7 @@ export default function WeatherForcastMap({
           model,
           param: apiParam,
           frames: data.frames,
-          wmsUrl: data.geoserver.wms_url,
+          wmsUrl: LOCAL_GEO_SERVER_URL,
         };
 
         if (!weatherforcastMapRef.current || !data.frames.length) {
@@ -559,7 +559,7 @@ export default function WeatherForcastMap({
         const layerName = firstFrame.future_wms_layer || firstFrame.wms_layer;
 
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
-        weatherforcastrasterLayerRef.current = clippedWms(data.geoserver.wms_url, {
+        weatherforcastrasterLayerRef.current = clippedWms(LOCAL_GEO_SERVER_URL, {
           ...WMS_BASE_OPTIONS,
           layers: layerName,
           opacity: 0.85,
