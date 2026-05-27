@@ -436,14 +436,25 @@ export default function WeatherForecastPage({
         });
       }
 
-      const sliced =
-        selectedCardIndex !== null && filtered[selectedCardIndex]
-          ? (() => {
-              const startIdx = Math.max(0, selectedCardIndex - 2);
-              const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
-              return filtered.slice(startIdx, endIdx);
-            })()
-          : filtered;
+      let sliced = filtered;
+      if (selectedCardIndex !== null && filtered[selectedCardIndex]) {
+        const startIdx = Math.max(0, selectedCardIndex - 2);
+        const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
+        sliced = filtered.slice(startIdx, endIdx);
+      } else if (!dateRange) {
+        // If no card selected and no date filter, start from current time
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        let startIdx = 0;
+        for (let i = 0; i < filtered.length; i++) {
+          if (filtered[i].rawDate && filtered[i].rawDate.getHours() === currentHour) {
+            startIdx = i;
+            break;
+          }
+        }
+        sliced = filtered.slice(startIdx);
+      }
 
       return sliced.map((h) => {
         const displayTime = h.rawDate
@@ -476,14 +487,24 @@ export default function WeatherForecastPage({
         });
       }
 
-      const sliced =
-        selectedCardIndex !== null && filtered[selectedCardIndex]
-          ? (() => {
-              const startIdx = Math.max(0, selectedCardIndex - 1);
-              const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
-              return filtered.slice(startIdx, endIdx);
-            })()
-          : filtered;
+      let sliced = filtered;
+      if (selectedCardIndex !== null && filtered[selectedCardIndex]) {
+        const startIdx = Math.max(0, selectedCardIndex - 1);
+        const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
+        sliced = filtered.slice(startIdx, endIdx);
+      } else if (!dateRange) {
+        // If no card selected and no date filter, start from today
+        const today = new Date();
+        let startIdx = 0;
+        for (let i = 0; i < filtered.length; i++) {
+          if (filtered[i].rawDate &&
+              filtered[i].rawDate.toDateString() === today.toDateString()) {
+            startIdx = i;
+            break;
+          }
+        }
+        sliced = filtered.slice(startIdx);
+      }
 
       return sliced.map((d) => {
         const displayDate = d.rawDate
