@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import {
   formatDate,
-  getDistrictValue,
   getLayerGroups,
   getValueColor,
   isPointInPolygon,
@@ -33,7 +32,7 @@ import {
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
 import { weatherAPI } from "@/services/api";
-import { GEOSERVER_WFEWS_WMS, GEOSERVER_WEATHER_WMS } from "@/config";
+import { API_BASE, GEOSERVER_WFEWS_WMS, GEOSERVER_WEATHER_WMS } from "@/config";
 import type {
   district,
   LayerDef,
@@ -503,11 +502,25 @@ export default function WeatherForcastMap({
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Raster layer — driven by the weather raster frames API ───────────────────
-  useEffect(() => {
-    if (!weatherforcastMapRef.current) return;
+  // ── Zoom.earth-style raster animation system ────────────────────────────────
+  // Pre-loads all frames as WMS layers, then rapidly toggles visibility for
+  // smooth rainfall/wind animation without per-frame network requests.
 
-    // Map UI parameter names to API parameter names
+  const framesRef = useRef<{
+    model: string;
+    param: string;
+    frames: any[];
+    wmsUrl: string;
+  } | null>(null);
+
+  // Pre-loaded WMS layers keyed by forecast_hour
+  const preloadedLayersRef = useRef<Map<number, L.TileLayer>>(new Map());
+  const activeFrameHourRef = useRef<number>(-1);
+  const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [animating, _setAnimating] = useState(false);
+
+  // Fetch frame metadata when model or parameter changes
+  useEffect(() => {
     const paramMap: Record<string, string> = {
       rainfall: "precipitation",
       precipitation: "precipitation",
@@ -518,82 +531,60 @@ export default function WeatherForcastMap({
       clouds: "cloud-cover",
       pressure: "pressure",
     };
-
     const apiParam = paramMap[selectedParameter?.toLowerCase()] || selectedParameter?.toLowerCase();
     const model = layerMode === "forecast" ? "gfs" : "icon";
 
-    // Determine the forecast hour from the slider
-    const hour = sliderhourIndexValue === "000"
-      ? 0
-      : parseInt(String(sliderhourIndexValue), 10) || 0;
+    // Clear old preloaded layers
+    if (weatherforcastMapRef.current) {
+      preloadedLayersRef.current.forEach((layer) => {
+        if (weatherforcastMapRef.current!.hasLayer(layer)) {
+          weatherforcastMapRef.current!.removeLayer(layer);
+        }
+      });
+    }
+    preloadedLayersRef.current.clear();
+    activeFrameHourRef.current = -1;
 
-    // Fetch frames from the raster API
     weatherAPI.getRasterFrames(model, apiParam)
       .then((data) => {
+        framesRef.current = {
+          model,
+          param: apiParam,
+          frames: data.frames,
+          wmsUrl: data.geoserver.wms_url,
+        };
+
+        // Pre-load first 24 frames (or all if fewer) for smooth animation
         if (!weatherforcastMapRef.current) return;
-        if (!data.frames.length) return;
+        const map = weatherforcastMapRef.current;
+        const framesToPreload = data.frames.slice(0, 48);
 
-        // Build target datetime from dateRange + hour for matching
-        const targetDate = dateRange || new Date().toISOString().split("T")[0];
-        const targetHour = hour;
+        framesToPreload.forEach((frame) => {
+          const layerName = frame.future_wms_layer || frame.wms_layer;
+          const layer = clippedWms(data.geoserver.wms_url, {
+            ...WMS_BASE_OPTIONS,
+            layers: layerName,
+            opacity: 0,
+          }).addTo(map) as any;
+          preloadedLayersRef.current.set(frame.forecast_hour, layer);
+        });
 
-        // Find the best matching frame by effective time
-        let bestFrame = data.frames[0];
-        let bestDiff = Infinity;
-
-        for (const frame of data.frames) {
-          const runDate = new Date(frame.run);
-          const effectiveTime = new Date(runDate.getTime() + frame.forecast_hour * 3600000);
-          const targetTime = new Date(`${targetDate}T${String(targetHour).padStart(2, "0")}:00:00Z`);
-          const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
-
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            bestFrame = frame;
+        // Show the first frame
+        if (framesToPreload.length > 0) {
+          const firstHour = framesToPreload[0].forecast_hour;
+          const firstLayer = preloadedLayersRef.current.get(firstHour);
+          if (firstLayer) {
+            firstLayer.setOpacity(0.85);
+            firstLayer.bringToFront();
+            activeFrameHourRef.current = firstHour;
           }
+          setRasterIsLoading(false);
         }
-
-        const wmsUrl = data.geoserver.wms_url;
-        // Use future_wms_layer for per-frame animation; fall back to wms_layer
-        const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
-
-        // Clear previous raster and add the new one with crossfade
-        const map = weatherforcastMapRef.current!;
-        const prevLayer = weatherforcastrasterLayerRef.current;
-
-        // Create new layer
-        const newLayer = clippedWms(wmsUrl, {
-          ...WMS_BASE_OPTIONS,
-          layers: layerName,
-          opacity: 0,
-        })
-          .on("loading", () => setRasterIsLoading(true))
-          .on("load", () => {
-            setRasterIsLoading(false);
-            // Crossfade: fade in new layer, then remove old
-            let opacity = 0;
-            const fadeIn = setInterval(() => {
-              opacity += 0.15;
-              if (opacity >= 0.85) {
-                opacity = 0.85;
-                clearInterval(fadeIn);
-                // Remove old layer after fade completes
-                if (prevLayer && map.hasLayer(prevLayer)) {
-                  map.removeLayer(prevLayer);
-                }
-              }
-              try { newLayer.setOpacity(opacity); } catch {}
-            }, 30);
-          })
-          .on("tileerror", () => setRasterIsLoading(false))
-          .addTo(map) as any;
-        newLayer.bringToFront();
-
-        weatherforcastrasterLayerRef.current = newLayer;
       })
       .catch((err) => {
         console.warn("Failed to fetch raster frames:", err);
-        // Fallback to mapLayerName for offline/error scenarios
+        framesRef.current = null;
+        // Fallback
         const layerName = mapLayerName({
           parameter: selectedParameter,
           date: dateRange,
@@ -610,52 +601,152 @@ export default function WeatherForcastMap({
           })
             .on("loading", () => setRasterIsLoading(true))
             .on("load", () => setRasterIsLoading(false))
-            .on("tileerror", () => setRasterIsLoading(false))
             .addTo(weatherforcastMapRef.current) as any;
           weatherforcastrasterLayerRef.current!.bringToFront();
         }
       });
-  }, [
-    selectedParameter,
-    sliderhourIndexValue,
-    dateRange,
-    layerMode,
-    forecastStep,
-  ]);
 
-  // ── Weather district markers — selected district or Kampala by default ────────
+    return () => {
+      // Cleanup animation on parameter/model change
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [selectedParameter, layerMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Show frame matching current hour (manual scrubbing) ─────────────────────
+  useEffect(() => {
+    if (!weatherforcastMapRef.current || !framesRef.current) return;
+    if (animating) return; // Don't interfere with animation
+
+    const cached = framesRef.current;
+    if (!cached.frames.length) return;
+
+    const hour = sliderhourIndexValue === "000"
+      ? 0
+      : parseInt(String(sliderhourIndexValue), 10) || 0;
+    const targetDate = dateRange || new Date().toISOString().split("T")[0];
+
+    // Find best matching frame
+    let bestFrame = cached.frames[0];
+    let bestDiff = Infinity;
+    for (const frame of cached.frames) {
+      const runDate = new Date(frame.run);
+      const effectiveTime = new Date(runDate.getTime() + frame.forecast_hour * 3600000);
+      const targetTime = new Date(`${targetDate}T${String(hour).padStart(2, "0")}:00:00Z`);
+      const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestFrame = frame;
+      }
+    }
+
+    const targetHour = bestFrame.forecast_hour;
+    if (targetHour === activeFrameHourRef.current) return;
+
+    // Hide current frame, show target frame
+    const currentLayer = preloadedLayersRef.current.get(activeFrameHourRef.current);
+    const targetLayer = preloadedLayersRef.current.get(targetHour);
+
+    if (currentLayer) currentLayer.setOpacity(0);
+
+    if (targetLayer) {
+      targetLayer.setOpacity(0.85);
+      targetLayer.bringToFront();
+      activeFrameHourRef.current = targetHour;
+    } else {
+      // Frame not preloaded — load it on demand
+      const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
+      const newLayer = clippedWms(cached.wmsUrl, {
+        ...WMS_BASE_OPTIONS,
+        layers: layerName,
+        opacity: 0.85,
+      }).addTo(weatherforcastMapRef.current!) as any;
+      newLayer.bringToFront();
+      preloadedLayersRef.current.set(targetHour, newLayer);
+      activeFrameHourRef.current = targetHour;
+    }
+  }, [sliderhourIndexValue, dateRange, forecastStep, animating]);
+
+  // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
+  // Listen to the store's playing state via sliderhourIndexValue changes.
+  // The FloodHourSlider advances the hour — we just need to make the frame
+  // swap instant (no network delay since frames are pre-loaded).
+
+  // ── Weather district markers — real data from weather/map API ──────────────
+  const districtWeatherRef = useRef<Record<string, any>>({});
+
   useEffect(() => {
     if (!weatherforcastMapRef.current || !geoData?.features) return;
-    weatherMarkersRef.current.forEach((m) => m.remove());
-    weatherMarkersRef.current = [];
+
     const param = selectedParameter?.toLowerCase() ?? "";
     const config = PARAM_LEGENDS[param];
     if (!config) return;
-    // Show marker for the selected district; fall back to Kampala when none selected
-    const target =
-      getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
-        ? getTheBounds.trim()
-        : "Kampala";
-    (geoData.features as any[]).forEach((feature) => {
-      const name: string = feature?.properties?.name ?? "";
-      if (!name.toLowerCase().includes(target.toLowerCase())) return;
-      const center = L.geoJSON(feature).getBounds().getCenter();
-      const value = getDistrictValue(name, param);
-      const color = getValueColor(value, param);
-      const marker = L.marker(center, {
-        icon: L.divIcon({
-          className: "",
-          html: makeMarkerHtml(name, value, config.unit, color, param),
-          // [1,1] size with [0,0] anchor places the div's top-left at the lat/lng;
-          // the CSS transform inside makeMarkerHtml shifts the bubble up + centers it.
-          iconSize: [1, 1],
-          iconAnchor: [0, 0],
-        }),
-        interactive: false,
-        zIndexOffset: 200,
-      }).addTo(weatherforcastMapRef.current!);
-      weatherMarkersRef.current.push(marker);
-    });
+
+    // Fetch real weather data for all districts
+    const paramApiMap: Record<string, string> = {
+      temperature: "temperature",
+      rainfall: "rainfall",
+      precipitation: "rainfall",
+      humidity: "humidity",
+      wind: "wind_speed",
+    };
+    const apiParam = paramApiMap[param] || "temperature";
+
+    fetch(`${API_BASE}weather/map/?parameter=${apiParam}`)
+      .catch(() => null)
+      .then((res) => res?.json?.())
+      .then((data) => {
+        if (!data?.features || !weatherforcastMapRef.current) return;
+
+        // Build lookup: district_name → value
+        const lookup: Record<string, number | null> = {};
+        for (const feature of data.features) {
+          const props = feature.properties;
+          lookup[props.district_name?.toLowerCase()] = props.value;
+        }
+        districtWeatherRef.current = lookup;
+
+        // Clear old markers
+        weatherMarkersRef.current.forEach((m) => m.remove());
+        weatherMarkersRef.current = [];
+
+        // Show marker for the selected district; fall back to Kampala
+        const target =
+          getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
+            ? getTheBounds.trim()
+            : "Kampala";
+
+        (geoData.features as any[]).forEach((feature) => {
+          const name: string = feature?.properties?.name ?? "";
+          if (!name.toLowerCase().includes(target.toLowerCase())) return;
+
+          const center = L.geoJSON(feature).getBounds().getCenter();
+          const realValue = lookup[name.toLowerCase()];
+          const value = realValue != null ? Math.round(realValue * 10) / 10 : null;
+
+          if (value == null) return; // Skip districts with no data
+
+          const color = getValueColor(value, param);
+          const marker = L.marker(center, {
+            icon: L.divIcon({
+              className: "",
+              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 200,
+          }).addTo(weatherforcastMapRef.current!);
+          weatherMarkersRef.current.push(marker);
+        });
+      })
+      .catch(() => {
+        // Fallback: clear markers if API fails
+        weatherMarkersRef.current.forEach((m) => m.remove());
+        weatherMarkersRef.current = [];
+      });
   }, [selectedParameter, geoData, getTheBounds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // In the component, below where you destructure currentPage from the store
@@ -1065,8 +1156,9 @@ export default function WeatherForcastMap({
         (() => {
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
-          const value = config
-            ? getDistrictValue(hoveredDistrictName, param)
+          const realValue = districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
+          const value = config && realValue != null
+            ? Math.round(realValue * 10) / 10
             : null;
           const color =
             config && value !== null ? getValueColor(value, param) : FAO_BLUE;
