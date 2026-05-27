@@ -6,6 +6,17 @@
 import type { WeatherStation, StationReading, StationAlert, NetworkSummary } from "@/types/data_types";
 import { API_BASE } from "@/config";
 
+/** Shape returned by the weather-stations API */
+export interface WeatherStationAPI {
+  id: number;
+  name: string;
+  region: string;
+  status: "online" | "offline" | "maintenance";
+  lat: number;
+  lon: number;
+  signal_pct: number;
+}
+
 interface FetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   headers?: Record<string, string>;
@@ -345,7 +356,7 @@ export const stationsAPI = {
     if (region) params.append("region", region);
     if (status) params.append("status", status);
     if (params.toString()) endpoint += `?${params.toString()}`;
-    return fetchData<WeatherStation[]>(endpoint);
+    return fetchData<WeatherStationAPI[]>(endpoint);
   },
 
   getById: async (stationId: string | number) => {

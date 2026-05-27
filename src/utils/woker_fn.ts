@@ -108,7 +108,7 @@ export function removeLastTwoDigits(value: string) {
 //
 //  humidity   → available from local GFS/ICON task rasters
 
-export type LayerMode = "monthly" | "daily" | "forecast";
+export type LayerMode = "monthly" | "daily" | "forecast" | "nowcast";
 
 export interface LayerNameOptions {
   /** e.g. "temperature" | "rainfall" | "wind" | "humidity" | "precipitation" */
