@@ -34,6 +34,8 @@ interface FloodHourSliderProps {
   textMuted: string;
   FAO_BLUE?: string;
   floating?: boolean;
+  /** ISO datetime string of the last available forecast frame. Play stops here. */
+  maxForecastTime?: string;
 }
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
@@ -92,6 +94,7 @@ export function FloodHourSlider({
   isDarkMode,
   borderColor,
   floating = false,
+  maxForecastTime,
 }: FloodHourSliderProps) {
   const {
     setSliderhourIndexValue,
@@ -204,20 +207,37 @@ export function FloodHourSlider({
   }, [hour, setSliderhourIndexValue]);
 
   // ── Auto-play ─────────────────────────────────────────────────────────────
+  // Parse maxForecastTime into a Date for boundary checking
+  const maxTime = maxForecastTime ? new Date(maxForecastTime) : null;
+
   useEffect(() => {
     if (playing) {
       intervalRef.current = setInterval(() => {
         if (isForecast) {
           setForecastStep((prev) => {
             const idx = FORECAST_STEPS.indexOf(prev);
-            const next = FORECAST_STEPS[(idx + 1) % FORECAST_STEPS.length];
-            return next;
+            if (idx >= FORECAST_STEPS.length - 1) {
+              setPlaying(false);
+              return prev;
+            }
+            return FORECAST_STEPS[idx + 1];
           });
         } else {
           setHour((h) => {
             const next = (h + 1) % 24;
+
+            // Check if we've reached the max forecast time
+            if (maxTime) {
+              const nextDay = next === 0 ? day + 1 : day;
+              const currentTime = new Date(year, month, nextDay, next);
+              if (currentTime >= maxTime) {
+                setPlaying(false);
+                return h; // stay at current hour
+              }
+            }
+
             if (next === 0) {
-              // Advance day — stop at today
+              // Advance day — stop at today or maxForecastTime
               setDay((d) => {
                 const daysThisMonth = new Date(year, month + 1, 0).getDate();
                 if (d < daysThisMonth) return d + 1;
@@ -229,7 +249,7 @@ export function FloodHourSlider({
                   (newYear === todayYear && newMonth > todayMonth)
                 ) {
                   setPlaying(false);
-                  return d; // already at today's month boundary
+                  return d;
                 }
                 setMonth(newMonth);
                 setYear(newYear);
@@ -251,6 +271,8 @@ export function FloodHourSlider({
     isForecast,
     month,
     year,
+    day,
+    maxTime?.getTime(),
     setForecastStep,
     todayYear,
     todayMonth,

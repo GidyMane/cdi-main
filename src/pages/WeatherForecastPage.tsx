@@ -358,6 +358,22 @@ export default function WeatherForecastPage({
   const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">(
     "temp",
   );
+  const [maxForecastTime, setMaxForecastTime] = useState<string | undefined>(
+    undefined,
+  );
+
+  // Fetch max forecast time from raster frames API
+  useEffect(() => {
+    const model = activeTab === "forecast" ? "gfs" : "icon";
+    weatherAPI.getRasterFrames(model).then((data) => {
+      if (!data.frames.length) return;
+      // Find the last frame's effective time
+      const lastFrame = data.frames[data.frames.length - 1];
+      const runDate = new Date(lastFrame.run);
+      const endTime = new Date(runDate.getTime() + lastFrame.forecast_hour * 3600000);
+      setMaxForecastTime(endTime.toISOString());
+    }).catch(() => {});
+  }, [activeTab]);
 
   // When no district is selected, default stats to Kampala
   const kampala = district_list.find((d: district) =>
@@ -882,6 +898,7 @@ export default function WeatherForecastPage({
                         isDarkMode={isDarkMode}
                         borderColor={borderColor}
                         textMuted={textMuted}
+                        maxForecastTime={maxForecastTime}
                       />
                     </div>
                   </div>
@@ -1123,6 +1140,7 @@ export default function WeatherForecastPage({
                     isDarkMode={isDarkMode}
                     borderColor={borderColor}
                     textMuted={textMuted}
+                    maxForecastTime={maxForecastTime}
                   />
                 </div>
               </div>
