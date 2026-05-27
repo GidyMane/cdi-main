@@ -588,11 +588,7 @@ export default function WeatherForcastMap({
         const layerName = firstFrame.wms_layer;
 
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
-        weatherforcastrasterLayerRef.current = clippedWms(LOCAL_GEO_SERVER_URL, {
-          ...WMS_BASE_OPTIONS,
-          layers: layerName,
-          opacity: 0.85,
-        })
+        weatherforcastrasterLayerRef.current = clippedWms(LOCAL_GEO_SERVER_URL, getWmsOptions(layerName, 0.85))
           .on("load", () => setRasterIsLoading(false))
           .on("tileerror", () => setRasterIsLoading(false))
           .addTo(weatherforcastMapRef.current!) as any;
@@ -614,10 +610,7 @@ export default function WeatherForcastMap({
           const isLocal = layerName.startsWith("local:");
           const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
           const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
-          weatherforcastrasterLayerRef.current = clippedWms(serverUrl, {
-            ...WMS_BASE_OPTIONS,
-            layers: wmsLayerName,
-          })
+          weatherforcastrasterLayerRef.current = clippedWms(serverUrl, getWmsOptions(wmsLayerName))
             .on("loading", () => setRasterIsLoading(true))
             .on("load", () => setRasterIsLoading(false))
             .addTo(weatherforcastMapRef.current) as any;
@@ -671,9 +664,7 @@ export default function WeatherForcastMap({
     const layerName = bestFrame.wms_layer;
 
     const newLayer = clippedWms(cached.wmsUrl, {
-      ...WMS_BASE_OPTIONS,
-      layers: layerName,
-      opacity: 0,
+      ...getWmsOptions(layerName, 0),
     })
       .on("load", () => {
         setRasterIsLoading(false);
