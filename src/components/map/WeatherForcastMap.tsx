@@ -817,10 +817,10 @@ export default function WeatherForcastMap({
 
       {/* Forecast status */}
       <div className="absolute top-2 left-2 z-[500] flex items-center gap-2">
-        <span className="rounded bg-black/65 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg backdrop-blur-md">
+        <span className="rounded bg-black/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg backdrop-blur-md">
           {badgeText}
         </span>
-        <span className="rounded bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
+        <span className="rounded bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
           {layerMode === "forecast" ? "GFS" : "ICON"} {selectedParameter ?? "Temperature"} · UTC
         </span>
       </div>
@@ -829,7 +829,7 @@ export default function WeatherForcastMap({
       <div
         className="absolute top-2 left-1/2 -translate-x-1/2 z-[500] flex items-center rounded-full overflow-hidden shadow-lg"
         style={{
-          background: "rgba(10,15,30,0.72)",
+          background: "rgba(10,15,30,0.45)",
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
           border: "1px solid rgba(255,255,255,0.12)",
@@ -875,7 +875,7 @@ export default function WeatherForcastMap({
       <div
         className="absolute top-[52px] left-2 z-[500] flex flex-col gap-1 rounded-lg overflow-hidden shadow-lg"
         style={{
-          background: "rgba(10,15,30,0.72)",
+          background: "rgba(10,15,30,0.45)",
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
           border: "1px solid rgba(255,255,255,0.1)",
@@ -926,7 +926,7 @@ export default function WeatherForcastMap({
         style={{
           backgroundColor: showLayerPanel
             ? FAO_BLUE
-            : "rgba(10,15,30,0.72)",
+            : "rgba(10,15,30,0.45)",
           color: showLayerPanel ? "#ffffff" : "rgba(255,255,255,0.8)",
           backdropFilter: "blur(8px)",
           border: "1px solid rgba(255,255,255,0.12)",
@@ -940,7 +940,7 @@ export default function WeatherForcastMap({
       <div
         className="absolute top-[46px] right-2 z-[500] flex flex-col rounded-lg overflow-hidden shadow-lg"
         style={{
-          background: "rgba(10,15,30,0.72)",
+          background: "rgba(10,15,30,0.45)",
           backdropFilter: "blur(8px)",
           border: "1px solid rgba(255,255,255,0.1)",
         }}
@@ -1128,7 +1128,7 @@ export default function WeatherForcastMap({
           <div
             className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
             style={{
-              background: "rgba(8,12,24,0.68)",
+              background: "rgba(8,12,24,0.45)",
               backdropFilter: "blur(14px)",
               WebkitBackdropFilter: "blur(14px)",
               border: "1px solid rgba(255,255,255,0.1)",
