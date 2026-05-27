@@ -30,6 +30,7 @@ import {
   PARAM_LEGENDS,
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
+import { clippedWms } from "./clippedWmsLayer";
 import type {
   district,
   LayerDef,
@@ -231,17 +232,16 @@ export default function WeatherForcastMap({
           ? layerDef.wms.replace("local:", "")
           : `wfews:${layerDef.wms}`;
 
-        const wmsLayer = L.tileLayer
-          .wms(serverUrl, {
-            layers: layerName,
-            format: "image/png",
-            transparent: true,
-            version: "1.1.0",
-            opacity: isLocal ? 0.75 : 1.0,
-          })
-          .addTo(weatherforcastMapRef.current);
+        // Use clipped layer for weather rasters so they conform to Uganda boundary
+        const wmsLayer = clippedWms(serverUrl, {
+          layers: layerName,
+          format: "image/png",
+          transparent: true,
+          version: "1.1.0",
+          opacity: isLocal ? 0.75 : 1.0,
+        }).addTo(weatherforcastMapRef.current);
         wmsLayer.bringToFront();
-        weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer;
+        weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer as any;
       }
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
@@ -409,18 +409,16 @@ export default function WeatherForcastMap({
       .addTo(weatherforcastMapRef.current);
     // Default the weather map to the GFS precipitation layer so the first view
     // behaves like a forecast animation map instead of an empty basemap.
-    const gfsPrecipitationWms = L.tileLayer
-      .wms(LOCAL_GEO_SERVER_URL, {
-        layers: "gfs_precipitation",
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 0.78,
-      })
-      .addTo(weatherforcastMapRef.current);
+    const gfsPrecipitationWms = clippedWms(LOCAL_GEO_SERVER_URL, {
+      layers: "gfs_precipitation",
+      format: "image/png",
+      transparent: true,
+      version: "1.1.0",
+      opacity: 0.78,
+    }).addTo(weatherforcastMapRef.current);
     gfsPrecipitationWms.bringToFront();
     weatherforcastwmsLayersRef.current["gfs_precipitation"] =
-      gfsPrecipitationWms;
+      gfsPrecipitationWms as any;
     countryWms.bringToFront();
     weatherforcastwmsLayersRef.current["country"] = countryWms;
 
@@ -507,13 +505,15 @@ export default function WeatherForcastMap({
       if (!selectedForcastData) return;
       const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) ?? "";
       const layerName = `wfews:${selectedForcastData}_${forecastStep}h_${formattedDate}`;
-      weatherforcastrasterLayerRef.current = L.tileLayer
-        .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
+      weatherforcastrasterLayerRef.current = clippedWms(
+        GEO_SERVER_URL,
+        { ...WMS_BASE_OPTIONS, layers: layerName },
+      )
         .on("loading", () => setRasterIsLoading(true))
         .on("load", () => setRasterIsLoading(false))
         .on("tileerror", () => setRasterIsLoading(false))
-        .addTo(weatherforcastMapRef.current);
-      weatherforcastrasterLayerRef.current.bringToFront();
+        .addTo(weatherforcastMapRef.current) as any;
+      weatherforcastrasterLayerRef.current!.bringToFront();
       return;
     }
 
@@ -534,13 +534,15 @@ export default function WeatherForcastMap({
       const isLocal = layerName.startsWith("local:");
       const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
       const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
-      weatherforcastrasterLayerRef.current = L.tileLayer
-        .wms(serverUrl, { ...WMS_BASE_OPTIONS, layers: wmsLayerName })
+      weatherforcastrasterLayerRef.current = clippedWms(
+        serverUrl,
+        { ...WMS_BASE_OPTIONS, layers: wmsLayerName },
+      )
         .on("loading", () => setRasterIsLoading(true))
         .on("load", () => setRasterIsLoading(false))
         .on("tileerror", () => setRasterIsLoading(false))
-        .addTo(weatherforcastMapRef.current);
-      weatherforcastrasterLayerRef.current.bringToFront();
+        .addTo(weatherforcastMapRef.current) as any;
+      weatherforcastrasterLayerRef.current!.bringToFront();
     }
 
   }, [

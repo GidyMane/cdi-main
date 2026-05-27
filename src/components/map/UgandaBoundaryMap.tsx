@@ -10,6 +10,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
 import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
+import { clippedWms } from "./clippedWmsLayer";
 
 interface LegendItem {
   label: string;
@@ -266,17 +267,15 @@ export default function UgandaBoundaryMap({
         return next;
       });
     } else {
-      const wmsLayer = L.tileLayer
-        .wms(GEO_SERVER_URL, {
-          layers: `wfews:${layerDef.wms}`,
-          format: "image/png",
-          transparent: true,
-          version: "1.1.0",
-          opacity: 1.0,
-        })
-        .addTo(mapRef.current);
+      const wmsLayer = clippedWms(GEO_SERVER_URL, {
+        layers: `wfews:${layerDef.wms}`,
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      }).addTo(mapRef.current);
       wmsLayer.bringToFront();
-      wmsLayersRef.current[layerDef.id] = wmsLayer;
+      wmsLayersRef.current[layerDef.id] = wmsLayer as any;
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
@@ -531,15 +530,13 @@ export default function UgandaBoundaryMap({
 
     console.log("layerName", layerName);
 
-    rasterLayerRef.current = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: layerName,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      })
-      .addTo(mapRef.current);
+    rasterLayerRef.current = clippedWms(GEO_SERVER_URL, {
+      layers: layerName,
+      format: "image/png",
+      transparent: true,
+      version: "1.1.0",
+      opacity: 1.0,
+    }).addTo(mapRef.current) as any;
   }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
