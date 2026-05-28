@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence, motion } from "framer-motion";
-import { waterAreas } from "../../utils/waterAreas";
+// import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
@@ -163,7 +163,7 @@ export default function WeatherForcastMap({
   const weatherforcastMapRef = useRef<L.Map | null>(null);
   const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
-  const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
+  // const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>(
