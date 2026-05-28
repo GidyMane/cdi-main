@@ -34,7 +34,6 @@ interface FloodHourSliderProps {
   textMuted: string;
   FAO_BLUE?: string;
   floating?: boolean;
-  /** ISO datetime string of the last available forecast frame. Play stops here. */
   maxForecastTime?: string;
 }
 
@@ -57,7 +56,7 @@ function Spinner({
   isDarkMode?: boolean;
 }) {
   const textColor = isDarkMode ? "text-white" : "text-slate-900";
-  const dimColor = isDarkMode ? "text-white/40" : "text-slate-900/40";
+  const dimColor  = isDarkMode ? "text-white/40" : "text-slate-900/40";
   const chevronColor = isDarkMode ? "#ffffff" : "#0f172a";
   return (
     <div className="flex flex-col items-center select-none">
@@ -94,7 +93,6 @@ export function FloodHourSlider({
   isDarkMode,
   borderColor,
   floating = false,
-  maxForecastTime,
 }: FloodHourSliderProps) {
   const {
     setSliderhourIndexValue,
@@ -207,37 +205,20 @@ export function FloodHourSlider({
   }, [hour, setSliderhourIndexValue]);
 
   // ── Auto-play ─────────────────────────────────────────────────────────────
-  // Parse maxForecastTime into a Date for boundary checking
-  const maxTime = maxForecastTime ? new Date(maxForecastTime) : null;
-
   useEffect(() => {
     if (playing) {
       intervalRef.current = setInterval(() => {
         if (isForecast) {
           setForecastStep((prev) => {
             const idx = FORECAST_STEPS.indexOf(prev);
-            if (idx >= FORECAST_STEPS.length - 1) {
-              setPlaying(false);
-              return prev;
-            }
-            return FORECAST_STEPS[idx + 1];
+            const next = FORECAST_STEPS[(idx + 1) % FORECAST_STEPS.length];
+            return next;
           });
         } else {
           setHour((h) => {
             const next = (h + 1) % 24;
-
-            // Check if we've reached the max forecast time
-            if (maxTime) {
-              const nextDay = next === 0 ? day + 1 : day;
-              const currentTime = new Date(year, month, nextDay, next);
-              if (currentTime >= maxTime) {
-                setPlaying(false);
-                return h; // stay at current hour
-              }
-            }
-
             if (next === 0) {
-              // Advance day — stop at today or maxForecastTime
+              // Advance day — stop at today
               setDay((d) => {
                 const daysThisMonth = new Date(year, month + 1, 0).getDate();
                 if (d < daysThisMonth) return d + 1;
@@ -249,7 +230,7 @@ export function FloodHourSlider({
                   (newYear === todayYear && newMonth > todayMonth)
                 ) {
                   setPlaying(false);
-                  return d;
+                  return d; // already at today's month boundary
                 }
                 setMonth(newMonth);
                 setYear(newYear);
@@ -259,7 +240,7 @@ export function FloodHourSlider({
             return next;
           });
         }
-      }, 1800);
+      }, 1500);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
@@ -271,8 +252,6 @@ export function FloodHourSlider({
     isForecast,
     month,
     year,
-    day,
-    maxTime?.getTime(),
     setForecastStep,
     todayYear,
     todayMonth,
@@ -354,41 +333,23 @@ export function FloodHourSlider({
         {/* Play / Pause */}
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            setPlaying((p) => !p);
-          }}
+          onMouseDown={(e) => { e.stopPropagation(); setPlaying((p) => !p); }}
           className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex-shrink-0"
           title={playing ? "Pause" : "Play"}
         >
-          {playing ? (
-            <Pause className="w-3 h-3 text-white" />
-          ) : (
-            <Play className="w-3 h-3 text-white fill-white" />
-          )}
+          {playing
+            ? <Pause       className="w-3 h-3 text-white" />
+            : <Play        className="w-3 h-3 text-white fill-white" />}
         </button>
 
         {/* Day */}
-        <Spinner
-          display={String(day).padStart(2, "0")}
-          onUp={dayUp}
-          onDown={dayDown}
-          disabledUp={isAtMax}
-          disabledDown={isAtMin}
-        />
+        <Spinner display={String(day).padStart(2, "0")} onUp={dayUp} onDown={dayDown} disabledUp={isAtMax} disabledDown={isAtMin} />
 
         {/* Month — read-only */}
-        <Spinner
-          display={MONTHS[month]}
-          onUp={() => {}}
-          onDown={() => {}}
-          disabled
-        />
+        <Spinner display={MONTHS[month]} onUp={() => {}} onDown={() => {}} disabled />
 
         {/* Year */}
-        <span className="text-white/50 font-bold text-xs tabular-nums">
-          {year}
-        </span>
+        <span className="text-white/50 font-bold text-xs tabular-nums">{year}</span>
 
         <span className="text-white/30 font-bold text-sm">·</span>
 
@@ -404,30 +365,17 @@ export function FloodHourSlider({
           </>
         ) : (
           <>
-            <Spinner
-              display={`+${forecastStep}h`}
-              onUp={stepUp}
-              onDown={stepDown}
-            />
-            <span className="text-white/50 text-xs font-medium whitespace-nowrap">
-              ahead
-            </span>
+            <Spinner display={`+${forecastStep}h`} onUp={stepUp} onDown={stepDown} />
+            <span className="text-white/50 text-xs font-medium whitespace-nowrap">ahead</span>
           </>
         )}
 
         {/* Skip to end */}
         <button
           type="button"
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            skipToEnd();
-          }}
+          onMouseDown={(e) => { e.stopPropagation(); skipToEnd(); }}
           className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex-shrink-0"
-          title={
-            isForecast
-              ? `Skip to +${FORECAST_STEPS[FORECAST_STEPS.length - 1]}h`
-              : "Skip to 23:00"
-          }
+          title={isForecast ? `Skip to +${FORECAST_STEPS[FORECAST_STEPS.length - 1]}h` : "Skip to 23:00"}
         >
           <SkipForward className="w-3 h-3 text-white" />
         </button>
@@ -439,79 +387,42 @@ export function FloodHourSlider({
   const bg = isDarkMode ? "bg-slate-700/90" : "bg-slate-600/90";
 
   const pill = (
-    <div
-      className={`${bg} backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg`}
-    >
+    <div className={`${bg} backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center gap-3 shadow-lg`}>
       {/* Play / Pause */}
       <button
         type="button"
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          setPlaying((p) => !p);
-        }}
+        onMouseDown={(e) => { e.stopPropagation(); setPlaying((p) => !p); }}
         className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
         title={playing ? "Pause" : "Play"}
       >
-        {playing ? (
-          <Pause className="w-3.5 h-3.5 text-white" />
-        ) : (
-          <Play className="w-3.5 h-3.5 text-white fill-white" />
-        )}
+        {playing
+          ? <Pause      className="w-3.5 h-3.5 text-white" />
+          : <Play       className="w-3.5 h-3.5 text-white fill-white" />}
       </button>
 
-      <Spinner
-        display={String(day).padStart(2, "0")}
-        onUp={dayUp}
-        onDown={dayDown}
-        disabledUp={isAtMax}
-        disabledDown={isAtMin}
-      />
-      <Spinner
-        display={MONTHS[month]}
-        onUp={() => {}}
-        onDown={() => {}}
-        disabled
-      />
-      <span className="text-white/50 font-bold text-xs leading-5 tabular-nums">
-        {year}
-      </span>
+      <Spinner display={String(day).padStart(2, "0")} onUp={dayUp} onDown={dayDown} disabledUp={isAtMax} disabledDown={isAtMin} />
+      <Spinner display={MONTHS[month]} onUp={() => {}} onDown={() => {}} disabled />
+      <span className="text-white/50 font-bold text-xs leading-5 tabular-nums">{year}</span>
       <span className="text-white/30 font-bold text-sm">·</span>
 
       {!isForecast && (
         <>
-          <Spinner
-            display={String(hour).padStart(2, "0")}
-            onUp={() => setHour((v) => clamp(v + 1, 0, 23))}
-            onDown={() => setHour((v) => clamp(v - 1, 0, 23))}
-          />
+          <Spinner display={String(hour).padStart(2, "0")} onUp={() => setHour((v) => clamp(v + 1, 0, 23))} onDown={() => setHour((v) => clamp(v - 1, 0, 23))} />
           <span className="text-white/50 text-xs font-medium">h</span>
         </>
       )}
       {isForecast && (
         <>
-          <Spinner
-            display={`+${forecastStep}h`}
-            onUp={stepUp}
-            onDown={stepDown}
-          />
-          <span className="text-white/50 text-xs font-medium whitespace-nowrap">
-            ahead
-          </span>
+          <Spinner display={`+${forecastStep}h`} onUp={stepUp} onDown={stepDown} />
+          <span className="text-white/50 text-xs font-medium whitespace-nowrap">ahead</span>
         </>
       )}
 
       <button
         type="button"
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          skipToEnd();
-        }}
+        onMouseDown={(e) => { e.stopPropagation(); skipToEnd(); }}
         className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
-        title={
-          isForecast
-            ? `Skip to +${FORECAST_STEPS[FORECAST_STEPS.length - 1]}h`
-            : "Skip to 23:00"
-        }
+        title={isForecast ? `Skip to +${FORECAST_STEPS[FORECAST_STEPS.length - 1]}h` : "Skip to 23:00"}
       >
         <SkipForward className="w-3.5 h-3.5 text-white" />
       </button>
@@ -519,9 +430,7 @@ export function FloodHourSlider({
   );
 
   return (
-    <div
-      className={`border-t ${borderColor} flex items-center justify-center py-2 px-3`}
-    >
+    <div className={`border-t ${borderColor} flex items-center justify-center py-2 px-3`}>
       {pill}
     </div>
   );
