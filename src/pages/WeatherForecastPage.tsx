@@ -412,9 +412,15 @@ export default function WeatherForecastPage({
 
   // Safe normalisation — guards against null / undefined / empty arrays
   // Limit hourly forecast to 24 hours (48hr data cut at 24hr mark)
-  const hourlyForecast = forecastData?.hourly?.length
+  const allHourlyForecast = forecastData?.hourly?.length
     ? normaliseHourly(forecastData.hourly).slice(0, 24)
     : [];
+
+  // Start from current hour
+  const now = new Date();
+  const currentHour = now.getHours();
+  const hourlyForecast = allHourlyForecast.slice(currentHour);
+
   const dailyForecast = dailyForecasts?.daily?.length
     ? normaliseDaily(dailyForecasts.daily).slice(0, 20)
     : [];
@@ -437,7 +443,7 @@ export default function WeatherForecastPage({
   // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
     if (activeTab === "nowcast") {
-      let filtered = hourlyForecast;
+      let filtered = allHourlyForecast;
 
       // Filter by date if dateRange is set
       if (dateRange) {
@@ -458,10 +464,8 @@ export default function WeatherForecastPage({
         const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
         sliced = filtered.slice(startIdx, endIdx);
       } else if (!dateRange) {
-        // If no card selected and no date filter, start from current hour
-        const now = new Date();
-        const currentHour = now.getHours();
-        sliced = filtered.slice(currentHour);
+        // When no card is selected, use all the data (already filtered by current hour)
+        sliced = filtered;
       }
 
       return sliced.map((h) => {
