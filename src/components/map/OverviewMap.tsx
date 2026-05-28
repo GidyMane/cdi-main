@@ -10,8 +10,6 @@ import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
 import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-import { clippedWms } from "./clippedWmsLayer";
-import { GEOSERVER_WFEWS_WMS } from "@/config";
 
 interface LegendItem {
   label: string;
@@ -190,7 +188,7 @@ export default function OverviewMap({
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
   const [isRasterLoading, setRasterIsLoading] = useState(false);
 
-  const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
+  const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
   // ── Data ────────────────────────────────────────────────────────────────────
   // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({
@@ -273,15 +271,17 @@ export default function OverviewMap({
         return next;
       });
     } else {
-      const wmsLayer = clippedWms(GEO_SERVER_URL, {
-        layers: `wfews:${layerDef.wms}`,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      }).addTo(OverviewmapRef.current);
+      const wmsLayer = L.tileLayer
+        .wms(GEO_SERVER_URL, {
+          layers: `wfews:${layerDef.wms}`,
+          format: "image/png",
+          transparent: true,
+          version: "1.1.0",
+          opacity: 1.0,
+        })
+        .addTo(OverviewmapRef.current);
       wmsLayer.bringToFront();
-      OverviewwmsLayersRef.current[layerDef.id] = wmsLayer as any;
+      OverviewwmsLayersRef.current[layerDef.id] = wmsLayer;
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
@@ -539,13 +539,14 @@ export default function OverviewMap({
 
     console.log("layerName", layerName);
 
-    OverviewrasterLayerRef.current = clippedWms(GEO_SERVER_URL, {
-      layers: layerName,
-      format: "image/png",
-      transparent: true,
-      version: "1.1.0",
-      opacity: 1.0,
-    })
+    OverviewrasterLayerRef.current = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: layerName,
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      })
       .on("loading", () => {
         setRasterIsLoading(true);
       })
@@ -555,7 +556,7 @@ export default function OverviewMap({
       .on("tileerror", () => {
         setRasterIsLoading(false);
       })
-      .addTo(OverviewmapRef.current) as any;
+      .addTo(OverviewmapRef.current);
   }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
