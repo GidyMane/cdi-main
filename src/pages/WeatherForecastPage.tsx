@@ -443,7 +443,16 @@ export default function WeatherForecastPage({
               const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
               return filtered.slice(startIdx, endIdx);
             })()
-          : filtered;
+          : (() => {
+              if (!dateRange) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const startIdx = Math.max(0, currentHour);
+                const endIdx = Math.min(filtered.length, currentHour + 24);
+                return filtered.slice(startIdx, endIdx);
+              }
+              return filtered;
+            })();
 
       return sliced.map((h) => {
         const displayTime = h.rawDate
