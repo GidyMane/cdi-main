@@ -34,6 +34,7 @@ interface FloodHourSliderProps {
   textMuted: string;
   FAO_BLUE?: string;
   floating?: boolean;
+  maxForecastTime?: string;
 }
 
 // ── Spinner ───────────────────────────────────────────────────────────────────

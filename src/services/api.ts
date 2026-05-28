@@ -9,6 +9,7 @@ import { API_BASE } from "@/config";
 /** Shape returned by the weather-stations API */
 export interface WeatherStationAPI {
   id: number;
+  code: string;
   name: string;
   region: string;
   status: "online" | "offline" | "maintenance";
