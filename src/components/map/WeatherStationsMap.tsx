@@ -303,7 +303,7 @@ export default function WeatherStationsMap({
           color: "#d2efff",
           weight: 0.1,
           fillColor: "#d2efff",
-          fillOpacity: 0.8,
+          fillOpacity: 0.3,
         },
         onEachFeature(feature, layer: any) {
           const waterName = feature.properties?.NAME;

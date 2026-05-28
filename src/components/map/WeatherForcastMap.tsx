@@ -171,9 +171,9 @@ export default function WeatherForcastMap({
   );
   const weatherMarkersRef = useRef<L.Marker[]>([]);
 
-  const [_selectedForcastData, setSelectedForcastData] = useState<string | null>(
-    null,
-  );
+  const [_selectedForcastData, setSelectedForcastData] = useState<
+    string | null
+  >(null);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(
     new Set(["country"]),
@@ -254,8 +254,20 @@ export default function WeatherForcastMap({
     } else {
       // Remove any existing weather raster layer first (one at a time)
       // Keep boundary/infrastructure layers (country, districts, rivers, etc.)
-      const keepLayers = new Set(["country", "districts", "rivers", "waterways", "water_bodies", "roads", "places", "landuse", "buildings"]);
-      for (const [id, layer] of Object.entries(weatherforcastwmsLayersRef.current)) {
+      const keepLayers = new Set([
+        "country",
+        "districts",
+        "rivers",
+        "waterways",
+        "water_bodies",
+        "roads",
+        "places",
+        "landuse",
+        "buildings",
+      ]);
+      for (const [id, layer] of Object.entries(
+        weatherforcastwmsLayersRef.current,
+      )) {
         if (!keepLayers.has(id)) {
           weatherforcastMapRef.current.removeLayer(layer);
           delete weatherforcastwmsLayersRef.current[id];
@@ -403,29 +415,29 @@ export default function WeatherForcastMap({
     });
 
     // ── Water / lake overlay ──────────────────────────────────────────────
-    clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
-    if (waterAreas) {
-      weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
-        style: {
-          color: "#d2efff",
-          weight: 0.1,
-          fillColor: "#d2efff",
-          fillOpacity: 0.8,
-        },
-        onEachFeature(feature, layer: any) {
-          const waterName = feature.properties?.NAME;
-          if (waterName) {
-            layer.bindTooltip(waterName, {
-              permanent: true,
-              direction: "center",
-              className: "waterAreas-label",
-            });
-            // layer.bringToFront();
-          }
-        },
-      }).addTo(weatherforcastMapRef.current);
-      weatherforcastriverLayerRef.current.bringToBack();
-    }
+    // clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
+    // if (waterAreas) {
+    //   weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
+    //     style: {
+    //       color: "#d2efff",
+    //       weight: 0.1,
+    //       fillColor: "#d2efff",
+    //       fillOpacity: 0.3,
+    //     },
+    //     onEachFeature(feature, layer: any) {
+    //       const waterName = feature.properties?.NAME;
+    //       if (waterName) {
+    //         layer.bindTooltip(waterName, {
+    //           permanent: true,
+    //           direction: "center",
+    //           className: "waterAreas-label",
+    //         });
+    //         // layer.bringToFront();
+    //       }
+    //     },
+    //   }).addTo(weatherforcastMapRef.current);
+    //   weatherforcastriverLayerRef.current.bringToBack();
+    // }
 
     // ── Hover: district detection on mouse move ───────────────────────────
     weatherforcastMapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
@@ -558,7 +570,9 @@ export default function WeatherForcastMap({
       clouds: "cloud-cover",
       pressure: "pressure",
     };
-    const apiParam = paramMap[selectedParameter?.toLowerCase()] || selectedParameter?.toLowerCase();
+    const apiParam =
+      paramMap[selectedParameter?.toLowerCase()] ||
+      selectedParameter?.toLowerCase();
     const model = layerMode === "forecast" ? "gfs" : "icon";
 
     // Remove current raster layer
@@ -569,7 +583,8 @@ export default function WeatherForcastMap({
 
     setRasterIsLoading(true);
 
-    weatherAPI.getRasterFrames(model, apiParam)
+    weatherAPI
+      .getRasterFrames(model, apiParam)
       .then((data) => {
         framesRef.current = {
           model,
@@ -588,7 +603,10 @@ export default function WeatherForcastMap({
         const layerName = firstFrame.wms_layer;
 
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
-        weatherforcastrasterLayerRef.current = clippedWms(LOCAL_GEO_SERVER_URL, getWmsOptions(layerName, 0.85))
+        weatherforcastrasterLayerRef.current = clippedWms(
+          LOCAL_GEO_SERVER_URL,
+          getWmsOptions(layerName, 0.85),
+        )
           .on("load", () => setRasterIsLoading(false))
           .on("tileerror", () => setRasterIsLoading(false))
           .addTo(weatherforcastMapRef.current!) as any;
@@ -606,11 +624,19 @@ export default function WeatherForcastMap({
           mode: layerMode === "forecast" ? "forecast" : "daily",
         });
         if (layerName && weatherforcastMapRef.current) {
-          clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
+          clearLayer(
+            weatherforcastMapRef.current,
+            weatherforcastrasterLayerRef,
+          );
           const isLocal = layerName.startsWith("local:");
           const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
-          const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
-          weatherforcastrasterLayerRef.current = clippedWms(serverUrl, getWmsOptions(wmsLayerName))
+          const wmsLayerName = isLocal
+            ? layerName.replace("local:", "")
+            : layerName;
+          weatherforcastrasterLayerRef.current = clippedWms(
+            serverUrl,
+            getWmsOptions(wmsLayerName),
+          )
             .on("loading", () => setRasterIsLoading(true))
             .on("load", () => setRasterIsLoading(false))
             .addTo(weatherforcastMapRef.current) as any;
@@ -634,9 +660,10 @@ export default function WeatherForcastMap({
     const cached = framesRef.current;
     if (!cached.frames.length) return;
 
-    const hour = sliderhourIndexValue === "000"
-      ? 0
-      : parseInt(String(sliderhourIndexValue), 10) || 0;
+    const hour =
+      sliderhourIndexValue === "000"
+        ? 0
+        : parseInt(String(sliderhourIndexValue), 10) || 0;
     const targetDate = dateRange || new Date().toISOString().split("T")[0];
 
     // Find best matching frame
@@ -644,8 +671,12 @@ export default function WeatherForcastMap({
     let bestDiff = Infinity;
     for (const frame of cached.frames) {
       const runDate = new Date(frame.run);
-      const effectiveTime = new Date(runDate.getTime() + frame.forecast_hour * 3600000);
-      const targetTime = new Date(`${targetDate}T${String(hour).padStart(2, "0")}:00:00Z`);
+      const effectiveTime = new Date(
+        runDate.getTime() + frame.forecast_hour * 3600000,
+      );
+      const targetTime = new Date(
+        `${targetDate}T${String(hour).padStart(2, "0")}:00:00Z`,
+      );
       const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
       if (diff < bestDiff) {
         bestDiff = diff;
@@ -681,7 +712,9 @@ export default function WeatherForcastMap({
               map.removeLayer(prevLayer);
             }
           }
-          try { (newLayer as any).setOpacity(opacity); } catch {}
+          try {
+            (newLayer as any).setOpacity(opacity);
+          } catch {}
         }, 50);
       })
       .on("tileerror", () => setRasterIsLoading(false))
@@ -745,7 +778,8 @@ export default function WeatherForcastMap({
 
           const center = L.geoJSON(feature).getBounds().getCenter();
           const realValue = lookup[name.toLowerCase()];
-          const value = realValue != null ? Math.round(realValue * 10) / 10 : null;
+          const value =
+            realValue != null ? Math.round(realValue * 10) / 10 : null;
 
           if (value == null) return; // Skip districts with no data
 
@@ -753,7 +787,13 @@ export default function WeatherForcastMap({
           const marker = L.marker(center, {
             icon: L.divIcon({
               className: "",
-              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
+              html: makeMarkerHtml(
+                name,
+                Math.round(value),
+                config.unit,
+                color,
+                param,
+              ),
               iconSize: [1, 1],
               iconAnchor: [0, 0],
             }),
@@ -821,7 +861,8 @@ export default function WeatherForcastMap({
           {badgeText}
         </span>
         <span className="rounded bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
-          {layerMode === "forecast" ? "GFS" : "ICON"} {selectedParameter ?? "Temperature"} · UTC
+          {layerMode === "forecast" ? "GFS" : "ICON"}{" "}
+          {selectedParameter ?? "Temperature"} · UTC
         </span>
       </div>
 
@@ -835,11 +876,13 @@ export default function WeatherForcastMap({
           border: "1px solid rgba(255,255,255,0.12)",
         }}
       >
-        {([
-          { id: "icon", label: "ICON" },
-          { id: "gfs", label: "GFS" },
-          { id: "imerg", label: "Satellite" },
-        ] as const).map((model) => {
+        {(
+          [
+            { id: "icon", label: "ICON" },
+            { id: "gfs", label: "GFS" },
+            { id: "imerg", label: "Satellite" },
+          ] as const
+        ).map((model) => {
           const isSelected = (() => {
             if (model.id === "imerg") return activeLayers.has("imerg_precip");
             if (model.id === "gfs") return layerMode === "forecast";
@@ -851,7 +894,9 @@ export default function WeatherForcastMap({
               onClick={() => {
                 if (model.id === "imerg") {
                   // Toggle IMERG satellite layer
-                  const imergLayer = LAYER_GROUPS.flatMap(g => g.layers).find(l => l.id === "imerg_precip");
+                  const imergLayer = LAYER_GROUPS.flatMap((g) => g.layers).find(
+                    (l) => l.id === "imerg_precip",
+                  );
                   if (imergLayer) toggleLayer(imergLayer);
                 } else if (model.id === "gfs") {
                   useAppStore.getState().setLayerMode("forecast");
@@ -881,12 +926,14 @@ export default function WeatherForcastMap({
           border: "1px solid rgba(255,255,255,0.1)",
         }}
       >
-        {([
-          { param: "temperature", icon: Thermometer, label: "Temp" },
-          { param: "rainfall", icon: CloudRain, label: "Rain" },
-          { param: "humidity", icon: Droplets, label: "Humid" },
-          { param: "wind", icon: Wind, label: "Wind" },
-        ] as const).map(({ param, icon: Icon, label }) => {
+        {(
+          [
+            { param: "temperature", icon: Thermometer, label: "Temp" },
+            { param: "rainfall", icon: CloudRain, label: "Rain" },
+            { param: "humidity", icon: Droplets, label: "Humid" },
+            { param: "wind", icon: Wind, label: "Wind" },
+          ] as const
+        ).map(({ param, icon: Icon, label }) => {
           const isActive = selectedParameter?.toLowerCase() === param;
           return (
             <button
@@ -912,9 +959,15 @@ export default function WeatherForcastMap({
           className="flex items-center justify-center w-[34px] h-[34px] transition-all border-t border-white/10"
         >
           {isFullscreen ? (
-            <Minimize2 className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
+            <Minimize2
+              className="w-4 h-4"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            />
           ) : (
-            <Maximize2 className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
+            <Maximize2
+              className="w-4 h-4"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            />
           )}
         </button>
       </div>
@@ -924,9 +977,7 @@ export default function WeatherForcastMap({
         onClick={() => setShowLayerPanel((v) => !v)}
         className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : "rgba(10,15,30,0.45)",
+          backgroundColor: showLayerPanel ? FAO_BLUE : "rgba(10,15,30,0.45)",
           color: showLayerPanel ? "#ffffff" : "rgba(255,255,255,0.8)",
           backdropFilter: "blur(8px)",
           border: "1px solid rgba(255,255,255,0.12)",
@@ -966,7 +1017,10 @@ export default function WeatherForcastMap({
               borderTop: i > 0 ? "1px solid rgba(255,255,255,0.1)" : undefined,
             }}
           >
-            <Icon className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.7)" }} />
+            <Icon
+              className="w-3.5 h-3.5"
+              style={{ color: "rgba(255,255,255,0.7)" }}
+            />
           </button>
         ))}
       </div>
@@ -999,116 +1053,116 @@ export default function WeatherForcastMap({
                 maxHeight: "90%",
               }}
             >
-            {/* Panel header */}
-            <div
-              className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
-              style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
-            >
-              <span
-                className={`text-xs font-bold tracking-wide ${
-                  isDarkMode ? "text-white" : "text-slate-800"
-                }`}
+              {/* Panel header */}
+              <div
+                className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
+                style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
               >
-                MAP LAYERS
-              </span>
+                <span
+                  className={`text-xs font-bold tracking-wide ${
+                    isDarkMode ? "text-white" : "text-slate-800"
+                  }`}
+                >
+                  MAP LAYERS
+                </span>
 
-              <button
-                onClick={() => setShowLayerPanel(false)}
-                className={`p-0.5 rounded transition-colors ${
-                  isDarkMode
-                    ? "hover:bg-slate-700 text-slate-400"
-                    : "hover:bg-slate-100 text-slate-500"
-                }`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                <button
+                  onClick={() => setShowLayerPanel(false)}
+                  className={`p-0.5 rounded transition-colors ${
+                    isDarkMode
+                      ? "hover:bg-slate-700 text-slate-400"
+                      : "hover:bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-            {/* Scrollable layer list */}
-            <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-              {visibleGroups?.map((group) => (
-                <div key={group.title} className="mb-1">
-                  {/* Group heading */}
-                  <p
-                    className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                    style={{ color: FAO_BLUE }}
-                  >
-                    {group.title}
-                  </p>
+              {/* Scrollable layer list */}
+              <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
+                {visibleGroups?.map((group) => (
+                  <div key={group.title} className="mb-1">
+                    {/* Group heading */}
+                    <p
+                      className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                      style={{ color: FAO_BLUE }}
+                    >
+                      {group.title}
+                    </p>
 
-                  {/* Layer rows */}
-                  {group.layers.map((layerDef) => {
-                    const isActive = activeLayers.has(layerDef.id);
+                    {/* Layer rows */}
+                    {group.layers.map((layerDef) => {
+                      const isActive = activeLayers.has(layerDef.id);
 
-                    return (
-                      <div
-                        key={layerDef.id}
-                        onClick={() => toggleLayer(layerDef)}
-                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
-                          isDarkMode
-                            ? "hover:bg-slate-700/50"
-                            : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {/* Checkbox */}
-                          <div
-                            className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                            style={{
-                              backgroundColor: isActive
-                                ? FAO_BLUE
-                                : "transparent",
-                              borderColor: isActive
-                                ? FAO_BLUE
-                                : isDarkMode
-                                  ? "#475569"
-                                  : "#cbd5e1",
-                            }}
-                          >
-                            {isActive && (
-                              <svg
-                                className="w-2.5 h-2.5 text-white"
-                                viewBox="0 0 10 10"
-                                fill="none"
-                              >
-                                <path
-                                  d="M1.5 5L4 7.5L8.5 2.5"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
+                      return (
+                        <div
+                          key={layerDef.id}
+                          onClick={() => toggleLayer(layerDef)}
+                          className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                            isDarkMode
+                              ? "hover:bg-slate-700/50"
+                              : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {/* Checkbox */}
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                              style={{
+                                backgroundColor: isActive
+                                  ? FAO_BLUE
+                                  : "transparent",
+                                borderColor: isActive
+                                  ? FAO_BLUE
+                                  : isDarkMode
+                                    ? "#475569"
+                                    : "#cbd5e1",
+                              }}
+                            >
+                              {isActive && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  viewBox="0 0 10 10"
+                                  fill="none"
+                                >
+                                  <path
+                                    d="M1.5 5L4 7.5L8.5 2.5"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+
+                            <span
+                              className={`text-xs ${
+                                isDarkMode ? "text-slate-300" : "text-slate-700"
+                              }`}
+                            >
+                              {layerDef.label}
+                            </span>
                           </div>
 
-                          <span
-                            className={`text-xs ${
-                              isDarkMode ? "text-slate-300" : "text-slate-700"
-                            }`}
-                          >
-                            {layerDef.label}
-                          </span>
+                          {/* Date badge */}
+                          {layerDef.date && (
+                            <span
+                              className={`text-[10px] ml-2 flex-shrink-0 ${
+                                isDarkMode ? "text-slate-500" : "text-slate-400"
+                              }`}
+                            >
+                              {layerDef.date}
+                            </span>
+                          )}
                         </div>
-
-                        {/* Date badge */}
-                        {layerDef.date && (
-                          <span
-                            className={`text-[10px] ml-2 flex-shrink-0 ${
-                              isDarkMode ? "text-slate-500" : "text-slate-400"
-                            }`}
-                          >
-                            {layerDef.date}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -1177,10 +1231,12 @@ export default function WeatherForcastMap({
         (() => {
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
-          const realValue = districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
-          const value = config && realValue != null
-            ? Math.round(realValue * 10) / 10
-            : null;
+          const realValue =
+            districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
+          const value =
+            config && realValue != null
+              ? Math.round(realValue * 10) / 10
+              : null;
           const color =
             config && value !== null ? getValueColor(value, param) : FAO_BLUE;
           const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;
@@ -1220,7 +1276,9 @@ export default function WeatherForcastMap({
                   }}
                 >
                   {value}
-                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>
+                  <span
+                    style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}
+                  >
                     {config.unit}
                   </span>
                 </p>
