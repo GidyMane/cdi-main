@@ -836,7 +836,7 @@ export default function WeatherForecastPage({
                         style={{ color: FAO_BLUE }}
                       />
                       <h3 className={`text-sm font-semibold ${headerText}`}>
-                        Precipitation Forecast
+                        {selectedParameter === "rainfall" ? "Precipitation" : selectedParameter === "wind" ? "Wind Speed" : selectedParameter === "humidity" ? "Humidity" : "Temperature"} Forecast
                       </h3>
                     </div>
 
