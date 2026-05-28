@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { waterAreas } from "../../utils/waterAreas";
+import { AnimatePresence, motion } from "framer-motion";
+// import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
@@ -20,7 +21,6 @@ import {
 } from "lucide-react";
 import {
   formatDate,
-  getDistrictValue,
   getLayerGroups,
   getValueColor,
   isPointInPolygon,
@@ -32,7 +32,7 @@ import {
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
 import { weatherAPI } from "@/services/api";
-import { GEOSERVER_WFEWS_WMS, GEOSERVER_WEATHER_WMS } from "@/config";
+import { API_BASE, GEOSERVER_WFEWS_WMS, GEOSERVER_WEATHER_WMS } from "@/config";
 import type {
   district,
   LayerDef,
@@ -52,6 +52,35 @@ const WMS_BASE_OPTIONS = {
   version: "1.1.0",
   opacity: 0.85,
 };
+
+/** Map layer names to their GeoServer SLD style names */
+const LAYER_STYLE_MAP: Record<string, string> = {
+  precipitation: "precipitation_style",
+  temperature_2m: "temperature_2m_style",
+  humidity: "humidity_style",
+  wind_u_10m: "wind_u_10m_style",
+  wind_v_10m: "wind_v_10m_style",
+  cloud_cover: "cloud_cover_style",
+  pressure_msl: "pressure_msl_style",
+  gfs_precipitation: "precipitation_style",
+  gfs_temperature_2m: "temperature_2m_style",
+  gfs_humidity: "humidity_style",
+  gfs_wind_u_10m: "wind_u_10m_style",
+  gfs_wind_v_10m: "wind_v_10m_style",
+  gfs_cloud_cover: "cloud_cover_style",
+  gfs_pressure_msl: "pressure_msl_style",
+  imerg_precip: "precipitation_style",
+};
+
+/** Get WMS options with the correct style for a layer */
+function getWmsOptions(layerName: string, opacity = 0.85) {
+  return {
+    ...WMS_BASE_OPTIONS,
+    layers: layerName,
+    styles: LAYER_STYLE_MAP[layerName] || "",
+    opacity,
+  };
+}
 
 /** Remove a layer from the map and null the ref */
 function clearLayer<T extends L.Layer>(
@@ -134,7 +163,7 @@ export default function WeatherForcastMap({
   const weatherforcastMapRef = useRef<L.Map | null>(null);
   const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
-  const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
+  // const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>(
@@ -142,9 +171,9 @@ export default function WeatherForcastMap({
   );
   const weatherMarkersRef = useRef<L.Marker[]>([]);
 
-  const [_selectedForcastData, setSelectedForcastData] = useState<string | null>(
-    null,
-  );
+  const [_selectedForcastData, setSelectedForcastData] = useState<
+    string | null
+  >(null);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(
     new Set(["country"]),
@@ -225,8 +254,20 @@ export default function WeatherForcastMap({
     } else {
       // Remove any existing weather raster layer first (one at a time)
       // Keep boundary/infrastructure layers (country, districts, rivers, etc.)
-      const keepLayers = new Set(["country", "districts", "rivers", "waterways", "water_bodies", "roads", "places", "landuse", "buildings"]);
-      for (const [id, layer] of Object.entries(weatherforcastwmsLayersRef.current)) {
+      const keepLayers = new Set([
+        "country",
+        "districts",
+        "rivers",
+        "waterways",
+        "water_bodies",
+        "roads",
+        "places",
+        "landuse",
+        "buildings",
+      ]);
+      for (const [id, layer] of Object.entries(
+        weatherforcastwmsLayersRef.current,
+      )) {
         if (!keepLayers.has(id)) {
           weatherforcastMapRef.current.removeLayer(layer);
           delete weatherforcastwmsLayersRef.current[id];
@@ -374,29 +415,29 @@ export default function WeatherForcastMap({
     });
 
     // ── Water / lake overlay ──────────────────────────────────────────────
-    clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
-    if (waterAreas) {
-      weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
-        style: {
-          color: "#d2efff",
-          weight: 0.1,
-          fillColor: "#d2efff",
-          fillOpacity: 0.8,
-        },
-        onEachFeature(feature, layer: any) {
-          const waterName = feature.properties?.NAME;
-          if (waterName) {
-            layer.bindTooltip(waterName, {
-              permanent: true,
-              direction: "center",
-              className: "waterAreas-label",
-            });
-            // layer.bringToFront();
-          }
-        },
-      }).addTo(weatherforcastMapRef.current);
-      weatherforcastriverLayerRef.current.bringToBack();
-    }
+    // clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
+    // if (waterAreas) {
+    //   weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
+    //     style: {
+    //       color: "#d2efff",
+    //       weight: 0.1,
+    //       fillColor: "#d2efff",
+    //       fillOpacity: 0.3,
+    //     },
+    //     onEachFeature(feature, layer: any) {
+    //       const waterName = feature.properties?.NAME;
+    //       if (waterName) {
+    //         layer.bindTooltip(waterName, {
+    //           permanent: true,
+    //           direction: "center",
+    //           className: "waterAreas-label",
+    //         });
+    //         // layer.bringToFront();
+    //       }
+    //     },
+    //   }).addTo(weatherforcastMapRef.current);
+    //   weatherforcastriverLayerRef.current.bringToBack();
+    // }
 
     // ── Hover: district detection on mouse move ───────────────────────────
     weatherforcastMapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
@@ -502,13 +543,23 @@ export default function WeatherForcastMap({
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Raster layer — driven by the weather raster frames API ───────────────────
+  // ── Zoom.earth-style raster animation system ────────────────────────────────
+  // Pre-loads all frames as WMS layers, then rapidly toggles visibility for
+  // smooth rainfall/wind animation without per-frame network requests.
+
+  const framesRef = useRef<{
+    model: string;
+    param: string;
+    frames: any[];
+    wmsUrl: string;
+  } | null>(null);
+
+  // Only ONE active raster layer at a time
+  const activeFrameHourRef = useRef<number>(-1);
+  const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch frame metadata when model or parameter changes
   useEffect(() => {
-    if (!weatherforcastMapRef.current) return;
-
-    clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
-
-    // Map UI parameter names to API parameter names
     const paramMap: Record<string, string> = {
       rainfall: "precipitation",
       precipitation: "precipitation",
@@ -519,104 +570,244 @@ export default function WeatherForcastMap({
       clouds: "cloud-cover",
       pressure: "pressure",
     };
-
-    const apiParam = paramMap[selectedParameter?.toLowerCase()] || selectedParameter?.toLowerCase();
+    const apiParam =
+      paramMap[selectedParameter?.toLowerCase()] ||
+      selectedParameter?.toLowerCase();
     const model = layerMode === "forecast" ? "gfs" : "icon";
 
-    // Determine the forecast hour from the slider
-    const hour = sliderhourIndexValue === "000"
-      ? 0
-      : parseInt(String(sliderhourIndexValue), 10) || 0;
+    // Remove current raster layer
+    if (weatherforcastMapRef.current) {
+      clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
+    }
+    activeFrameHourRef.current = -1;
 
-    // Fetch frames from the raster API
-    weatherAPI.getRasterFrames(model, apiParam)
+    setRasterIsLoading(true);
+
+    weatherAPI
+      .getRasterFrames(model, apiParam)
       .then((data) => {
-        if (!weatherforcastMapRef.current) return;
-        if (!data.frames.length) return;
+        framesRef.current = {
+          model,
+          param: apiParam,
+          frames: data.frames,
+          wmsUrl: LOCAL_GEO_SERVER_URL,
+        };
 
-        // Find the frame matching the selected hour (or closest)
-        const frame = data.frames.find((f) => f.forecast_hour === hour)
-          || data.frames[0];
+        if (!weatherforcastMapRef.current || !data.frames.length) {
+          setRasterIsLoading(false);
+          return;
+        }
 
-        const wmsUrl = data.geoserver.wms_url;
-        const layerName = frame.wms_layer;
+        // Show the first frame only — use base layer name for reliability
+        const firstFrame = data.frames[0];
+        const layerName = firstFrame.wms_layer;
 
-        // Clear any previous raster and add the new one
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
-
-        weatherforcastrasterLayerRef.current = clippedWms(wmsUrl, {
-          ...WMS_BASE_OPTIONS,
-          layers: layerName,
-        })
-          .on("loading", () => setRasterIsLoading(true))
+        weatherforcastrasterLayerRef.current = clippedWms(
+          LOCAL_GEO_SERVER_URL,
+          getWmsOptions(layerName, 0.85),
+        )
           .on("load", () => setRasterIsLoading(false))
           .on("tileerror", () => setRasterIsLoading(false))
           .addTo(weatherforcastMapRef.current!) as any;
         weatherforcastrasterLayerRef.current!.bringToFront();
+        activeFrameHourRef.current = firstFrame.forecast_hour;
       })
       .catch((err) => {
         console.warn("Failed to fetch raster frames:", err);
-        // Fallback to mapLayerName for offline/error scenarios
+        framesRef.current = null;
+        setRasterIsLoading(false);
+        // Fallback
         const layerName = mapLayerName({
           parameter: selectedParameter,
           date: dateRange,
           mode: layerMode === "forecast" ? "forecast" : "daily",
         });
         if (layerName && weatherforcastMapRef.current) {
+          clearLayer(
+            weatherforcastMapRef.current,
+            weatherforcastrasterLayerRef,
+          );
           const isLocal = layerName.startsWith("local:");
           const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
-          const wmsLayerName = isLocal ? layerName.replace("local:", "") : layerName;
-          weatherforcastrasterLayerRef.current = clippedWms(serverUrl, {
-            ...WMS_BASE_OPTIONS,
-            layers: wmsLayerName,
-          })
+          const wmsLayerName = isLocal
+            ? layerName.replace("local:", "")
+            : layerName;
+          weatherforcastrasterLayerRef.current = clippedWms(
+            serverUrl,
+            getWmsOptions(wmsLayerName),
+          )
             .on("loading", () => setRasterIsLoading(true))
             .on("load", () => setRasterIsLoading(false))
-            .on("tileerror", () => setRasterIsLoading(false))
             .addTo(weatherforcastMapRef.current) as any;
           weatherforcastrasterLayerRef.current!.bringToFront();
         }
       });
-  }, [
-    selectedParameter,
-    sliderhourIndexValue,
-    layerMode,
-    forecastStep,
-  ]);
 
-  // ── Weather district markers — selected district or Kampala by default ────────
+    return () => {
+      // Cleanup animation on parameter/model change
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [selectedParameter, layerMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Show frame matching current hour (single layer swap) ─────────────────────
+  useEffect(() => {
+    if (!weatherforcastMapRef.current || !framesRef.current) return;
+
+    const cached = framesRef.current;
+    if (!cached.frames.length) return;
+
+    const hour =
+      sliderhourIndexValue === "000"
+        ? 0
+        : parseInt(String(sliderhourIndexValue), 10) || 0;
+    const targetDate = dateRange || new Date().toISOString().split("T")[0];
+
+    // Find best matching frame
+    let bestFrame = cached.frames[0];
+    let bestDiff = Infinity;
+    for (const frame of cached.frames) {
+      const runDate = new Date(frame.run);
+      const effectiveTime = new Date(
+        runDate.getTime() + frame.forecast_hour * 3600000,
+      );
+      const targetTime = new Date(
+        `${targetDate}T${String(hour).padStart(2, "0")}:00:00Z`,
+      );
+      const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestFrame = frame;
+      }
+    }
+
+    const targetHour = bestFrame.forecast_hour;
+    if (targetHour === activeFrameHourRef.current) return;
+
+    // Remove old layer, add new one with slide-in animation
+    const map = weatherforcastMapRef.current!;
+    const prevLayer = weatherforcastrasterLayerRef.current;
+
+    // Always use the base layer name — per-frame layers may not be published
+    const layerName = bestFrame.wms_layer;
+
+    const newLayer = clippedWms(cached.wmsUrl, {
+      ...getWmsOptions(layerName, 0),
+    })
+      .on("load", () => {
+        setRasterIsLoading(false);
+        // Slide-in: fade from 0 to 0.85 over 400ms
+        let opacity = 0;
+        const step = 0.85 / 8; // 8 steps × 50ms = 400ms
+        const fadeIn = setInterval(() => {
+          opacity += step;
+          if (opacity >= 0.85) {
+            opacity = 0.85;
+            clearInterval(fadeIn);
+            // Remove old layer after transition
+            if (prevLayer && map.hasLayer(prevLayer)) {
+              map.removeLayer(prevLayer);
+            }
+          }
+          try {
+            (newLayer as any).setOpacity(opacity);
+          } catch {}
+        }, 50);
+      })
+      .on("tileerror", () => setRasterIsLoading(false))
+      .addTo(map) as any;
+    newLayer.bringToFront();
+
+    weatherforcastrasterLayerRef.current = newLayer;
+    activeFrameHourRef.current = targetHour;
+  }, [sliderhourIndexValue, dateRange, forecastStep]);
+
+  // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
+  // The FloodHourSlider advances the hour — the effect above swaps the layer.
+
+  // ── Weather district markers — real data from weather/map API ──────────────
+  const districtWeatherRef = useRef<Record<string, any>>({});
+
   useEffect(() => {
     if (!weatherforcastMapRef.current || !geoData?.features) return;
-    weatherMarkersRef.current.forEach((m) => m.remove());
-    weatherMarkersRef.current = [];
+
     const param = selectedParameter?.toLowerCase() ?? "";
     const config = PARAM_LEGENDS[param];
     if (!config) return;
-    // Show marker for the selected district; fall back to Kampala when none selected
-    const target =
-      getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
-        ? getTheBounds.trim()
-        : "Kampala";
-    (geoData.features as any[]).forEach((feature) => {
-      const name: string = feature?.properties?.name ?? "";
-      if (!name.toLowerCase().includes(target.toLowerCase())) return;
-      const center = L.geoJSON(feature).getBounds().getCenter();
-      const value = getDistrictValue(name, param);
-      const color = getValueColor(value, param);
-      const marker = L.marker(center, {
-        icon: L.divIcon({
-          className: "",
-          html: makeMarkerHtml(name, value, config.unit, color, param),
-          // [1,1] size with [0,0] anchor places the div's top-left at the lat/lng;
-          // the CSS transform inside makeMarkerHtml shifts the bubble up + centers it.
-          iconSize: [1, 1],
-          iconAnchor: [0, 0],
-        }),
-        interactive: false,
-        zIndexOffset: 200,
-      }).addTo(weatherforcastMapRef.current!);
-      weatherMarkersRef.current.push(marker);
-    });
+
+    // Fetch real weather data for all districts
+    const paramApiMap: Record<string, string> = {
+      temperature: "temperature",
+      rainfall: "rainfall",
+      precipitation: "rainfall",
+      humidity: "humidity",
+      wind: "wind_speed",
+    };
+    const apiParam = paramApiMap[param] || "temperature";
+
+    fetch(`${API_BASE}weather/map/?parameter=${apiParam}`)
+      .catch(() => null)
+      .then((res) => res?.json?.())
+      .then((data) => {
+        if (!data?.features || !weatherforcastMapRef.current) return;
+
+        // Build lookup: district_name → value
+        const lookup: Record<string, number | null> = {};
+        for (const feature of data.features) {
+          const props = feature.properties;
+          lookup[props.district_name?.toLowerCase()] = props.value;
+        }
+        districtWeatherRef.current = lookup;
+
+        // Clear old markers
+        weatherMarkersRef.current.forEach((m) => m.remove());
+        weatherMarkersRef.current = [];
+
+        // Show marker for the selected district; fall back to Kampala
+        const target =
+          getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
+            ? getTheBounds.trim()
+            : "Kampala";
+
+        (geoData.features as any[]).forEach((feature) => {
+          const name: string = feature?.properties?.name ?? "";
+          if (!name.toLowerCase().includes(target.toLowerCase())) return;
+
+          const center = L.geoJSON(feature).getBounds().getCenter();
+          const realValue = lookup[name.toLowerCase()];
+          const value =
+            realValue != null ? Math.round(realValue * 10) / 10 : null;
+
+          if (value == null) return; // Skip districts with no data
+
+          const color = getValueColor(value, param);
+          const marker = L.marker(center, {
+            icon: L.divIcon({
+              className: "",
+              html: makeMarkerHtml(
+                name,
+                Math.round(value),
+                config.unit,
+                color,
+                param,
+              ),
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 200,
+          }).addTo(weatherforcastMapRef.current!);
+          weatherMarkersRef.current.push(marker);
+        });
+      })
+      .catch(() => {
+        // Fallback: clear markers if API fails
+        weatherMarkersRef.current.forEach((m) => m.remove());
+        weatherMarkersRef.current = [];
+      });
   }, [selectedParameter, geoData, getTheBounds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // In the component, below where you destructure currentPage from the store
@@ -642,89 +833,169 @@ export default function WeatherForcastMap({
       />
 
       {/* Loading overlay */}
-      <div
-        className={`
-      absolute inset-0 z-[500]
-      flex items-center justify-center
-      transition-all duration-300
-      ${
-        !geoData || isRasterLoading
-          ? "opacity-100 visible"
-          : "opacity-0 invisible pointer-events-none"
-      }
-      ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}
-    `}
-      >
-        <div className="flex flex-col items-center gap-3">
-          {/* Spinner */}
-          <div
-            className="w-8 h-8 rounded-full border-2 animate-spin"
-            style={{
-              borderColor: `${FAO_BLUE}30`,
-              borderTopColor: FAO_BLUE,
-            }}
-          />
-
-          {/* Loading text */}
-          {/* <span
-        className={`text-xs font-medium tracking-wide ${
-          isDarkMode ? "text-slate-300" : "text-slate-600"
-        }`}
-      >
-        Loading weather layers...
-      </span> */}
-        </div>
-      </div>
+      <AnimatePresence>
+        {(!geoData || isRasterLoading) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`absolute inset-0 z-[500] flex items-center justify-center ${isDarkMode ? "bg-slate-900/70" : "bg-white/70"}`}
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-full border-2 animate-spin"
+                style={{
+                  borderColor: `${FAO_BLUE}30`,
+                  borderTopColor: FAO_BLUE,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Forecast status */}
       <div className="absolute top-2 left-2 z-[500] flex items-center gap-2">
-        <span className="rounded bg-black/65 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg backdrop-blur-md">
+        <span className="rounded bg-black/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg backdrop-blur-md">
           {badgeText}
         </span>
-        <span className="rounded bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
-          GFS Precipitation · UTC
+        <span className="rounded bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100 shadow-lg backdrop-blur-md">
+          {layerMode === "forecast" ? "GFS" : "ICON"}{" "}
+          {selectedParameter ?? "Temperature"} · UTC
         </span>
       </div>
 
-      {/* Fullscreen button */}
-      <button
-        onClick={toggleFullscreen}
-        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[500] flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all"
+      {/* ── Model Switcher (zoom.earth style) ─────────────────────────────── */}
+      <div
+        className="absolute top-2 left-1/2 -translate-x-1/2 z-[500] flex items-center rounded-full overflow-hidden shadow-lg"
         style={{
-          background: "rgba(10,15,30,0.65)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          border: `1px solid ${FAO_BLUE}55`,
+          background: "rgba(10,15,30,0.45)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.12)",
         }}
       >
-        {isFullscreen ? (
-          <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-        ) : (
-          <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
-        )}
-      </button>
+        {(
+          [
+            { id: "icon", label: "ICON" },
+            { id: "gfs", label: "GFS" },
+            { id: "imerg", label: "Satellite" },
+          ] as const
+        ).map((model) => {
+          const isSelected = (() => {
+            if (model.id === "imerg") return activeLayers.has("imerg_precip");
+            if (model.id === "gfs") return layerMode === "forecast";
+            return layerMode === "nowcast" && !activeLayers.has("imerg_precip");
+          })();
+          return (
+            <button
+              key={model.id}
+              onClick={() => {
+                if (model.id === "imerg") {
+                  // Toggle IMERG satellite layer
+                  const imergLayer = LAYER_GROUPS.flatMap((g) => g.layers).find(
+                    (l) => l.id === "imerg_precip",
+                  );
+                  if (imergLayer) toggleLayer(imergLayer);
+                } else if (model.id === "gfs") {
+                  useAppStore.getState().setLayerMode("forecast");
+                } else {
+                  useAppStore.getState().setLayerMode("nowcast");
+                }
+              }}
+              className="px-4 py-1.5 text-[11px] font-bold tracking-wide transition-all whitespace-nowrap"
+              style={{
+                backgroundColor: isSelected ? FAO_BLUE : "transparent",
+                color: isSelected ? "#fff" : "rgba(255,255,255,0.6)",
+              }}
+            >
+              {model.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* MAP LAYERS toggle button */}
+      {/* ── Parameter Quick-Select (vertical toolbar, left side) ───────────── */}
+      <div
+        className="absolute top-[52px] left-2 z-[500] flex flex-col gap-1 rounded-lg overflow-hidden shadow-lg"
+        style={{
+          background: "rgba(10,15,30,0.45)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        {(
+          [
+            { param: "temperature", icon: Thermometer, label: "Temp" },
+            { param: "rainfall", icon: CloudRain, label: "Rain" },
+            { param: "humidity", icon: Droplets, label: "Humid" },
+            { param: "wind", icon: Wind, label: "Wind" },
+          ] as const
+        ).map(({ param, icon: Icon, label }) => {
+          const isActive = selectedParameter?.toLowerCase() === param;
+          return (
+            <button
+              key={param}
+              onClick={() => useAppStore.getState().setSelectedParameter(param)}
+              title={label}
+              className="flex items-center justify-center w-[34px] h-[34px] transition-all"
+              style={{
+                backgroundColor: isActive ? `${FAO_BLUE}` : "transparent",
+              }}
+            >
+              <Icon
+                className="w-4 h-4"
+                style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.55)" }}
+              />
+            </button>
+          );
+        })}
+        {/* Fullscreen */}
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          className="flex items-center justify-center w-[34px] h-[34px] transition-all border-t border-white/10"
+        >
+          {isFullscreen ? (
+            <Minimize2
+              className="w-4 h-4"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            />
+          ) : (
+            <Maximize2
+              className="w-4 h-4"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            />
+          )}
+        </button>
+      </div>
+
+      {/* ── MAP LAYERS toggle + Zoom (top-right) ──────────────────────────── */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
         className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
-          backgroundColor: showLayerPanel
-            ? FAO_BLUE
-            : isDarkMode
-              ? "#1e293b"
-              : "#ffffff",
-          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: `1px solid ${FAO_BLUE}55`,
+          backgroundColor: showLayerPanel ? FAO_BLUE : "rgba(10,15,30,0.45)",
+          color: showLayerPanel ? "#ffffff" : "rgba(255,255,255,0.8)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.12)",
         }}
       >
         <Layers className="w-3.5 h-3.5" />
-        MAP LAYERS
+        Layers
       </button>
 
-      {/* Zoom controls — below MAP LAYERS button */}
-      <div className="absolute top-[46px] right-2 z-[500] flex flex-col gap-1">
+      {/* Zoom controls */}
+      <div
+        className="absolute top-[46px] right-2 z-[500] flex flex-col rounded-lg overflow-hidden shadow-lg"
+        style={{
+          background: "rgba(10,15,30,0.45)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
         {[
           {
             icon: Plus,
@@ -736,156 +1007,164 @@ export default function WeatherForcastMap({
             title: "Zoom out",
             action: () => weatherforcastMapRef.current?.zoomOut(),
           },
-        ].map(({ icon: Icon, title, action }) => (
+        ].map(({ icon: Icon, title, action }, i) => (
           <button
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-md shadow-md transition-all hover:opacity-90"
+            className="flex items-center justify-center w-[30px] h-[30px] transition-all hover:bg-white/10"
             style={{
-              backgroundColor: isDarkMode ? "#1e293b" : "#ffffff",
-              border: `1px solid ${FAO_BLUE}55`,
+              borderTop: i > 0 ? "1px solid rgba(255,255,255,0.1)" : undefined,
             }}
           >
-            <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+            <Icon
+              className="w-3.5 h-3.5"
+              style={{ color: "rgba(255,255,255,0.7)" }}
+            />
           </button>
         ))}
       </div>
 
       {/* Layer panel */}
-      {showLayerPanel && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-[600]"
-            onClick={() => setShowLayerPanel(false)}
-          />
-
-          <div
-            className={`
-          absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
-          flex flex-col
-          ${
-            isDarkMode
-              ? "bg-slate-800 border border-slate-700"
-              : "bg-white border border-slate-200"
-          }
-        `}
-            style={{
-              maxHeight: "90%",
-            }}
-          >
-            {/* Panel header */}
+      <AnimatePresence>
+        {showLayerPanel && (
+          <>
+            {/* Backdrop */}
             <div
-              className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
-              style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
+              className="fixed inset-0 z-[600]"
+              onClick={() => setShowLayerPanel(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className={`
+            absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
+            flex flex-col
+            ${
+              isDarkMode
+                ? "bg-slate-800 border border-slate-700"
+                : "bg-white border border-slate-200"
+            }
+          `}
+              style={{
+                maxHeight: "90%",
+              }}
             >
-              <span
-                className={`text-xs font-bold tracking-wide ${
-                  isDarkMode ? "text-white" : "text-slate-800"
-                }`}
+              {/* Panel header */}
+              <div
+                className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
+                style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
               >
-                MAP LAYERS
-              </span>
+                <span
+                  className={`text-xs font-bold tracking-wide ${
+                    isDarkMode ? "text-white" : "text-slate-800"
+                  }`}
+                >
+                  MAP LAYERS
+                </span>
 
-              <button
-                onClick={() => setShowLayerPanel(false)}
-                className={`p-0.5 rounded transition-colors ${
-                  isDarkMode
-                    ? "hover:bg-slate-700 text-slate-400"
-                    : "hover:bg-slate-100 text-slate-500"
-                }`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                <button
+                  onClick={() => setShowLayerPanel(false)}
+                  className={`p-0.5 rounded transition-colors ${
+                    isDarkMode
+                      ? "hover:bg-slate-700 text-slate-400"
+                      : "hover:bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-            {/* Scrollable layer list */}
-            <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-              {visibleGroups?.map((group) => (
-                <div key={group.title} className="mb-1">
-                  {/* Group heading */}
-                  <p
-                    className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                    style={{ color: FAO_BLUE }}
-                  >
-                    {group.title}
-                  </p>
+              {/* Scrollable layer list */}
+              <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
+                {visibleGroups?.map((group) => (
+                  <div key={group.title} className="mb-1">
+                    {/* Group heading */}
+                    <p
+                      className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                      style={{ color: FAO_BLUE }}
+                    >
+                      {group.title}
+                    </p>
 
-                  {/* Layer rows */}
-                  {group.layers.map((layerDef) => {
-                    const isActive = activeLayers.has(layerDef.id);
+                    {/* Layer rows */}
+                    {group.layers.map((layerDef) => {
+                      const isActive = activeLayers.has(layerDef.id);
 
-                    return (
-                      <div
-                        key={layerDef.id}
-                        onClick={() => toggleLayer(layerDef)}
-                        className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
-                          isDarkMode
-                            ? "hover:bg-slate-700/50"
-                            : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {/* Checkbox */}
-                          <div
-                            className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                            style={{
-                              backgroundColor: isActive
-                                ? FAO_BLUE
-                                : "transparent",
-                              borderColor: isActive
-                                ? FAO_BLUE
-                                : isDarkMode
-                                  ? "#475569"
-                                  : "#cbd5e1",
-                            }}
-                          >
-                            {isActive && (
-                              <svg
-                                className="w-2.5 h-2.5 text-white"
-                                viewBox="0 0 10 10"
-                                fill="none"
-                              >
-                                <path
-                                  d="M1.5 5L4 7.5L8.5 2.5"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            )}
+                      return (
+                        <div
+                          key={layerDef.id}
+                          onClick={() => toggleLayer(layerDef)}
+                          className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                            isDarkMode
+                              ? "hover:bg-slate-700/50"
+                              : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {/* Checkbox */}
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                              style={{
+                                backgroundColor: isActive
+                                  ? FAO_BLUE
+                                  : "transparent",
+                                borderColor: isActive
+                                  ? FAO_BLUE
+                                  : isDarkMode
+                                    ? "#475569"
+                                    : "#cbd5e1",
+                              }}
+                            >
+                              {isActive && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  viewBox="0 0 10 10"
+                                  fill="none"
+                                >
+                                  <path
+                                    d="M1.5 5L4 7.5L8.5 2.5"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+
+                            <span
+                              className={`text-xs ${
+                                isDarkMode ? "text-slate-300" : "text-slate-700"
+                              }`}
+                            >
+                              {layerDef.label}
+                            </span>
                           </div>
 
-                          <span
-                            className={`text-xs ${
-                              isDarkMode ? "text-slate-300" : "text-slate-700"
-                            }`}
-                          >
-                            {layerDef.label}
-                          </span>
+                          {/* Date badge */}
+                          {layerDef.date && (
+                            <span
+                              className={`text-[10px] ml-2 flex-shrink-0 ${
+                                isDarkMode ? "text-slate-500" : "text-slate-400"
+                              }`}
+                            >
+                              {layerDef.date}
+                            </span>
+                          )}
                         </div>
-
-                        {/* Date badge */}
-                        {layerDef.date && (
-                          <span
-                            className={`text-[10px] ml-2 flex-shrink-0 ${
-                              isDarkMode ? "text-slate-500" : "text-slate-400"
-                            }`}
-                          >
-                            {layerDef.date}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Legend — gradient bar with parameter icon + unit labels */}
       {(() => {
@@ -903,7 +1182,7 @@ export default function WeatherForcastMap({
           <div
             className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
             style={{
-              background: "rgba(8,12,24,0.68)",
+              background: "rgba(8,12,24,0.45)",
               backdropFilter: "blur(14px)",
               WebkitBackdropFilter: "blur(14px)",
               border: "1px solid rgba(255,255,255,0.1)",
@@ -952,9 +1231,12 @@ export default function WeatherForcastMap({
         (() => {
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
-          const value = config
-            ? getDistrictValue(hoveredDistrictName, param)
-            : null;
+          const realValue =
+            districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
+          const value =
+            config && realValue != null
+              ? Math.round(realValue * 10) / 10
+              : null;
           const color =
             config && value !== null ? getValueColor(value, param) : FAO_BLUE;
           const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;
@@ -994,7 +1276,9 @@ export default function WeatherForcastMap({
                   }}
                 >
                   {value}
-                  <span style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}>
+                  <span
+                    style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}
+                  >
                     {config.unit}
                   </span>
                 </p>

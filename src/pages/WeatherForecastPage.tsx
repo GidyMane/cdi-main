@@ -358,6 +358,22 @@ export default function WeatherForecastPage({
   const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">(
     "temp",
   );
+  const [maxForecastTime, setMaxForecastTime] = useState<string | undefined>(
+    undefined,
+  );
+
+  // Fetch max forecast time from raster frames API
+  useEffect(() => {
+    const model = activeTab === "forecast" ? "gfs" : "icon";
+    weatherAPI.getRasterFrames(model).then((data) => {
+      if (!data.frames.length) return;
+      // Find the last frame's effective time
+      const lastFrame = data.frames[data.frames.length - 1];
+      const runDate = new Date(lastFrame.run);
+      const endTime = new Date(runDate.getTime() + lastFrame.forecast_hour * 3600000);
+      setMaxForecastTime(endTime.toISOString());
+    }).catch(() => {});
+  }, [activeTab]);
 
   // When no district is selected, default stats to Kampala
   const kampala = district_list.find((d: district) =>
@@ -436,23 +452,31 @@ export default function WeatherForecastPage({
         });
       }
 
-      const sliced =
-        selectedCardIndex !== null && filtered[selectedCardIndex]
-          ? (() => {
-              const startIdx = Math.max(0, selectedCardIndex - 2);
-              const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
-              return filtered.slice(startIdx, endIdx);
-            })()
-          : (() => {
-              if (!dateRange) {
-                const now = new Date();
-                const currentHour = now.getHours();
-                const startIdx = Math.max(0, currentHour);
-                const endIdx = Math.min(filtered.length, currentHour + 24);
-                return filtered.slice(startIdx, endIdx);
-              }
-              return filtered;
-            })();
+      let sliced = filtered;
+      if (selectedCardIndex !== null && filtered[selectedCardIndex]) {
+        const startIdx = Math.max(0, selectedCardIndex - 2);
+        const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
+        sliced = filtered.slice(startIdx, endIdx);
+      } else if (!dateRange) {
+        // If no card selected and no date filter, start from current time
+        const now = new Date();
+
+        let startIdx = 0;
+        let closestDiff = Infinity;
+
+        for (let i = 0; i < filtered.length; i++) {
+          if (filtered[i].rawDate) {
+            const diff = filtered[i].rawDate.getTime() - now.getTime();
+            // Find the entry closest to now but not in the past (diff >= 0)
+            if (diff >= 0 && diff < closestDiff) {
+              closestDiff = diff;
+              startIdx = i;
+            }
+          }
+        }
+
+        sliced = filtered.slice(startIdx);
+      }
 
       return sliced.map((h) => {
         const displayTime = h.rawDate
@@ -485,14 +509,24 @@ export default function WeatherForecastPage({
         });
       }
 
-      const sliced =
-        selectedCardIndex !== null && filtered[selectedCardIndex]
-          ? (() => {
-              const startIdx = Math.max(0, selectedCardIndex - 1);
-              const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
-              return filtered.slice(startIdx, endIdx);
-            })()
-          : filtered;
+      let sliced = filtered;
+      if (selectedCardIndex !== null && filtered[selectedCardIndex]) {
+        const startIdx = Math.max(0, selectedCardIndex - 1);
+        const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
+        sliced = filtered.slice(startIdx, endIdx);
+      } else if (!dateRange) {
+        // If no card selected and no date filter, start from today
+        const today = new Date();
+        let startIdx = 0;
+        for (let i = 0; i < filtered.length; i++) {
+          if (filtered[i].rawDate &&
+              filtered[i].rawDate.toDateString() === today.toDateString()) {
+            startIdx = i;
+            break;
+          }
+        }
+        sliced = filtered.slice(startIdx);
+      }
 
       return sliced.map((d) => {
         const displayDate = d.rawDate
@@ -864,6 +898,7 @@ export default function WeatherForecastPage({
                         isDarkMode={isDarkMode}
                         borderColor={borderColor}
                         textMuted={textMuted}
+                        maxForecastTime={maxForecastTime}
                       />
                     </div>
                   </div>
@@ -1105,6 +1140,7 @@ export default function WeatherForecastPage({
                     isDarkMode={isDarkMode}
                     borderColor={borderColor}
                     textMuted={textMuted}
+                    maxForecastTime={maxForecastTime}
                   />
                 </div>
               </div>

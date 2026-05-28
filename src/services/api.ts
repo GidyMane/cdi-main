@@ -9,6 +9,7 @@ import { API_BASE } from "@/config";
 /** Shape returned by the weather-stations API */
 export interface WeatherStationAPI {
   id: number;
+  code: string;
   name: string;
   region: string;
   status: "online" | "offline" | "maintenance";
@@ -127,40 +128,40 @@ export const weatherAPI = {
 
   getForecastHourly: async (districtId?: number) => {
     const endpoint = districtId
-      ? `weather/forecasts/?district_id=${districtId}`
-      : "weather/forecasts/";
-    const response = await fetchData<any>(endpoint);
-    // Transform the paginated response to hourly forecast format
-    // Generate hourly data from the forecast results
-    const hourlyData = (response.results || []).flatMap((item: any) => {
-      // Create 24 hourly entries from the forecast data
-      const baseDate = new Date(item.forecast_date || new Date());
-      return Array.from({ length: 24 }, (_, hour) => {
-        const date = new Date(baseDate);
-        date.setHours(hour, 0, 0, 0);
-        return {
-          temp: item.temperature || 0,
-          time: date.toISOString(),
-          precip: 0,
-          weather_code: item.weather_code || 0,
-          weather_description: item.weather_description || "",
-        };
-      });
-    });
-    const firstForecast = response.results?.[0];
-    return {
-      hourly: hourlyData.slice(0, 24), // Limit to first 24 hours
-      district: firstForecast?.district_name || "Uganda",
-      forecast_date: firstForecast?.forecast_date || new Date().toISOString().split('T')[0],
-      fetched_at: new Date().toISOString()
-    };
+      ? `weather/hourly/?district_id=${districtId}`
+      : "weather/hourly/";
+    return fetchData<{
+      district: string;
+      forecast_date: string;
+      fetched_at: string;
+      hourly: Array<{
+        time: string;
+        temp: number | null;
+        precip: number | null;
+        weather_code: number | null;
+        weather_description: string;
+      }>;
+    }>(endpoint);
   },
 
   getForecastDaily: async (districtId?: number) => {
     const endpoint = districtId
       ? `weather/forecast/?district_id=${districtId}`
       : "weather/forecast/";
-    return fetchData(endpoint);
+    return fetchData<{
+      district: string;
+      forecast_date: string;
+      fetched_at: string;
+      daily: Array<{
+        date: string;
+        temp_max: number;
+        temp_min: number;
+        precip_sum: number;
+        weather_code: number;
+        wind_speed_max: number;
+        weather_description: string;
+      }>;
+    }>(endpoint);
   },
 
   getExportData: async (districtId?: number) => {
@@ -170,6 +171,19 @@ export const weatherAPI = {
 
     const url = `${API_BASE}${endpoint}`;
     return fetch(url);
+  },
+
+  /**
+   * Get all districts available for weather queries.
+   * Optionally filter by region name.
+   */
+  getDistricts: async (region?: string) => {
+    let endpoint = "weather/districts/";
+    if (region) endpoint += `?region=${encodeURIComponent(region)}`;
+    return fetchData<{
+      count: number;
+      districts: Array<{ id: number; name: string; region: string | null }>;
+    }>(endpoint);
   },
 };
 
@@ -411,10 +425,11 @@ export const geoAPI = {
 // Districts API (for dropdowns, filters, etc.)
 export const DistrictsAPI = {
   getAll: async () => {
-    const res = await fetchData<any>("boundaries/districts/autocomplete/");
-
-    console.log("Fetched districts:", res);
-    return res || []; // unwrap here so the query gets a clean array
+    const res = await fetchData<{
+      count: number;
+      districts: Array<{ id: number; name: string; region: string | null }>;
+    }>("weather/districts/");
+    return res?.districts || [];
   },
 };
 export default {

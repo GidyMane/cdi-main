@@ -10,8 +10,6 @@ import { useAppStore } from "@/store/useAppStore";
 import { X, Layers } from "lucide-react";
 import { mapLayerName } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-import { clippedWms } from "./clippedWmsLayer";
-import { GEOSERVER_WFEWS_WMS } from "@/config";
 
 interface LegendItem {
   label: string;
@@ -189,7 +187,7 @@ export default function UgandaBoundaryMap({
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
 
-  const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
+  const GEO_SERVER_URL = `https://multihazard.rosewillbome.com/geoserver/wfews/wms`;
 
   // ── Data ────────────────────────────────────────────────────────────────────
   // const { data: geoDataa, isLoading } = useQuery<FeatureCollection>({
@@ -268,15 +266,17 @@ export default function UgandaBoundaryMap({
         return next;
       });
     } else {
-      const wmsLayer = clippedWms(GEO_SERVER_URL, {
-        layers: `wfews:${layerDef.wms}`,
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 1.0,
-      }).addTo(mapRef.current);
+      const wmsLayer = L.tileLayer
+        .wms(GEO_SERVER_URL, {
+          layers: `wfews:${layerDef.wms}`,
+          format: "image/png",
+          transparent: true,
+          version: "1.1.0",
+          opacity: 1.0,
+        })
+        .addTo(mapRef.current);
       wmsLayer.bringToFront();
-      wmsLayersRef.current[layerDef.id] = wmsLayer as any;
+      wmsLayersRef.current[layerDef.id] = wmsLayer;
       setActiveLayers((prev) => new Set(prev).add(layerDef.id));
     }
   };
@@ -390,7 +390,7 @@ export default function UgandaBoundaryMap({
           color: "#d2efff",
           weight: 0.1,
           fillColor: "#d2efff",
-          fillOpacity: 1.0,
+          fillOpacity: 0.3,
         },
         onEachFeature(feature, layer: any) {
           const waterName = feature.properties?.NAME;
@@ -531,13 +531,15 @@ export default function UgandaBoundaryMap({
 
     console.log("layerName", layerName);
 
-    rasterLayerRef.current = clippedWms(GEO_SERVER_URL, {
-      layers: layerName,
-      format: "image/png",
-      transparent: true,
-      version: "1.1.0",
-      opacity: 1.0,
-    }).addTo(mapRef.current) as any;
+    rasterLayerRef.current = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: layerName,
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 1.0,
+      })
+      .addTo(mapRef.current);
   }, [geoData, selectedParameter, dateRange, sliderhourIndexValue]);
 
   // In the component, below where you destructure currentPage from the store
