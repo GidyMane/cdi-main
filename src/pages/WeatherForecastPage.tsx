@@ -443,7 +443,7 @@ export default function WeatherForecastPage({
   // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
     if (activeTab === "nowcast") {
-      let filtered = allHourlyForecast;
+      let filtered = hourlyForecast;
 
       // Filter by date if dateRange is set
       if (dateRange) {
