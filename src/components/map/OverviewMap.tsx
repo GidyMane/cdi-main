@@ -395,7 +395,7 @@ export default function OverviewMap({
           color: "#d2efff",
           weight: 0.1,
           fillColor: "#d2efff",
-          fillOpacity: 1.0,
+          fillOpacity: 0.3,
         },
         onEachFeature(feature, layer: any) {
           const waterName = feature.properties?.NAME;
