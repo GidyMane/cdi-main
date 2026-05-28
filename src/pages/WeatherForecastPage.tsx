@@ -458,24 +458,10 @@ export default function WeatherForecastPage({
         const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
         sliced = filtered.slice(startIdx, endIdx);
       } else if (!dateRange) {
-        // If no card selected and no date filter, start from current time
+        // If no card selected and no date filter, start from current hour
         const now = new Date();
-
-        let startIdx = 0;
-        let closestDiff = Infinity;
-
-        for (let i = 0; i < filtered.length; i++) {
-          if (filtered[i].rawDate) {
-            const diff = filtered[i].rawDate.getTime() - now.getTime();
-            // Find the entry closest to now but not in the past (diff >= 0)
-            if (diff >= 0 && diff < closestDiff) {
-              closestDiff = diff;
-              startIdx = i;
-            }
-          }
-        }
-
-        sliced = filtered.slice(startIdx);
+        const currentHour = now.getHours();
+        sliced = filtered.slice(currentHour);
       }
 
       return sliced.map((h) => {
