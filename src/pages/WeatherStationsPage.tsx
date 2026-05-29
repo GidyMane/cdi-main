@@ -396,10 +396,25 @@ const StationReadingsPanel = ({
     }
   };
 
-  const chartData = readings.map((r: any) => ({
-    label: formatTimestamp(r.timestamp, isSingleDay),
-    value: r[activeParameter] ?? 0,
-  }));
+  // Aggregate hourly data into daily averages when >60 points to keep chart fast
+  const chartData = (() => {
+    const raw = readings.map((r: any) => ({
+      label: formatTimestamp(r.timestamp, isSingleDay),
+      dateKey: new Date(r.timestamp).toDateString(),
+      value: r[activeParameter] ?? 0,
+    }));
+    if (raw.length <= 60 || isSingleDay) return raw;
+    // Group by day, average values
+    const byDay = new Map<string, { label: string; values: number[] }>();
+    raw.forEach(({ dateKey, label, value }) => {
+      if (!byDay.has(dateKey)) byDay.set(dateKey, { label, values: [] });
+      byDay.get(dateKey)!.values.push(value);
+    });
+    return Array.from(byDay.values()).map(({ label, values }) => ({
+      label,
+      value: parseFloat((values.reduce((s, v) => s + v, 0) / values.length).toFixed(2)),
+    }));
+  })();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -692,9 +707,11 @@ export default function WeatherStationsPage({
     queryKey: ["station-readings", selectedStation?.id],
     queryFn: async () => {
       if (!selectedStation) return null;
-      return stationsAPI.getReadings(selectedStation.id, 720); // 720 hours = 30 days
+      return stationsAPI.getReadings(selectedStation.id, 720);
     },
     enabled: !!selectedStation,
+    staleTime: 5 * 60 * 1000,   // reuse cached data for 5 min between station switches
+    gcTime: 15 * 60 * 1000,     // keep in memory for 15 min
   });
 
   const readings = (() => {
