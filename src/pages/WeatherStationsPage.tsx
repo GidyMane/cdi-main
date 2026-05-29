@@ -310,8 +310,6 @@ const StationReadingsPanel = ({
   onChangeParameter,
   activeParams,
   isDarkMode,
-  cardBg,
-  borderColor,
   headerText,
   textMuted,
   textSecondary,
@@ -324,8 +322,6 @@ const StationReadingsPanel = ({
   onChangeParameter: (param: "temperature" | "humidity" | "wind_speed" | "pressure" | "rainfall") => void;
   activeParams: ActiveParams;
   isDarkMode: boolean;
-  cardBg: string;
-  borderColor: string;
   headerText: string;
   textMuted: string;
   textSecondary: string;
