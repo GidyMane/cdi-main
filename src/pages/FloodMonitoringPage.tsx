@@ -390,31 +390,31 @@ export default function FloodMonitoringPage({
   const riverBasins =
     basinStatus.length > 0
       ? basinStatus.map((basin) => {
-          const trend: "up" | "stable" | "down" =
-            basinTrend?.trend === "rising"
-              ? "up"
-              : basinTrend?.trend === "falling"
-                ? "down"
-                : "stable";
-          return {
-            name: basin.name,
-            level: basin.level,
-            trend,
-            population: basin.population_at_risk,
-            discharge: basin.discharge_rate,
-            rainfall: 0,
-            status: basin.status,
-          };
-        })
+        const trend: "up" | "stable" | "down" =
+          basinTrend?.trend === "rising"
+            ? "up"
+            : basinTrend?.trend === "falling"
+              ? "down"
+              : "stable";
+        return {
+          name: basin.name,
+          level: basin.level,
+          trend,
+          population: basin.population_at_risk,
+          discharge: basin.discharge_rate,
+          rainfall: 0,
+          status: basin.status,
+        };
+      })
       : fallbackRiverBasins;
 
   // Generate time series data from trend readings
   const timeSeriesData =
     basinTrend && basinTrend.readings && basinTrend.readings.length > 0
       ? basinTrend.readings.map((reading, idx) => ({
-          time: `${String(idx * 3).padStart(2, "0")}:00`,
-          level: reading.level || 0,
-        }))
+        time: `${String(idx * 3).padStart(2, "0")}:00`,
+        level: reading.level || 0,
+      }))
       : fallbackTimeSeriesData;
 
   // Calculate statistics from available data
@@ -442,9 +442,9 @@ export default function FloodMonitoringPage({
   const avgDischarge =
     riverBasins.length > 0
       ? Math.round(
-          riverBasins.reduce((sum, b) => sum + b.discharge, 0) /
-            riverBasins.length,
-        )
+        riverBasins.reduce((sum, b) => sum + b.discharge, 0) /
+        riverBasins.length,
+      )
       : 0;
   // Infrastructure KPIs (GIS assessment estimates — not yet in live API)
   const affectedRoadsKm = 847;
@@ -470,16 +470,16 @@ export default function FloodMonitoringPage({
     })),
     basinTrend: basinTrend
       ? {
-          trend: basinTrend.trend as
-            | "unknown"
-            | "rising"
-            | "falling"
-            | "stable",
-          current_level_m: basinTrend.current_level_m,
-          readings: (basinTrend.readings ?? []).map((r) => ({
-            level: r.level ?? 0,
-          })),
-        }
+        trend: basinTrend.trend as
+          | "unknown"
+          | "rising"
+          | "falling"
+          | "stable",
+        current_level_m: basinTrend.current_level_m,
+        readings: (basinTrend.readings ?? []).map((r) => ({
+          level: r.level ?? 0,
+        })),
+      }
       : null,
     forecasts: [],
   };
@@ -821,7 +821,7 @@ export default function FloodMonitoringPage({
                       <p className="text-lg font-black text-blue-400 leading-none">
                         {affectedRoadsKm}
                       </p>
-                      <p className={`text-[9px] ${textMuted}`}>km affected</p>
+                      <p className={`text-[9px] ${textMuted}`}>km at risk</p>
                     </div>
                     <div className={`${rowBg} rounded-lg p-2`}>
                       <p
@@ -887,31 +887,28 @@ export default function FloodMonitoringPage({
 
                   {/* Threshold alert indicator */}
                   <div
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 flex-shrink-0 ${
-                      thresholdMode === "EXCEEDED"
-                        ? "bg-red-500/15"
-                        : thresholdMode === "WARNING"
-                          ? "bg-orange-500/15"
-                          : "bg-green-500/15"
-                    }`}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 flex-shrink-0 ${thresholdMode === "EXCEEDED"
+                      ? "bg-red-500/15"
+                      : thresholdMode === "WARNING"
+                        ? "bg-orange-500/15"
+                        : "bg-green-500/15"
+                      }`}
                   >
                     <AlertTriangle
-                      className={`w-3.5 h-3.5 flex-shrink-0 ${
-                        thresholdMode === "EXCEEDED"
-                          ? "text-red-400"
-                          : thresholdMode === "WARNING"
-                            ? "text-orange-400"
-                            : "text-green-400"
-                      }`}
+                      className={`w-3.5 h-3.5 flex-shrink-0 ${thresholdMode === "EXCEEDED"
+                        ? "text-red-400"
+                        : thresholdMode === "WARNING"
+                          ? "text-orange-400"
+                          : "text-green-400"
+                        }`}
                     />
                     <span
-                      className={`text-xs font-bold ${
-                        thresholdMode === "EXCEEDED"
-                          ? "text-red-400"
-                          : thresholdMode === "WARNING"
-                            ? "text-orange-400"
-                            : "text-green-400"
-                      }`}
+                      className={`text-xs font-bold ${thresholdMode === "EXCEEDED"
+                        ? "text-red-400"
+                        : thresholdMode === "WARNING"
+                          ? "text-orange-400"
+                          : "text-green-400"
+                        }`}
                     >
                       Threshold {thresholdMode}
                     </span>
@@ -961,7 +958,7 @@ export default function FloodMonitoringPage({
                     <ArcGauge
                       value={parseFloat(currentLevel.toFixed(2))}
                       max={6}
-                      label="Current Level"
+                      label="Current Discharge Level"
                       unit="m"
                       color="#f97316"
                       isDarkMode={isDarkMode}
@@ -1279,31 +1276,28 @@ export default function FloodMonitoringPage({
               </h3>
             </div>
             <div
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 ${
-                thresholdMode === "EXCEEDED"
-                  ? "bg-red-500/15"
-                  : thresholdMode === "WARNING"
-                    ? "bg-orange-500/15"
-                    : "bg-green-500/15"
-              }`}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 ${thresholdMode === "EXCEEDED"
+                ? "bg-red-500/15"
+                : thresholdMode === "WARNING"
+                  ? "bg-orange-500/15"
+                  : "bg-green-500/15"
+                }`}
             >
               <AlertTriangle
-                className={`w-3.5 h-3.5 ${
-                  thresholdMode === "EXCEEDED"
-                    ? "text-red-400"
-                    : thresholdMode === "WARNING"
-                      ? "text-orange-400"
-                      : "text-green-400"
-                }`}
+                className={`w-3.5 h-3.5 ${thresholdMode === "EXCEEDED"
+                  ? "text-red-400"
+                  : thresholdMode === "WARNING"
+                    ? "text-orange-400"
+                    : "text-green-400"
+                  }`}
               />
               <span
-                className={`text-xs font-bold ${
-                  thresholdMode === "EXCEEDED"
-                    ? "text-red-400"
-                    : thresholdMode === "WARNING"
-                      ? "text-orange-400"
-                      : "text-green-400"
-                }`}
+                className={`text-xs font-bold ${thresholdMode === "EXCEEDED"
+                  ? "text-red-400"
+                  : thresholdMode === "WARNING"
+                    ? "text-orange-400"
+                    : "text-green-400"
+                  }`}
               >
                 Threshold {thresholdMode}
               </span>

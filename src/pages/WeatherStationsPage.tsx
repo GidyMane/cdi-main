@@ -43,11 +43,11 @@ const FAO_BLUE = "#318DDE";
 type ActiveParams = Set<"temperature" | "humidity" | "wind_speed" | "pressure" | "rainfall">;
 
 const PARAM_META = [
-  { key: "temperature" as const, label: "Temperature", unit: "°C",   color: "#f97316", Icon: Thermometer },
-  { key: "humidity"    as const, label: "Humidity",    unit: "%",    color: "#22c55e", Icon: Droplets   },
-  { key: "wind_speed"  as const, label: "Wind Speed",  unit: "km/h", color: "#3b82f6", Icon: Wind       },
-  { key: "pressure"    as const, label: "Pressure",    unit: "hPa",  color: "#a855f7", Icon: Gauge      },
-  { key: "rainfall"    as const, label: "Rainfall",    unit: "mm",   color: "#06b6d4", Icon: CloudRain  },
+  { key: "temperature" as const, label: "Temperature", unit: "°C", color: "#f97316", Icon: Thermometer },
+  { key: "humidity" as const, label: "Humidity", unit: "%", color: "#22c55e", Icon: Droplets },
+  { key: "wind_speed" as const, label: "Wind Speed", unit: "km/h", color: "#3b82f6", Icon: Wind },
+  { key: "pressure" as const, label: "Pressure", unit: "hPa", color: "#a855f7", Icon: Gauge },
+  { key: "rainfall" as const, label: "Rainfall", unit: "mm", color: "#06b6d4", Icon: CloudRain },
 ];
 
 const stationTabs = [
@@ -231,7 +231,7 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
   if (!station) return [];
   const list: NormalizedReading[] = [];
   const now = new Date();
-  
+
   const getHash = (str: string) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -239,13 +239,13 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
     }
     return Math.abs(hash);
   };
-  
+
   const seed = getHash(station.name || String(station.id));
   const baseTemp = 20 + (seed % 8); // 20 to 28
   const baseHumidity = 60 + (seed % 20); // 60 to 80
   const basePressure = 1008 + (seed % 8); // 1008 to 1016
   const baseWind = 4 + (seed % 10); // 4 to 14
-  
+
   // Generate daily points for the past 30 days
   for (let i = 30; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
@@ -255,7 +255,7 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
     const pressVar = Math.sin(i * 0.15) * 2 + ((daySeed % 4) - 2);
     const windVar = Math.cos(i * 0.3) * 4 + ((daySeed % 6) - 3);
     const rainVal = (daySeed % 8 === 0) ? parseFloat(((daySeed % 8) * 1.2).toFixed(1)) : 0;
-    
+
     list.push({
       timestamp: date.toISOString(),
       temperature: parseFloat((baseTemp + tempVar).toFixed(1)),
@@ -289,9 +289,8 @@ const CustomTooltip = ({
   if (!active || !payload?.length) return null;
   return (
     <div
-      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${
-        isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
-      }`}
+      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
+        }`}
     >
       <p className="font-semibold mb-0.5">{label}</p>
       <p style={{ color }}>
@@ -310,8 +309,6 @@ const StationReadingsPanel = ({
   onChangeParameter,
   activeParams,
   isDarkMode,
-  cardBg,
-  borderColor,
   headerText,
   textMuted,
   textSecondary,
@@ -333,11 +330,11 @@ const StationReadingsPanel = ({
   const latestReading = readings[readings.length - 1] || {};
 
   const allParameters = [
-    { key: "temperature" as const, label: "Temperature", unit: "°C",   color: "#f97316", icon: Thermometer, value: latestReading.temperature !== undefined ? `${Number(latestReading.temperature).toFixed(1)}°C` : "—" },
-    { key: "humidity"    as const, label: "Humidity",    unit: "%",    color: "#22c55e", icon: Droplets,    value: latestReading.humidity    !== undefined ? `${Number(latestReading.humidity).toFixed(0)}%`    : "—" },
-    { key: "wind_speed"  as const, label: "Wind Speed",  unit: "km/h", color: "#3b82f6", icon: Wind,        value: latestReading.wind_speed  !== undefined ? `${Number(latestReading.wind_speed).toFixed(1)}`   : "—" },
-    { key: "pressure"    as const, label: "Pressure",    unit: "hPa",  color: "#a855f7", icon: Gauge,       value: latestReading.pressure    !== undefined ? `${Math.round(latestReading.pressure)} hPa`        : "—" },
-    { key: "rainfall"    as const, label: "Rainfall",    unit: "mm",   color: "#06b6d4", icon: CloudRain,   value: latestReading.rainfall    !== undefined ? `${Number(latestReading.rainfall).toFixed(1)} mm`  : "—" },
+    { key: "temperature" as const, label: "Temperature", unit: "°C", color: "#f97316", icon: Thermometer, value: latestReading.temperature !== undefined ? `${Number(latestReading.temperature).toFixed(1)}°C` : "—" },
+    { key: "humidity" as const, label: "Humidity", unit: "%", color: "#22c55e", icon: Droplets, value: latestReading.humidity !== undefined ? `${Number(latestReading.humidity).toFixed(0)}%` : "—" },
+    { key: "wind_speed" as const, label: "Wind Speed", unit: "km/h", color: "#3b82f6", icon: Wind, value: latestReading.wind_speed !== undefined ? `${Number(latestReading.wind_speed).toFixed(1)}` : "—" },
+    { key: "pressure" as const, label: "Pressure", unit: "hPa", color: "#a855f7", icon: Gauge, value: latestReading.pressure !== undefined ? `${Math.round(latestReading.pressure)} hPa` : "—" },
+    { key: "rainfall" as const, label: "Rainfall", unit: "mm", color: "#06b6d4", icon: CloudRain, value: latestReading.rainfall !== undefined ? `${Number(latestReading.rainfall).toFixed(1)} mm` : "—" },
   ];
   const parameters = allParameters.filter((p) => activeParams.has(p.key));
 
@@ -359,7 +356,7 @@ const StationReadingsPanel = ({
     const monthsSet = new Set<string>();
     const yearsSet = new Set<string>();
     const monthsList = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
+
     items.forEach((item) => {
       const d = new Date(item.timestamp);
       if (!isNaN(d.getTime())) {
@@ -370,7 +367,7 @@ const StationReadingsPanel = ({
 
     const months = Array.from(monthsSet);
     const years = Array.from(yearsSet);
-    
+
     if (months.length === 1) {
       return `${months[0]} ${years[0] || ""}`;
     } else if (months.length > 1) {
@@ -399,172 +396,234 @@ const StationReadingsPanel = ({
     }
   };
 
-  const chartData = readings.map((r: any) => ({
-    label: formatTimestamp(r.timestamp, isSingleDay),
-    value: r[activeParameter] ?? 0,
-  }));
+  // Aggregate hourly data into daily averages when >60 points to keep chart fast
+  const chartData = (() => {
+    const raw = readings.map((r: any) => ({
+      label: formatTimestamp(r.timestamp, isSingleDay),
+      dateKey: new Date(r.timestamp).toDateString(),
+      value: r[activeParameter] ?? 0,
+    }));
+    if (raw.length <= 60 || isSingleDay) return raw;
+    // Group by day, average values
+    const byDay = new Map<string, { label: string; values: number[] }>();
+    raw.forEach(({ dateKey, label, value }) => {
+      if (!byDay.has(dateKey)) byDay.set(dateKey, { label, values: [] });
+      byDay.get(dateKey)!.values.push(value);
+    });
+    return Array.from(byDay.values()).map(({ label, values }) => ({
+      label,
+      value: parseFloat((values.reduce((s, v) => s + v, 0) / values.length).toFixed(2)),
+    }));
+  })();
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "online":      return "bg-green-500";
+      case "online": return "bg-green-500";
       case "maintenance": return "bg-yellow-500";
-      case "offline":     return "bg-red-500";
-      default:            return "bg-slate-400";
+      case "offline": return "bg-red-500";
+      default: return "bg-slate-400";
     }
   };
 
+  const shortLabel = (s: string) =>
+    s.replace("Temperature", "Temp").replace("Humidity", "Humid")
+      .replace("Wind Speed", "Wind").replace("Pressure", "Press").replace("Rainfall", "Rain");
+
   return (
-    <div className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg shadow-sm h-full flex flex-col overflow-hidden`}>
-      {/* Station header */}
-      <div className={`flex-shrink-0 px-3 py-2.5 border-b ${borderColor}`}
-        style={{ background: selectedStation ? `linear-gradient(135deg, ${isDarkMode ? "rgba(49,141,222,0.12)" : "rgba(49,141,222,0.06)"} 0%, transparent 100%)` : undefined }}>
-        {selectedStation ? (
-          <div>
-            <div className="flex items-start justify-between mb-1.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="relative flex-shrink-0">
-                  <span className={`block w-2.5 h-2.5 rounded-full ${getStatusColor(selectedStation.status)}`} />
-                  {selectedStation.status === "online" && (
-                    <span className={`absolute inset-0 rounded-full animate-ping ${getStatusColor(selectedStation.status)} opacity-60`} />
-                  )}
-                </span>
-                <div className="min-w-0">
-                  <h2 className={`text-sm font-bold leading-tight truncate ${headerText}`}>{selectedStation.name}</h2>
-                  {stationCode && (
-                    <span className="text-[9px] font-mono opacity-60" style={{ color: FAO_BLUE }}>
-                      {stationCode}
-                    </span>
-                  )}
+    /* Gradient outer wrapper — mirrors the left sidebar */
+    <div
+      className="h-full rounded-xl p-3 shadow-sm flex flex-col"
+      style={{
+        background: isDarkMode
+          ? `linear-gradient(180deg, ${FAO_BLUE}30 0%, ${FAO_BLUE}15 100%)`
+          : `linear-gradient(180deg, ${FAO_BLUE}15 0%, ${FAO_BLUE}05 100%)`,
+        border: `1px solid ${isDarkMode ? `${FAO_BLUE}30` : `${FAO_BLUE}15`}`,
+      }}
+    >
+      {/* Inner card */}
+      <div
+        className={`flex-1 rounded-xl flex flex-col overflow-hidden min-h-0 ${isDarkMode ? "bg-slate-800/80" : "bg-white/90"}`}
+        style={{ border: `1px solid ${isDarkMode ? "rgba(51,65,85,0.5)" : "#e2e8f0"}` }}
+      >
+        {/* ── Station header ── */}
+        <div
+          className="flex-shrink-0 px-3 py-2.5"
+          style={{
+            background: selectedStation
+              ? `linear-gradient(135deg, ${isDarkMode ? "rgba(49,141,222,0.14)" : "rgba(49,141,222,0.07)"} 0%, transparent 100%)`
+              : undefined,
+            borderBottom: `1px solid ${isDarkMode ? "rgba(51,65,85,0.5)" : "#e2e8f0"}`,
+          }}
+        >
+          {selectedStation ? (
+            <div>
+              <div className="flex items-start justify-between mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="relative flex-shrink-0">
+                    <span className={`block w-2.5 h-2.5 rounded-full ${getStatusColor(selectedStation.status)}`} />
+                    {selectedStation.status === "online" && (
+                      <span className={`absolute inset-0 rounded-full animate-ping ${getStatusColor(selectedStation.status)} opacity-60`} />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className={`text-sm font-bold leading-tight truncate ${headerText}`}>{selectedStation.name}</h2>
+                    {stationCode && (
+                      <span className="text-[9px] font-mono opacity-60" style={{ color: FAO_BLUE }}>{stationCode}</span>
+                    )}
+                  </div>
                 </div>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1 font-semibold ${selectedStation.status === "online" ? "bg-green-500/20 text-green-400" :
+                  selectedStation.status === "maintenance" ? "bg-yellow-500/20 text-yellow-400" :
+                    "bg-red-500/20 text-red-400"
+                  }`}>{selectedStation.status}</span>
               </div>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded flex-shrink-0 ml-1 font-medium ${
-                selectedStation.status === "online" ? "bg-green-500/20 text-green-400" :
-                selectedStation.status === "maintenance" ? "bg-yellow-500/20 text-yellow-400" :
-                "bg-red-500/20 text-red-400"
-              }`}>{selectedStation.status}</span>
-            </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-              {selectedStation.region && (
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                {selectedStation.region && (
+                  <span className={`text-[10px] flex items-center gap-0.5 ${textMuted}`}>
+                    <MapPin className="w-2.5 h-2.5 opacity-60" />{selectedStation.region}
+                  </span>
+                )}
                 <span className={`text-[10px] flex items-center gap-0.5 ${textMuted}`}>
-                  <MapPin className="w-2.5 h-2.5 opacity-60" />
-                  {selectedStation.region}
+                  <Wifi className="w-2.5 h-2.5 opacity-60" />Signal {selectedStation.signal ?? 0}%
                 </span>
-              )}
-              <span className={`text-[10px] flex items-center gap-0.5 ${textMuted}`}>
-                <Wifi className="w-2.5 h-2.5 opacity-60" />
-                Signal {selectedStation.signal ?? 0}%
-              </span>
-              <span className={`text-[10px] font-mono ${textMuted}`}>
-                {selectedStation.lat.toFixed(4)}°, {selectedStation.lng.toFixed(4)}°
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 opacity-40" style={{ color: FAO_BLUE }} />
-            <p className={`text-xs ${textMuted}`}>Click a station on the map to view readings</p>
-          </div>
-        )}
-      </div>
-
-      {/* Grid of parameters */}
-      <div className="grid grid-cols-2 gap-1.5 flex-shrink-0">
-        {parameters.map((param) => {
-          const Icon = param.icon;
-          const isSelected = activeParameter === param.key;
-          return (
-            <div
-              key={param.key}
-              onClick={() => onChangeParameter(param.key)}
-              className={`p-2 rounded-lg border cursor-pointer transition-all duration-200 select-none flex flex-col justify-between ${
-                isSelected
-                  ? isDarkMode
-                    ? "bg-slate-700/50 border-blue-500/80 shadow-md"
-                    : "bg-blue-50 border-blue-500 shadow-sm"
-                  : isDarkMode
-                    ? "bg-slate-800/40 border-slate-700/50 hover:bg-slate-700/30 hover:border-slate-600"
-                    : "bg-slate-50/50 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <span className={`text-[10px] font-medium truncate ${textMuted}`}>{param.label}</span>
-                <Icon className="w-3.5 h-3.5" style={{ color: isSelected ? param.color : (isDarkMode ? "#64748b" : "#94a3b8") }} />
+                <span className={`text-[10px] font-mono ${textMuted}`}>
+                  {selectedStation.lat.toFixed(3)}°, {selectedStation.lng.toFixed(3)}°
+                </span>
               </div>
-              <span className={`text-sm font-bold ${headerText} mt-1`} style={{ color: isSelected ? param.color : undefined }}>
-                {param.value}
-              </span>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Chart Section — fills all remaining space */}
-      <div className="flex-1 flex flex-col min-h-0 mt-2 border-t pt-2" style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}>
-        <div className="flex items-center justify-between mb-1 flex-shrink-0">
-          <span className={`text-[11px] font-semibold ${textSecondary}`}>
-            {periodLabel} Trend
-          </span>
-          <span className="text-[10px] font-semibold" style={{ color: activeDetails.color }}>
-            Min: {minVal}{activeDetails.unit} | Max: {maxVal}{activeDetails.unit}
-          </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 opacity-40" style={{ color: FAO_BLUE }} />
+              <p className={`text-xs ${textMuted}`}>Click a station on the map to view readings</p>
+            </div>
+          )}
         </div>
 
-        {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-t-blue-500" style={{ borderColor: `${activeDetails.color}30`, borderTopColor: activeDetails.color }} />
+        {/* ── Parameter tiles — rounded-md cards with gap ── */}
+        <div
+          className="flex-shrink-0 px-3 py-2.5"
+          style={{ borderBottom: `1px solid ${isDarkMode ? "rgba(51,65,85,0.5)" : "#e2e8f0"}` }}
+        >
+          <div
+            className="grid gap-1.5"
+            style={{ gridTemplateColumns: `repeat(${Math.min(parameters.length, 5)}, 1fr)` }}
+          >
+            {parameters.map((param) => {
+              const Icon = param.icon;
+              const isSelected = activeParameter === param.key;
+              return (
+                <button
+                  key={param.key}
+                  type="button"
+                  onClick={() => onChangeParameter(param.key)}
+                  className="flex flex-col items-center gap-1 py-2 px-1 rounded-md transition-all duration-150 select-none"
+                  style={{
+                    background: isSelected
+                      ? isDarkMode ? `${param.color}22` : `${param.color}14`
+                      : isDarkMode ? "rgba(30,41,59,0.55)" : "rgba(241,245,249,0.9)",
+                    border: `1px solid ${isSelected
+                      ? param.color + "55"
+                      : isDarkMode ? "#334155" : "#e2e8f0"}`,
+                    boxShadow: isSelected ? `0 0 0 1px ${param.color}22` : undefined,
+                  }}
+                >
+                  <Icon
+                    className="w-3 h-3"
+                    style={{ color: isSelected ? param.color : isDarkMode ? "#64748b" : "#94a3b8" }}
+                  />
+                  <span
+                    className="text-[10px] font-bold leading-none"
+                    style={{ color: isSelected ? param.color : isDarkMode ? "#cbd5e1" : "#374151" }}
+                  >
+                    {param.value}
+                  </span>
+                  <span
+                    className="text-[8px] leading-none truncate w-full text-center"
+                    style={{ color: isDarkMode ? "#64748b" : "#94a3b8" }}
+                  >
+                    {shortLabel(param.label)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        ) : readings.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-[10px] text-slate-500">
-            No historical data available
+        </div>
+
+        {/* ── Chart section — fills remaining space ── */}
+        <div className="flex-1 flex flex-col min-h-0 px-3 pt-2 pb-2">
+          <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+            <span className={`text-[11px] font-semibold ${textSecondary}`}>
+              {periodLabel} · {activeDetails.label}
+            </span>
+            <span
+              className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+              style={{
+                background: `${activeDetails.color}18`,
+                color: activeDetails.color,
+                border: `1px solid ${activeDetails.color}30`,
+              }}
+            >
+              {minVal}{activeDetails.unit} – {maxVal}{activeDetails.unit}
+            </span>
           </div>
-        ) : (
-          <div className="flex-1 min-h-0 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                <defs>
-                  <linearGradient id={`panel_color_${activeParameter}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={activeDetails.color} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={activeDetails.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#334155" : "#e2e8f0"} vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 9, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={Math.max(0, Math.floor(chartData.length / 5))}
-                />
-                <YAxis
-                  domain={["auto", "auto"]}
-                  tick={{ fontSize: 9, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${v}${activeDetails.unit}`}
-                />
-                <RechartsTooltip
-                  content={
-                    <CustomTooltip
-                      isDarkMode={isDarkMode}
-                      color={activeDetails.color}
-                      unit={activeDetails.unit}
-                      labelName={activeDetails.label}
-                    />
-                  }
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={activeDetails.color}
-                  strokeWidth={2}
-                  fill={`url(#panel_color_${activeParameter})`}
-                  dot={false}
-                  activeDot={{ r: 4, fill: activeDetails.color, strokeWidth: 0 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-2" style={{ borderColor: `${activeDetails.color}30`, borderTopColor: activeDetails.color }} />
+            </div>
+          ) : readings.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-[10px] text-slate-500">
+              No historical data available
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={`panel_color_${activeParameter}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={activeDetails.color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={activeDetails.color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? "#334155" : "#e2e8f0"} vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 9, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={Math.max(0, Math.floor(chartData.length / 5))}
+                  />
+                  <YAxis
+                    domain={["auto", "auto"]}
+                    tick={{ fontSize: 9, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `${v}${activeDetails.unit}`}
+                  />
+                  <RechartsTooltip
+                    content={
+                      <CustomTooltip
+                        isDarkMode={isDarkMode}
+                        color={activeDetails.color}
+                        unit={activeDetails.unit}
+                        labelName={activeDetails.label}
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={activeDetails.color}
+                    strokeWidth={2}
+                    fill={`url(#panel_color_${activeParameter})`}
+                    dot={false}
+                    activeDot={{ r: 4, fill: activeDetails.color, strokeWidth: 0 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -648,9 +707,11 @@ export default function WeatherStationsPage({
     queryKey: ["station-readings", selectedStation?.id],
     queryFn: async () => {
       if (!selectedStation) return null;
-      return stationsAPI.getReadings(selectedStation.id, 720); // 720 hours = 30 days
+      return stationsAPI.getReadings(selectedStation.id, 720);
     },
     enabled: !!selectedStation,
+    staleTime: 5 * 60 * 1000,   // reuse cached data for 5 min between station switches
+    gcTime: 15 * 60 * 1000,     // keep in memory for 15 min
   });
 
   const readings = (() => {
@@ -865,11 +926,10 @@ export default function WeatherStationsPage({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                      activeTab === tab.id
-                        ? "text-white"
-                        : `${isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-200 text-slate-600"}`
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                      ? "text-white"
+                      : `${isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-200 text-slate-600"}`
+                      }`}
                     style={{
                       backgroundColor:
                         activeTab === tab.id ? FAO_BLUE : undefined,

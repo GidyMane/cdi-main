@@ -412,9 +412,15 @@ export default function WeatherForecastPage({
 
   // Safe normalisation — guards against null / undefined / empty arrays
   // Limit hourly forecast to 24 hours (48hr data cut at 24hr mark)
-  const hourlyForecast = forecastData?.hourly?.length
+  const allHourlyForecast = forecastData?.hourly?.length
     ? normaliseHourly(forecastData.hourly).slice(0, 24)
     : [];
+
+  // Start from current hour
+  const now = new Date();
+  const currentHour = now.getHours();
+  const hourlyForecast = allHourlyForecast.slice(currentHour);
+
   const dailyForecast = dailyForecasts?.daily?.length
     ? normaliseDaily(dailyForecasts.daily).slice(0, 20)
     : [];
@@ -458,24 +464,8 @@ export default function WeatherForecastPage({
         const endIdx = Math.min(filtered.length, selectedCardIndex + 3);
         sliced = filtered.slice(startIdx, endIdx);
       } else if (!dateRange) {
-        // If no card selected and no date filter, start from current time
-        const now = new Date();
-
-        let startIdx = 0;
-        let closestDiff = Infinity;
-
-        for (let i = 0; i < filtered.length; i++) {
-          if (filtered[i].rawDate) {
-            const diff = filtered[i].rawDate.getTime() - now.getTime();
-            // Find the entry closest to now but not in the past (diff >= 0)
-            if (diff >= 0 && diff < closestDiff) {
-              closestDiff = diff;
-              startIdx = i;
-            }
-          }
-        }
-
-        sliced = filtered.slice(startIdx);
+        // When no card is selected, use all the data (already filtered by current hour)
+        sliced = filtered;
       }
 
       return sliced.map((h) => {
@@ -829,7 +819,7 @@ export default function WeatherForecastPage({
             {/* Map + cards row — fixed shared height */}
             <div
               className="grid grid-cols-12 gap-3"
-              style={{ height: "clamp(480px, 58vh, 900px)" }}
+              style={{ height: "clamp(520px, 63vh, 940px)" }}
             >
               {/* Map — left */}
               <div className="col-span-8 flex h-full">
@@ -846,7 +836,7 @@ export default function WeatherForecastPage({
                         style={{ color: FAO_BLUE }}
                       />
                       <h3 className={`text-sm font-semibold ${headerText}`}>
-                        Precipitation Forecast
+                        {selectedParameter === "rainfall" ? "Precipitation" : selectedParameter === "wind" ? "Wind Speed" : selectedParameter === "humidity" ? "Humidity" : "Temperature"} Forecast
                       </h3>
                     </div>
 
@@ -892,7 +882,7 @@ export default function WeatherForecastPage({
                       getTheBounds={selectedDistrictId?.name ?? ""}
                       district_list={district_list}
                     />
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[500]">
                       <FloodHourSlider
                         floating
                         isDarkMode={isDarkMode}
@@ -1119,7 +1109,7 @@ export default function WeatherForecastPage({
                   Live
                 </span>
               </div>
-              <div className="relative aspect-[16/10]">
+              <div className="relative aspect-[16/11]">
                 <WeatherForcastMap
                   isDarkMode={isDarkMode}
                   className="absolute inset-0 w-full h-full"

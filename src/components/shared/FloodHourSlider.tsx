@@ -72,6 +72,7 @@ function Spinner({
       </button>
       <span
         className={`font-bold text-sm w-10 text-center leading-5 ${disabled ? dimColor : textColor}`}
+        style={{ textShadow: isDarkMode ? "0 1px 4px rgba(0,0,0,0.9)" : "0 1px 3px rgba(255,255,255,0.8)" }}
       >
         {display}
       </span>
@@ -320,38 +321,43 @@ export function FloodHourSlider({
 
   // ── Floating spinner pill ────────────────────────────────────────────────────
   if (floating) {
+    const iconColor = isDarkMode ? "#ffffff" : "#0f172a";
+    const mutedColor = isDarkMode ? "rgba(255,255,255,0.50)" : "rgba(15,23,42,0.45)";
+    const sepColor   = isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(15,23,42,0.20)";
     return (
       <div
         className="flex items-center gap-2 rounded-full px-3 py-1"
         style={{
-          background: "rgba(15,23,42,0.72)",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+          background: isDarkMode ? "rgba(10,15,30,0.28)" : "rgba(255,255,255,0.42)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.18)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
         }}
       >
         {/* Play / Pause */}
         <button
           type="button"
           onMouseDown={(e) => { e.stopPropagation(); setPlaying((p) => !p); }}
-          className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex-shrink-0"
+          className="flex items-center justify-center w-6 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.07)" }}
           title={playing ? "Pause" : "Play"}
         >
           {playing
-            ? <Pause       className="w-3 h-3 text-white" />
-            : <Play        className="w-3 h-3 text-white fill-white" />}
+            ? <Pause      className="w-3 h-3" style={{ color: iconColor }} />
+            : <Play       className="w-3 h-3" style={{ color: iconColor, fill: iconColor }} />}
         </button>
 
         {/* Day */}
-        <Spinner display={String(day).padStart(2, "0")} onUp={dayUp} onDown={dayDown} disabledUp={isAtMax} disabledDown={isAtMin} />
+        <Spinner display={String(day).padStart(2, "0")} onUp={dayUp} onDown={dayDown} disabledUp={isAtMax} disabledDown={isAtMin} isDarkMode={isDarkMode} />
 
         {/* Month — read-only */}
-        <Spinner display={MONTHS[month]} onUp={() => {}} onDown={() => {}} disabled />
+        <Spinner display={MONTHS[month]} onUp={() => {}} onDown={() => {}} disabled isDarkMode={isDarkMode} />
 
         {/* Year */}
-        <span className="text-white/50 font-bold text-xs tabular-nums">{year}</span>
+        <span className="font-bold text-xs tabular-nums" style={{ color: mutedColor }}>{year}</span>
 
-        <span className="text-white/30 font-bold text-sm">·</span>
+        <span className="font-bold text-sm" style={{ color: sepColor }}>·</span>
 
         {/* Hour or forecast step */}
         {!isForecast ? (
@@ -360,13 +366,14 @@ export function FloodHourSlider({
               display={String(hour).padStart(2, "0")}
               onUp={() => setHour((v) => clamp(v + 1, 0, 23))}
               onDown={() => setHour((v) => clamp(v - 1, 0, 23))}
+              isDarkMode={isDarkMode}
             />
-            <span className="text-white/50 text-xs font-medium">h</span>
+            <span className="text-xs font-medium" style={{ color: mutedColor }}>h</span>
           </>
         ) : (
           <>
-            <Spinner display={`+${forecastStep}h`} onUp={stepUp} onDown={stepDown} />
-            <span className="text-white/50 text-xs font-medium whitespace-nowrap">ahead</span>
+            <Spinner display={`+${forecastStep}h`} onUp={stepUp} onDown={stepDown} isDarkMode={isDarkMode} />
+            <span className="text-xs font-medium whitespace-nowrap" style={{ color: mutedColor }}>ahead</span>
           </>
         )}
 
@@ -374,10 +381,11 @@ export function FloodHourSlider({
         <button
           type="button"
           onMouseDown={(e) => { e.stopPropagation(); skipToEnd(); }}
-          className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex-shrink-0"
+          className="flex items-center justify-center w-6 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ background: isDarkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.07)" }}
           title={isForecast ? `Skip to +${FORECAST_STEPS[FORECAST_STEPS.length - 1]}h` : "Skip to 23:00"}
         >
-          <SkipForward className="w-3 h-3 text-white" />
+          <SkipForward className="w-3 h-3" style={{ color: iconColor }} />
         </button>
       </div>
     );
