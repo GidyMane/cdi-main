@@ -77,15 +77,20 @@ const STATUS_LABEL: Record<StationStatus, string> = {
 };
 
 /** Build the HTML for a station pin marker */
-function makeStationMarkerHtml(station: WeatherStation): string {
+function makeStationMarkerHtml(station: WeatherStation, isDark: boolean): string {
   const color = STATUS_COLOR[station.status];
+  const pinBg   = isDark ? "rgba(8,12,24,0.88)"     : "rgba(255,255,255,0.92)";
+  const labelBg = isDark ? "rgba(8,12,24,0.82)"     : "rgba(255,255,255,0.90)";
+  const labelBorder = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+  const labelText   = isDark ? "rgba(255,255,255,0.90)" : "rgba(15,23,42,0.85)";
+  const caretColor  = isDark ? "rgba(8,12,24,0.82)"    : "rgba(255,255,255,0.90)";
   const pulse =
     station.status === "online"
       ? `<span style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.35;animation:stationPulse 2s ease-out infinite;"></span>`
       : "";
   return `
 <div style="position:relative;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);font-family:ui-sans-serif,system-ui,sans-serif;">
-  <div style="position:relative;width:28px;height:28px;border-radius:50%;background:rgba(8,12,24,0.85);border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.5);">
+  <div style="position:relative;width:28px;height:28px;border-radius:50%;background:${pinBg};border:2.5px solid ${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.4);">
     ${pulse}
     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4.9 4.9a10 10 0 0 1 14.14 0M7.76 7.76a6 6 0 0 1 8.49 0M10.6 10.6a2 2 0 0 1 2.83 0"/>
@@ -93,10 +98,10 @@ function makeStationMarkerHtml(station: WeatherStation): string {
       <line x1="12" y1="15" x2="12" y2="20"/>
     </svg>
   </div>
-  <div style="margin-top:3px;background:rgba(8,12,24,0.85);backdrop-filter:blur(8px);border-radius:6px;padding:2px 6px;white-space:nowrap;border:1px solid rgba(255,255,255,0.1);">
-    <span style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.9);">${station.name}</span>
+  <div style="margin-top:3px;background:${labelBg};backdrop-filter:blur(8px);border-radius:6px;padding:2px 6px;white-space:nowrap;border:1px solid ${labelBorder};">
+    <span style="font-size:9px;font-weight:700;color:${labelText};">${station.name}</span>
   </div>
-  <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid rgba(8,12,24,0.85);"></div>
+  <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid ${caretColor};"></div>
 </div>`;
 }
 
@@ -433,7 +438,7 @@ export default function WeatherStationsMap({
       const marker = L.marker([station.lat, station.lng], {
         icon: L.divIcon({
           className: "",
-          html: makeStationMarkerHtml(station),
+          html: makeStationMarkerHtml(station, isDarkMode),
           iconSize: [1, 1],
           iconAnchor: [0, 0],
         }),
@@ -453,7 +458,7 @@ export default function WeatherStationsMap({
         .addTo(mapRef.current!);
       stationMarkersRef.current.push(marker);
     });
-  }, [stations, onStationClick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stations, onStationClick, isDarkMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Layer panel visibility filter ────────────────────────────────────────────
   const isVisibleOnPage = (layer: LayerDef): boolean => {
@@ -494,10 +499,10 @@ export default function WeatherStationsMap({
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
         className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
         style={{
-          background: "rgba(10,15,30,0.65)",
+          background: isDarkMode ? "rgba(10,15,30,0.65)" : "rgba(255,255,255,0.80)",
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
-          border: `1px solid ${FAO_BLUE}55`,
+          border: `1px solid ${isDarkMode ? `${FAO_BLUE}55` : `${FAO_BLUE}40`}`,
         }}
       >
         {isFullscreen ? (
@@ -670,10 +675,10 @@ export default function WeatherStationsMap({
       <div
         className="absolute bottom-4 left-2 z-[400] px-3 py-2.5 rounded-xl shadow-lg"
         style={{
-          background: "rgba(8,12,24,0.68)",
+          background: isDarkMode ? "rgba(8,12,24,0.68)" : "rgba(255,255,255,0.82)",
           backdropFilter: "blur(14px)",
           WebkitBackdropFilter: "blur(14px)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`,
           minWidth: 148,
         }}
       >
@@ -696,7 +701,7 @@ export default function WeatherStationsMap({
                 />
                 <span
                   className="text-[10px]"
-                  style={{ color: "rgba(255,255,255,0.7)" }}
+                  style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.70)" }}
                 >
                   {STATUS_LABEL[status]}
                 </span>
@@ -912,8 +917,10 @@ export default function WeatherStationsMap({
           box-shadow: none !important;
           font-size: 11px;
           font-weight: 600;
-          color: rgba(255,255,255,0.9);
-          text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6);
+          color: ${isDarkMode ? "rgba(255,255,255,0.9)" : "rgba(15,23,42,0.80)"};
+          text-shadow: ${isDarkMode
+            ? "0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)"
+            : "0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.7)"};
           white-space: nowrap;
           pointer-events: none;
         }
@@ -922,8 +929,8 @@ export default function WeatherStationsMap({
           border: none !important;
           box-shadow: none !important;
           font-size: 10px;
-          color: #93c5fd;
-          text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+          color: ${isDarkMode ? "#93c5fd" : "#2563eb"};
+          text-shadow: ${isDarkMode ? "0 1px 3px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.8)"};
           pointer-events: none;
         }
         @keyframes stationPulse {
