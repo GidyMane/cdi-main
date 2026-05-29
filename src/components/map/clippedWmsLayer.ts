@@ -39,7 +39,7 @@ export function fetchUgandaBoundary(): Promise<FeatureCollection> {
   return _boundaryPromise;
 }
 
-// ── Build a Path2D clip path from GeoJSON in tile-local pixel coordinates ─────
+// ── Build a Path2D clip path from GeoJSON in tile-local pixel coordinatess ─────
 
 function buildClipPath(
   geoData: FeatureCollection,
