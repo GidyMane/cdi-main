@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AnimatePresence, motion } from "framer-motion";
-// import { waterAreas } from "../../utils/waterAreas";
+import { waterAreas } from "../../utils/waterAreas";
 import { capitalize } from "../../utils/capitalize";
 import type { FeatureCollection } from "geojson";
 import { useAppStore } from "@/store/useAppStore";
@@ -163,7 +163,7 @@ export default function WeatherForcastMap({
   const weatherforcastMapRef = useRef<L.Map | null>(null);
   const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
-  // const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
+  const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
   const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>(
@@ -415,29 +415,29 @@ export default function WeatherForcastMap({
     });
 
     // ── Water / lake overlay ──────────────────────────────────────────────
-    // clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
-    // if (waterAreas) {
-    //   weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
-    //     style: {
-    //       color: "#d2efff",
-    //       weight: 0.1,
-    //       fillColor: "#d2efff",
-    //       fillOpacity: 0.3,
-    //     },
-    //     onEachFeature(feature, layer: any) {
-    //       const waterName = feature.properties?.NAME;
-    //       if (waterName) {
-    //         layer.bindTooltip(waterName, {
-    //           permanent: true,
-    //           direction: "center",
-    //           className: "waterAreas-label",
-    //         });
-    //         // layer.bringToFront();
-    //       }
-    //     },
-    //   }).addTo(weatherforcastMapRef.current);
-    //   weatherforcastriverLayerRef.current.bringToBack();
-    // }
+    clearLayer(weatherforcastMapRef.current, weatherforcastriverLayerRef);
+    if (waterAreas) {
+      weatherforcastriverLayerRef.current = L.geoJSON(waterAreas as any, {
+        style: {
+          color: "#d2efff",
+          weight: 0.1,
+          fillColor: "#d2efff",
+          fillOpacity: 0.3,
+        },
+        onEachFeature(feature, layer: any) {
+          const waterName = feature.properties?.NAME;
+          if (waterName) {
+            layer.bindTooltip(waterName, {
+              permanent: true,
+              direction: "center",
+              className: "waterAreas-label",
+            });
+            // layer.bringToFront();
+          }
+        },
+      }).addTo(weatherforcastMapRef.current);
+      weatherforcastriverLayerRef.current.bringToBack();
+    }
 
     // ── Hover: district detection on mouse move ───────────────────────────
     weatherforcastMapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
