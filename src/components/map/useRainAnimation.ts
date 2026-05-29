@@ -618,7 +618,7 @@ export function useRainAnimation({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (!d || d.count === 0) return;
 
-      // ── Physics: advance drops (pure typed-array math, no allocations) ──
+      // ── Physics: advance drops (pure typed-array math, no allocation) ──
       for (let i = 0; i < d.count; i++) {
         d.y[i] += d.speed[i];
         d.x[i] += d.drift[i] * 0.25;
