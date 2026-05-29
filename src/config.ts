@@ -10,8 +10,7 @@
 
 /** Backend REST API base URL */
 export const API_BASE: string =
-  (import.meta.env.VITE_API_URL as string) ||
-  "http://localhost:8000/api/v1/";
+  (import.meta.env.VITE_API_URL as string) || "http://localhost:8000/api/v1/";
 
 /** GeoServer base URL (no workspace, no trailing slash) */
 export const GEOSERVER_BASE: string =
@@ -23,3 +22,6 @@ export const GEOSERVER_WFEWS_WMS = `${GEOSERVER_BASE}/wfews/wms`;
 
 /** GeoServer WMS endpoint for the uganda_weather workspace (ICON, GFS, IMERG) */
 export const GEOSERVER_WEATHER_WMS = `${GEOSERVER_BASE}/uganda_weather/wms`;
+
+/** GeoServer WCS endpoint for the uganda_weather workspace (raw GeoTIFF downloads) */
+export const GEOSERVER_WEATHER_WCS = `${GEOSERVER_BASE}/uganda_weather/wcs`;
