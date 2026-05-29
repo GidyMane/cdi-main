@@ -31,8 +31,14 @@ import {
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
+import { useRainAnimation } from "./useRainAnimation";
 import { weatherAPI } from "@/services/api";
-import { API_BASE, GEOSERVER_WFEWS_WMS, GEOSERVER_WEATHER_WMS } from "@/config";
+import {
+  API_BASE,
+  GEOSERVER_WFEWS_WMS,
+  GEOSERVER_WEATHER_WMS,
+  GEOSERVER_WEATHER_WCS,
+} from "@/config";
 import type {
   district,
   LayerDef,
@@ -171,6 +177,11 @@ export default function WeatherForcastMap({
   );
   const weatherMarkersRef = useRef<L.Marker[]>([]);
 
+  // ── Rain canvas ref (for animated drop overlay) ────────────────────────────
+  const rainCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Stable ref so the map's mousemove listener always calls the latest version
+  const handleMouseMoveRef = useRef<((latlng: L.LatLng) => void) | null>(null);
+
   const [_selectedForcastData, setSelectedForcastData] = useState<
     string | null
   >(null);
@@ -184,6 +195,40 @@ export default function WeatherForcastMap({
     null,
   );
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  // ── Rain animation (canvas drop overlay + cursor GetFeatureInfo) ────────────
+  const isRainParam =
+    selectedParameter?.toLowerCase() === "rainfall" ||
+    selectedParameter?.toLowerCase() === "precipitation";
+
+  // Derive the active WMS layer name for the rain animation hook.
+  // This mirrors what the raster useEffect loads — we just need the layer name
+  // so the hook can (a) fetch the WCS GeoTIFF for drop positions and
+  // (b) fire GetFeatureInfo on mousemove.
+  const rainLayerName = isRainParam
+    ? layerMode === "forecast"
+      ? "gfs_precipitation"
+      : "precipitation"
+    : null;
+
+  const {
+    cursorRainValue,
+    handleMouseMove,
+    resizeCanvas: resizeRainCanvas,
+  } = useRainAnimation({
+    canvasRef: rainCanvasRef,
+    mapRef: weatherforcastMapRef,
+    layerName: rainLayerName,
+    wcsUrl: GEOSERVER_WEATHER_WCS,
+    wmsUrl: GEOSERVER_WEATHER_WMS,
+    isRainParam,
+    rasterReady: !isRasterLoading,
+    districtGeoJSON: geoData, // Pass district boundaries for per-district clipping
+  });
+
+  // Keep the ref up-to-date so the map's mousemove listener always calls
+  // the latest version without needing to re-register the listener.
+  handleMouseMoveRef.current = handleMouseMove;
+
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -449,6 +494,8 @@ export default function WeatherForcastMap({
           found = layer.feature?.properties?.name ?? null;
       });
       setHoveredDistrictName(found);
+      // Forward to rain animation hook for GetFeatureInfo (via ref to avoid stale closure)
+      handleMouseMoveRef.current?.(ev.latlng);
     });
     weatherforcastMapRef.current.on("mouseout", () =>
       setHoveredDistrictName(null),
@@ -471,9 +518,10 @@ export default function WeatherForcastMap({
     // based on the current selectedParameter — no need to add one here.
 
     // ── ResizeObserver ────────────────────────────────────────────────────
-    const ro = new ResizeObserver(() =>
-      weatherforcastMapRef.current?.invalidateSize(),
-    );
+    const ro = new ResizeObserver(() => {
+      weatherforcastMapRef.current?.invalidateSize();
+      resizeRainCanvas();
+    });
     ro.observe(mapWeatherforcastContainerRef.current);
 
     return () => {
@@ -830,6 +878,13 @@ export default function WeatherForcastMap({
         style={{
           background: isDarkMode ? "#07111f" : "#dceaf4",
         }}
+      />
+
+      {/* Rain drop canvas — sits below the raster, above the base tile */}
+      <canvas
+        ref={rainCanvasRef}
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 2 }}
       />
 
       {/* Loading overlay */}
@@ -1231,12 +1286,23 @@ export default function WeatherForcastMap({
         (() => {
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
-          const realValue =
+
+          // For rainfall: prefer the precise cursor value from GetFeatureInfo
+          // over the district-level average from the weather/map API.
+          const cursorNumeric =
+            isRainParam && cursorRainValue ? parseFloat(cursorRainValue) : null;
+
+          const districtAvg =
             districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
+
+          const rawValue =
+            cursorNumeric !== null && !isNaN(cursorNumeric)
+              ? cursorNumeric
+              : (districtAvg ?? null);
+
           const value =
-            config && realValue != null
-              ? Math.round(realValue * 10) / 10
-              : null;
+            config && rawValue != null ? Math.round(rawValue * 10) / 10 : null;
+
           const color =
             config && value !== null ? getValueColor(value, param) : FAO_BLUE;
           const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;

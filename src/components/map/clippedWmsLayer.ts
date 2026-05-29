@@ -23,7 +23,7 @@ const GEOJSON_BASE_URL =
 // ── Cached boundary promise (fetched once, reused across all layers) ──────────
 let _boundaryPromise: Promise<FeatureCollection> | null = null;
 
-function fetchUgandaBoundary(): Promise<FeatureCollection> {
+export function fetchUgandaBoundary(): Promise<FeatureCollection> {
   if (!_boundaryPromise) {
     _boundaryPromise = fetch(`${GEOJSON_BASE_URL}/uganda.json`)
       .then((res) => {
@@ -55,8 +55,7 @@ function buildClipPath(
     const x = ((lon + 180) / 360) * scale;
     const latRad = (lat * Math.PI) / 180;
     const y =
-      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) /
-        2) *
+      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) *
       scale;
     // Convert to tile-local coordinates
     return [x - tilePoint.x * tileSize, y - tilePoint.y * tileSize];
@@ -127,7 +126,10 @@ const ClippedWMSLayer = L.GridLayer.extend({
         this.redraw();
       })
       .catch((err) => {
-        console.warn("ClippedWMS: failed to fetch Uganda boundary, tiles will render unclipped:", err);
+        console.warn(
+          "ClippedWMS: failed to fetch Uganda boundary, tiles will render unclipped:",
+          err,
+        );
       });
   },
 
