@@ -660,31 +660,31 @@ export default function FloodMonitorMap({
       <button
         onClick={toggleFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all"
+        className="absolute top-[44px] left-2 z-[400] flex items-center justify-center w-[30px] h-[30px] rounded-lg shadow-md transition-all"
         style={{
-          background: "transparent",
-          border: "none",
-          filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
+          background: isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
         }}
       >
         {isFullscreen ? (
-          <Minimize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+          <Minimize2 className="w-3.5 h-3.5" style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.60)" }} />
         ) : (
-          <Maximize2 className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+          <Maximize2 className="w-3.5 h-3.5" style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.60)" }} />
         )}
       </button>
 
       {/* MAP LAYERS toggle button */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
-        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+        className="absolute top-2 right-2 z-[400] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
-          backgroundColor: showLayerPanel ? FAO_BLUE : "transparent",
-          color: showLayerPanel ? "#ffffff" : FAO_BLUE,
-          border: showLayerPanel ? `1px solid ${FAO_BLUE}` : "none",
-          filter: showLayerPanel
-            ? "none"
-            : "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
+          backgroundColor: showLayerPanel ? FAO_BLUE : isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
+          color: showLayerPanel ? "#ffffff" : isDarkMode ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.75)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
         }}
       >
         <Layers className="w-3.5 h-3.5" />
@@ -692,31 +692,29 @@ export default function FloodMonitorMap({
       </button>
 
       {/* Zoom controls — below MAP LAYERS button */}
-      <div className="absolute top-[46px] right-2 z-[400] flex flex-col gap-1">
+      <div
+        className="absolute top-[46px] right-2 z-[400] flex flex-col rounded-lg overflow-hidden shadow-lg"
+        style={{
+          background: isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
+        }}
+      >
         {[
-          {
-            icon: Plus,
-            title: "Zoom in",
-            action: () => FloodMonitormapRef.current?.zoomIn(),
-          },
-          {
-            icon: Minus,
-            title: "Zoom out",
-            action: () => FloodMonitormapRef.current?.zoomOut(),
-          },
-        ].map(({ icon: Icon, title, action }) => (
+          { icon: Plus,  title: "Zoom in",  action: () => FloodMonitormapRef.current?.zoomIn()  },
+          { icon: Minus, title: "Zoom out", action: () => FloodMonitormapRef.current?.zoomOut() },
+        ].map(({ icon: Icon, title, action }, i) => (
           <button
             key={title}
             onClick={action}
             title={title}
-            className="flex items-center justify-center w-[30px] h-[30px] rounded-lg transition-all hover:opacity-80"
+            className="flex items-center justify-center w-[30px] h-[30px] transition-all hover:opacity-80"
             style={{
-              backgroundColor: "transparent",
-              border: "none",
-              filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))",
+              borderTop: i > 0 ? `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}` : undefined,
             }}
           >
-            <Icon className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
+            <Icon className="w-3.5 h-3.5" style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.55)" }} />
           </button>
         ))}
       </div>
@@ -1331,21 +1329,24 @@ export default function FloodMonitorMap({
          box-shadow: none !important;
          font-size: 11px;
          font-weight: 600;
-         color: #ffffff;
+         color: ${isDarkMode ? "rgba(255,255,255,0.90)" : "rgba(15,23,42,0.80)"};
          white-space: nowrap;
          pointer-events: none;
-         text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8), 0 -1px 3px rgba(0,0,0,0.8);
+         text-shadow: ${isDarkMode
+           ? "0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8)"
+           : "0 1px 3px rgba(255,255,255,0.9), 0 0 6px rgba(255,255,255,0.7)"};
        }
-
        .waterAreas-label {
          background: transparent !important;
          border: none !important;
          box-shadow: none !important;
          font-size: 10px;
          font-weight: 600;
-         color: #7ec8f7;
+         color: ${isDarkMode ? "#7ec8f7" : "#1d4ed8"};
          pointer-events: none;
-         text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8);
+         text-shadow: ${isDarkMode
+           ? "0 0 4px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8)"
+           : "0 1px 2px rgba(255,255,255,0.9)"};
        }
      `}</style>
     </div>

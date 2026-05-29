@@ -819,7 +819,7 @@ export default function WeatherForecastPage({
             {/* Map + cards row — fixed shared height */}
             <div
               className="grid grid-cols-12 gap-3"
-              style={{ height: "clamp(480px, 58vh, 900px)" }}
+              style={{ height: "clamp(520px, 63vh, 940px)" }}
             >
               {/* Map — left */}
               <div className="col-span-8 flex h-full">
@@ -882,7 +882,7 @@ export default function WeatherForecastPage({
                       getTheBounds={selectedDistrictId?.name ?? ""}
                       district_list={district_list}
                     />
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500]">
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[500]">
                       <FloodHourSlider
                         floating
                         isDarkMode={isDarkMode}
@@ -1109,7 +1109,7 @@ export default function WeatherForecastPage({
                   Live
                 </span>
               </div>
-              <div className="relative aspect-[16/10]">
+              <div className="relative aspect-[16/11]">
                 <WeatherForcastMap
                   isDarkMode={isDarkMode}
                   className="absolute inset-0 w-full h-full"
