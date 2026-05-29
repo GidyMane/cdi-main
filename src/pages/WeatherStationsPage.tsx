@@ -43,11 +43,11 @@ const FAO_BLUE = "#318DDE";
 type ActiveParams = Set<"temperature" | "humidity" | "wind_speed" | "pressure" | "rainfall">;
 
 const PARAM_META = [
-  { key: "temperature" as const, label: "Temperature", unit: "°C",   color: "#f97316", Icon: Thermometer },
-  { key: "humidity"    as const, label: "Humidity",    unit: "%",    color: "#22c55e", Icon: Droplets   },
-  { key: "wind_speed"  as const, label: "Wind Speed",  unit: "km/h", color: "#3b82f6", Icon: Wind       },
-  { key: "pressure"    as const, label: "Pressure",    unit: "hPa",  color: "#a855f7", Icon: Gauge      },
-  { key: "rainfall"    as const, label: "Rainfall",    unit: "mm",   color: "#06b6d4", Icon: CloudRain  },
+  { key: "temperature" as const, label: "Temperature", unit: "°C", color: "#f97316", Icon: Thermometer },
+  { key: "humidity" as const, label: "Humidity", unit: "%", color: "#22c55e", Icon: Droplets },
+  { key: "wind_speed" as const, label: "Wind Speed", unit: "km/h", color: "#3b82f6", Icon: Wind },
+  { key: "pressure" as const, label: "Pressure", unit: "hPa", color: "#a855f7", Icon: Gauge },
+  { key: "rainfall" as const, label: "Rainfall", unit: "mm", color: "#06b6d4", Icon: CloudRain },
 ];
 
 const stationTabs = [
@@ -231,7 +231,7 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
   if (!station) return [];
   const list: NormalizedReading[] = [];
   const now = new Date();
-  
+
   const getHash = (str: string) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -239,13 +239,13 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
     }
     return Math.abs(hash);
   };
-  
+
   const seed = getHash(station.name || String(station.id));
   const baseTemp = 20 + (seed % 8); // 20 to 28
   const baseHumidity = 60 + (seed % 20); // 60 to 80
   const basePressure = 1008 + (seed % 8); // 1008 to 1016
   const baseWind = 4 + (seed % 10); // 4 to 14
-  
+
   // Generate daily points for the past 30 days
   for (let i = 30; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
@@ -255,7 +255,7 @@ function generateMockReadings(station: WeatherStation | null): NormalizedReading
     const pressVar = Math.sin(i * 0.15) * 2 + ((daySeed % 4) - 2);
     const windVar = Math.cos(i * 0.3) * 4 + ((daySeed % 6) - 3);
     const rainVal = (daySeed % 8 === 0) ? parseFloat(((daySeed % 8) * 1.2).toFixed(1)) : 0;
-    
+
     list.push({
       timestamp: date.toISOString(),
       temperature: parseFloat((baseTemp + tempVar).toFixed(1)),
@@ -289,9 +289,8 @@ const CustomTooltip = ({
   if (!active || !payload?.length) return null;
   return (
     <div
-      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${
-        isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
-      }`}
+      className={`px-2.5 py-1.5 rounded-lg shadow-lg border text-xs ${isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
+        }`}
     >
       <p className="font-semibold mb-0.5">{label}</p>
       <p style={{ color }}>
@@ -322,6 +321,8 @@ const StationReadingsPanel = ({
   onChangeParameter: (param: "temperature" | "humidity" | "wind_speed" | "pressure" | "rainfall") => void;
   activeParams: ActiveParams;
   isDarkMode: boolean;
+  cardBg: string;
+  borderColor: string;
   headerText: string;
   textMuted: string;
   textSecondary: string;
@@ -329,11 +330,11 @@ const StationReadingsPanel = ({
   const latestReading = readings[readings.length - 1] || {};
 
   const allParameters = [
-    { key: "temperature" as const, label: "Temperature", unit: "°C",   color: "#f97316", icon: Thermometer, value: latestReading.temperature !== undefined ? `${Number(latestReading.temperature).toFixed(1)}°C` : "—" },
-    { key: "humidity"    as const, label: "Humidity",    unit: "%",    color: "#22c55e", icon: Droplets,    value: latestReading.humidity    !== undefined ? `${Number(latestReading.humidity).toFixed(0)}%`    : "—" },
-    { key: "wind_speed"  as const, label: "Wind Speed",  unit: "km/h", color: "#3b82f6", icon: Wind,        value: latestReading.wind_speed  !== undefined ? `${Number(latestReading.wind_speed).toFixed(1)}`   : "—" },
-    { key: "pressure"    as const, label: "Pressure",    unit: "hPa",  color: "#a855f7", icon: Gauge,       value: latestReading.pressure    !== undefined ? `${Math.round(latestReading.pressure)} hPa`        : "—" },
-    { key: "rainfall"    as const, label: "Rainfall",    unit: "mm",   color: "#06b6d4", icon: CloudRain,   value: latestReading.rainfall    !== undefined ? `${Number(latestReading.rainfall).toFixed(1)} mm`  : "—" },
+    { key: "temperature" as const, label: "Temperature", unit: "°C", color: "#f97316", icon: Thermometer, value: latestReading.temperature !== undefined ? `${Number(latestReading.temperature).toFixed(1)}°C` : "—" },
+    { key: "humidity" as const, label: "Humidity", unit: "%", color: "#22c55e", icon: Droplets, value: latestReading.humidity !== undefined ? `${Number(latestReading.humidity).toFixed(0)}%` : "—" },
+    { key: "wind_speed" as const, label: "Wind Speed", unit: "km/h", color: "#3b82f6", icon: Wind, value: latestReading.wind_speed !== undefined ? `${Number(latestReading.wind_speed).toFixed(1)}` : "—" },
+    { key: "pressure" as const, label: "Pressure", unit: "hPa", color: "#a855f7", icon: Gauge, value: latestReading.pressure !== undefined ? `${Math.round(latestReading.pressure)} hPa` : "—" },
+    { key: "rainfall" as const, label: "Rainfall", unit: "mm", color: "#06b6d4", icon: CloudRain, value: latestReading.rainfall !== undefined ? `${Number(latestReading.rainfall).toFixed(1)} mm` : "—" },
   ];
   const parameters = allParameters.filter((p) => activeParams.has(p.key));
 
@@ -355,7 +356,7 @@ const StationReadingsPanel = ({
     const monthsSet = new Set<string>();
     const yearsSet = new Set<string>();
     const monthsList = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    
+
     items.forEach((item) => {
       const d = new Date(item.timestamp);
       if (!isNaN(d.getTime())) {
@@ -366,7 +367,7 @@ const StationReadingsPanel = ({
 
     const months = Array.from(monthsSet);
     const years = Array.from(yearsSet);
-    
+
     if (months.length === 1) {
       return `${months[0]} ${years[0] || ""}`;
     } else if (months.length > 1) {
@@ -402,16 +403,16 @@ const StationReadingsPanel = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "online":      return "bg-green-500";
+      case "online": return "bg-green-500";
       case "maintenance": return "bg-yellow-500";
-      case "offline":     return "bg-red-500";
-      default:            return "bg-slate-400";
+      case "offline": return "bg-red-500";
+      default: return "bg-slate-400";
     }
   };
 
   const shortLabel = (s: string) =>
     s.replace("Temperature", "Temp").replace("Humidity", "Humid")
-     .replace("Wind Speed", "Wind").replace("Pressure", "Press").replace("Rainfall", "Rain");
+      .replace("Wind Speed", "Wind").replace("Pressure", "Press").replace("Rainfall", "Rain");
 
   return (
     /* Gradient outer wrapper — mirrors the left sidebar */
@@ -456,11 +457,10 @@ const StationReadingsPanel = ({
                     )}
                   </div>
                 </div>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1 font-semibold ${
-                  selectedStation.status === "online"      ? "bg-green-500/20 text-green-400" :
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ml-1 font-semibold ${selectedStation.status === "online" ? "bg-green-500/20 text-green-400" :
                   selectedStation.status === "maintenance" ? "bg-yellow-500/20 text-yellow-400" :
-                  "bg-red-500/20 text-red-400"
-                }`}>{selectedStation.status}</span>
+                    "bg-red-500/20 text-red-400"
+                  }`}>{selectedStation.status}</span>
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                 {selectedStation.region && (
@@ -541,16 +541,14 @@ const StationReadingsPanel = ({
               {periodLabel} · {activeDetails.label}
             </span>
             <span
-              className="flex items-center gap-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+              className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
               style={{
                 background: `${activeDetails.color}18`,
                 color: activeDetails.color,
                 border: `1px solid ${activeDetails.color}30`,
               }}
             >
-              <span>Min: {minVal}{activeDetails.unit}</span>
-              <span style={{ opacity: 0.4 }}>|</span>
-              <span>Max: {maxVal}{activeDetails.unit}</span>
+              {minVal}{activeDetails.unit} – {maxVal}{activeDetails.unit}
             </span>
           </div>
 
@@ -568,7 +566,7 @@ const StationReadingsPanel = ({
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                   <defs>
                     <linearGradient id={`panel_color_${activeParameter}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={activeDetails.color} stopOpacity={0.25} />
+                      <stop offset="5%" stopColor={activeDetails.color} stopOpacity={0.25} />
                       <stop offset="95%" stopColor={activeDetails.color} stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -911,11 +909,10 @@ export default function WeatherStationsPage({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                      activeTab === tab.id
-                        ? "text-white"
-                        : `${isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-200 text-slate-600"}`
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                      ? "text-white"
+                      : `${isDarkMode ? "bg-slate-800 text-slate-400" : "bg-slate-200 text-slate-600"}`
+                      }`}
                     style={{
                       backgroundColor:
                         activeTab === tab.id ? FAO_BLUE : undefined,
