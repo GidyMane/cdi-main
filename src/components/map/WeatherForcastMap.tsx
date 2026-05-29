@@ -158,8 +158,8 @@ export default function WeatherForcastMap({
   //clean districts
   const unique: district[] = district_list
     ? Array.from(
-      new Map((district_list as district[]).map((d) => [d.id, d])).values(),
-    ).sort((a, b) => a.name.localeCompare(b.name))
+        new Map((district_list as district[]).map((d) => [d.id, d])).values(),
+      ).sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
   // ── Refs ────────────────────────────────────────────────────────────────────
@@ -180,6 +180,9 @@ export default function WeatherForcastMap({
   const rainCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // Stable ref so the map's mousemove listener always calls the latest version
   const handleMouseMoveRef = useRef<((latlng: L.LatLng) => void) | null>(null);
+  // Tracks the WMS layer name currently displayed — rain drops fetch the
+  // matching WCS GeoTIFF so drops always reflect the visible raster frame.
+  const activeRainLayerRef = useRef<string | null>(null);
 
   const [_selectedForcastData, setSelectedForcastData] = useState<
     string | null
@@ -189,6 +192,7 @@ export default function WeatherForcastMap({
     new Set(["country"]),
   );
   const [isRasterLoading, setRasterIsLoading] = useState(false);
+  const [activeRainLayer, setActiveRainLayer] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(
     null,
@@ -199,15 +203,10 @@ export default function WeatherForcastMap({
     selectedParameter?.toLowerCase() === "rainfall" ||
     selectedParameter?.toLowerCase() === "precipitation";
 
-  // Derive the active WMS layer name for the rain animation hook.
-  // This mirrors what the raster useEffect loads — we just need the layer name
-  // so the hook can (a) fetch the WCS GeoTIFF for drop positions and
-  // (b) fire GetFeatureInfo on mousemove.
-  const rainLayerName = isRainParam
-    ? layerMode === "forecast"
-      ? "gfs_precipitation"
-      : "precipitation"
-    : null;
+  // rainLayerName tracks the exact WMS layer currently shown on the map.
+  // This ensures the WCS GeoTIFF fetch in useRainAnimation always matches
+  // the visible raster frame (including slider-driven frame changes).
+  const rainLayerName = isRainParam ? (activeRainLayer ?? null) : null;
 
   const {
     cursorRainValue,
@@ -220,8 +219,10 @@ export default function WeatherForcastMap({
     wcsUrl: GEOSERVER_WEATHER_WCS,
     wmsUrl: GEOSERVER_WEATHER_WMS,
     isRainParam,
-    rasterReady: !isRasterLoading,
-    districtGeoJSON: geoData, // Pass district boundaries for per-district clipping
+    // rasterReady: true once we have a layer name — don't wait for tile load
+    // since the WCS fetch is independent of WMS tile rendering
+    rasterReady: rainLayerName !== null,
+    districtGeoJSON: geoData,
   });
 
   // Keep the ref up-to-date so the map's mousemove listener always calls
@@ -627,6 +628,9 @@ export default function WeatherForcastMap({
       clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
     }
     activeFrameHourRef.current = -1;
+    // Reset rain layer so drops don't show stale data while new frames load
+    activeRainLayerRef.current = null;
+    setActiveRainLayer(null);
 
     setRasterIsLoading(true);
 
@@ -659,6 +663,10 @@ export default function WeatherForcastMap({
           .addTo(weatherforcastMapRef.current!) as any;
         weatherforcastrasterLayerRef.current!.bringToFront();
         activeFrameHourRef.current = firstFrame.forecast_hour;
+        // Sync rain animation — set regardless of current param,
+        // isRainParam check happens in the hook via the layerName prop
+        activeRainLayerRef.current = layerName;
+        setActiveRainLayer(layerName);
       })
       .catch((err) => {
         console.warn("Failed to fetch raster frames:", err);
@@ -688,6 +696,9 @@ export default function WeatherForcastMap({
             .on("load", () => setRasterIsLoading(false))
             .addTo(weatherforcastMapRef.current) as any;
           weatherforcastrasterLayerRef.current!.bringToFront();
+          // Sync rain animation to fallback layer
+          activeRainLayerRef.current = wmsLayerName;
+          setActiveRainLayer(wmsLayerName);
         }
       });
 
@@ -761,7 +772,7 @@ export default function WeatherForcastMap({
           }
           try {
             (newLayer as any).setOpacity(opacity);
-          } catch { }
+          } catch {}
         }, 50);
       })
       .on("tileerror", () => setRasterIsLoading(false))
@@ -770,6 +781,9 @@ export default function WeatherForcastMap({
 
     weatherforcastrasterLayerRef.current = newLayer;
     activeFrameHourRef.current = targetHour;
+    // Sync rain animation to the newly displayed frame
+    activeRainLayerRef.current = layerName;
+    setActiveRainLayer(layerName);
   }, [sliderhourIndexValue, dateRange, forecastStep]);
 
   // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
@@ -914,12 +928,17 @@ export default function WeatherForcastMap({
         <span
           className="rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-lg backdrop-blur-md"
           style={{
-            background: isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
-            color: isDarkMode ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.75)",
+            background: isDarkMode
+              ? "rgba(10,15,30,0.60)"
+              : "rgba(255,255,255,0.78)",
+            color: isDarkMode
+              ? "rgba(255,255,255,0.85)"
+              : "rgba(15,23,42,0.75)",
             border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
           }}
         >
-          {layerMode === "forecast" ? "GFS" : "ICON"} · {selectedParameter ?? "Temperature"}
+          {layerMode === "forecast" ? "GFS" : "ICON"} ·{" "}
+          {selectedParameter ?? "Temperature"}
         </span>
       </div>
 
@@ -927,7 +946,9 @@ export default function WeatherForcastMap({
       <div
         className="absolute bottom-2 right-2 z-[500] flex items-center rounded-full overflow-hidden shadow-sm"
         style={{
-          background: isDarkMode ? "rgba(10,15,30,0.35)" : "rgba(255,255,255,0.45)",
+          background: isDarkMode
+            ? "rgba(10,15,30,0.35)"
+            : "rgba(255,255,255,0.45)",
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
           border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
@@ -963,7 +984,11 @@ export default function WeatherForcastMap({
               className="px-3 py-1 text-[10px] font-bold tracking-wide transition-all whitespace-nowrap"
               style={{
                 backgroundColor: isSelected ? FAO_BLUE : "transparent",
-                color: isSelected ? "#fff" : isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.65)",
+                color: isSelected
+                  ? "#fff"
+                  : isDarkMode
+                    ? "rgba(255,255,255,0.70)"
+                    : "rgba(15,23,42,0.65)",
               }}
             >
               {model.label}
@@ -976,7 +1001,9 @@ export default function WeatherForcastMap({
       <div
         className="absolute top-[52px] left-2 z-[500] flex flex-col gap-1 rounded-lg overflow-hidden shadow-lg"
         style={{
-          background: isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
+          background: isDarkMode
+            ? "rgba(10,15,30,0.60)"
+            : "rgba(255,255,255,0.78)",
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
           border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
@@ -1003,7 +1030,13 @@ export default function WeatherForcastMap({
             >
               <Icon
                 className="w-4 h-4"
-                style={{ color: isActive ? "#fff" : isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(15,23,42,0.50)" }}
+                style={{
+                  color: isActive
+                    ? "#fff"
+                    : isDarkMode
+                      ? "rgba(255,255,255,0.55)"
+                      : "rgba(15,23,42,0.50)",
+                }}
               />
             </button>
           );
@@ -1013,12 +1046,28 @@ export default function WeatherForcastMap({
           onClick={toggleFullscreen}
           title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
           className="flex items-center justify-center w-[34px] h-[34px] transition-all"
-          style={{ borderTop: `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}` }}
+          style={{
+            borderTop: `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`,
+          }}
         >
           {isFullscreen ? (
-            <Minimize2 className="w-4 h-4" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(15,23,42,0.50)" }} />
+            <Minimize2
+              className="w-4 h-4"
+              style={{
+                color: isDarkMode
+                  ? "rgba(255,255,255,0.55)"
+                  : "rgba(15,23,42,0.50)",
+              }}
+            />
           ) : (
-            <Maximize2 className="w-4 h-4" style={{ color: isDarkMode ? "rgba(255,255,255,0.55)" : "rgba(15,23,42,0.50)" }} />
+            <Maximize2
+              className="w-4 h-4"
+              style={{
+                color: isDarkMode
+                  ? "rgba(255,255,255,0.55)"
+                  : "rgba(15,23,42,0.50)",
+              }}
+            />
           )}
         </button>
       </div>
@@ -1028,8 +1077,16 @@ export default function WeatherForcastMap({
         onClick={() => setShowLayerPanel((v) => !v)}
         className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
         style={{
-          backgroundColor: showLayerPanel ? FAO_BLUE : isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
-          color: showLayerPanel ? "#ffffff" : isDarkMode ? "rgba(255,255,255,0.85)" : "rgba(15,23,42,0.75)",
+          backgroundColor: showLayerPanel
+            ? FAO_BLUE
+            : isDarkMode
+              ? "rgba(10,15,30,0.60)"
+              : "rgba(255,255,255,0.78)",
+          color: showLayerPanel
+            ? "#ffffff"
+            : isDarkMode
+              ? "rgba(255,255,255,0.85)"
+              : "rgba(15,23,42,0.75)",
           backdropFilter: "blur(8px)",
           border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
         }}
@@ -1042,14 +1099,24 @@ export default function WeatherForcastMap({
       <div
         className="absolute top-[46px] right-2 z-[500] flex flex-col rounded-lg overflow-hidden shadow-lg"
         style={{
-          background: isDarkMode ? "rgba(10,15,30,0.60)" : "rgba(255,255,255,0.78)",
+          background: isDarkMode
+            ? "rgba(10,15,30,0.60)"
+            : "rgba(255,255,255,0.78)",
           backdropFilter: "blur(8px)",
           border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"}`,
         }}
       >
         {[
-          { icon: Plus, title: "Zoom in", action: () => weatherforcastMapRef.current?.zoomIn() },
-          { icon: Minus, title: "Zoom out", action: () => weatherforcastMapRef.current?.zoomOut() },
+          {
+            icon: Plus,
+            title: "Zoom in",
+            action: () => weatherforcastMapRef.current?.zoomIn(),
+          },
+          {
+            icon: Minus,
+            title: "Zoom out",
+            action: () => weatherforcastMapRef.current?.zoomOut(),
+          },
         ].map(({ icon: Icon, title, action }, i) => (
           <button
             key={title}
@@ -1057,12 +1124,19 @@ export default function WeatherForcastMap({
             title={title}
             className="flex items-center justify-center w-[30px] h-[30px] transition-all"
             style={{
-              borderTop: i > 0 ? `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}` : undefined,
+              borderTop:
+                i > 0
+                  ? `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}`
+                  : undefined,
             }}
           >
             <Icon
               className="w-3.5 h-3.5"
-              style={{ color: isDarkMode ? "rgba(255,255,255,0.70)" : "rgba(15,23,42,0.55)" }}
+              style={{
+                color: isDarkMode
+                  ? "rgba(255,255,255,0.70)"
+                  : "rgba(15,23,42,0.55)",
+              }}
             />
           </button>
         ))}
@@ -1086,10 +1160,11 @@ export default function WeatherForcastMap({
               className={`
             absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
             flex flex-col
-            ${isDarkMode
-                  ? "bg-slate-800 border border-slate-700"
-                  : "bg-white border border-slate-200"
-                }
+            ${
+              isDarkMode
+                ? "bg-slate-800 border border-slate-700"
+                : "bg-white border border-slate-200"
+            }
           `}
               style={{
                 maxHeight: "90%",
@@ -1101,18 +1176,20 @@ export default function WeatherForcastMap({
                 style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
               >
                 <span
-                  className={`text-xs font-bold tracking-wide ${isDarkMode ? "text-white" : "text-slate-800"
-                    }`}
+                  className={`text-xs font-bold tracking-wide ${
+                    isDarkMode ? "text-white" : "text-slate-800"
+                  }`}
                 >
                   MAP LAYERS
                 </span>
 
                 <button
                   onClick={() => setShowLayerPanel(false)}
-                  className={`p-0.5 rounded transition-colors ${isDarkMode
+                  className={`p-0.5 rounded transition-colors ${
+                    isDarkMode
                       ? "hover:bg-slate-700 text-slate-400"
                       : "hover:bg-slate-100 text-slate-500"
-                    }`}
+                  }`}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1138,10 +1215,11 @@ export default function WeatherForcastMap({
                         <div
                           key={layerDef.id}
                           onClick={() => toggleLayer(layerDef)}
-                          className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${isDarkMode
+                          className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                            isDarkMode
                               ? "hover:bg-slate-700/50"
                               : "hover:bg-slate-50"
-                            }`}
+                          }`}
                         >
                           <div className="flex items-center gap-2">
                             {/* Checkbox */}
@@ -1176,8 +1254,9 @@ export default function WeatherForcastMap({
                             </div>
 
                             <span
-                              className={`text-xs ${isDarkMode ? "text-slate-300" : "text-slate-700"
-                                }`}
+                              className={`text-xs ${
+                                isDarkMode ? "text-slate-300" : "text-slate-700"
+                              }`}
                             >
                               {layerDef.label}
                             </span>
@@ -1186,8 +1265,9 @@ export default function WeatherForcastMap({
                           {/* Date badge */}
                           {layerDef.date && (
                             <span
-                              className={`text-[10px] ml-2 flex-shrink-0 ${isDarkMode ? "text-slate-500" : "text-slate-400"
-                                }`}
+                              className={`text-[10px] ml-2 flex-shrink-0 ${
+                                isDarkMode ? "text-slate-500" : "text-slate-400"
+                              }`}
                             >
                               {layerDef.date}
                             </span>
@@ -1216,16 +1296,31 @@ export default function WeatherForcastMap({
           .join(", ");
         const accentColor = config.stops[config.stops.length - 1].color;
         return (
-          <div className="absolute bottom-4 left-2 z-[400] px-2 py-1.5" style={{ minWidth: 160 }}>
+          <div
+            className="absolute bottom-4 left-2 z-[400] px-2 py-1.5"
+            style={{ minWidth: 160 }}
+          >
             {/* Icon + unit label */}
             <div className="flex items-center gap-1 mb-1.5">
-              <ParamIcon param={selectedParameter ?? ""} className="w-3 h-3" color={accentColor} />
-              <span className="text-[9px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
+              <ParamIcon
+                param={selectedParameter ?? ""}
+                className="w-3 h-3"
+                color={accentColor}
+              />
+              <span
+                className="text-[9px] font-bold tracking-widest uppercase"
+                style={{ color: accentColor }}
+              >
                 {config.unit}
               </span>
             </div>
             {/* Gradient bar */}
-            <div className="h-1.5 rounded-full w-full" style={{ background: `linear-gradient(to right, ${gradientStops})` }} />
+            <div
+              className="h-1.5 rounded-full w-full"
+              style={{
+                background: `linear-gradient(to right, ${gradientStops})`,
+              }}
+            />
             {/* Value labels */}
             <div className="flex justify-between mt-0.5">
               {config.stops.map((s) => (
@@ -1233,8 +1328,12 @@ export default function WeatherForcastMap({
                   key={s.label}
                   className="text-[8px] font-semibold"
                   style={{
-                    color: isDarkMode ? "rgba(255,255,255,0.75)" : "rgba(15,23,42,0.70)",
-                    textShadow: isDarkMode ? "0 1px 3px rgba(0,0,0,0.9)" : "0 1px 2px rgba(255,255,255,0.9)",
+                    color: isDarkMode
+                      ? "rgba(255,255,255,0.75)"
+                      : "rgba(15,23,42,0.70)",
+                    textShadow: isDarkMode
+                      ? "0 1px 3px rgba(0,0,0,0.9)"
+                      : "0 1px 2px rgba(255,255,255,0.9)",
                   }}
                 >
                   {s.label}
