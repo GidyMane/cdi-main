@@ -266,7 +266,7 @@ const StationReadingsPanel = ({
   readings, isLoading,
   activeParameter, onChangeParameter,
   activeParams,
-  isDarkMode, cardBg, borderColor, headerText, textMuted, textSecondary,
+  isDarkMode, headerText, textMuted, textSecondary,
 }: {
   selectedStation:  WeatherStation | null;
   stationCode?:     string;
