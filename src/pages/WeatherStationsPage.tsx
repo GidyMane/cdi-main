@@ -694,13 +694,22 @@ export default function WeatherStationsPage({
     (s) => s.status === "maintenance",
   ).length;
 
-  // Auto-select the first online station on load
+  // Auto-select the first online station on load or when filtered list changes
   useEffect(() => {
-    if (stations.length > 0 && !selectedStation) {
+    if (stations.length === 0) {
+      setSelectedStation(null);
+      return;
+    }
+
+    // Check if currently selected station is in the filtered list
+    const isCurrentStationInList = selectedStation && stations.some((s) => s.id === selectedStation.id);
+
+    // If no station selected or current station not in filtered list, select first available
+    if (!isCurrentStationInList) {
       const firstOnline = stations.find((s) => s.status === "online") || stations[0];
       setSelectedStation(firstOnline);
     }
-  }, [stations, selectedStation]);
+  }, [stations]);
 
   // Fetch readings for the selected station
   const { data: readingsData, isLoading: readingsLoading } = useQuery({
