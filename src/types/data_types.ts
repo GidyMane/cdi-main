@@ -98,6 +98,7 @@ export interface WeatherSystemSummary {
 export interface district {
   id: number;
   name: string;
+  region?: string | null;
 }
 
 export interface LegendItem {
