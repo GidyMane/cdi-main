@@ -142,14 +142,14 @@ const FilterContent = ({
   selectedStatus,      setSelectedStatus,
   activeParams,        setActiveParams,
   isDarkMode, textMuted, borderColor, headerText,
-  onlineCount, offlineCount, totalCount,
+  onlineCount, offlineCount, maintenanceCount, totalCount,
   stations_list,
 }: {
   selectedStationCode: string; setSelectedStationCode: (v: string) => void;
   selectedStatus:      string; setSelectedStatus:      (v: string) => void;
   activeParams:   ActiveParams; setActiveParams: React.Dispatch<React.SetStateAction<ActiveParams>>;
   isDarkMode: boolean; textMuted: string; borderColor: string; headerText: string;
-  onlineCount: number; offlineCount: number; totalCount: number;
+  onlineCount: number; offlineCount: number; maintenanceCount: number; totalCount: number;
   stations_list: WeatherStation[];
 }) => (
   <div className="space-y-3">
@@ -186,10 +186,10 @@ const FilterContent = ({
             : "bg-white border-slate-200 text-slate-900"
         }`}
       >
-        <option value="">All Status</option>
-        <option value="online">Online</option>
-        <option value="maintenance">Maintenance</option>
-        <option value="offline">Offline</option>
+        <option value="">All Status ({totalCount})</option>
+        <option value="online">Online ({onlineCount})</option>
+        <option value="maintenance">Maintenance ({maintenanceCount})</option>
+        <option value="offline">Offline ({offlineCount})</option>
       </select>
     </div>
 
@@ -242,9 +242,10 @@ const FilterContent = ({
       <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>Network Stats</h4>
       <div className="space-y-1.5">
         {[
-          { label: "Total Stations", value: totalCount,   color: undefined        },
-          { label: "Online",         value: onlineCount,  color: "text-green-500" },
-          { label: "Offline",        value: offlineCount, color: "text-red-500"   },
+          { label: "Total Stations",  value: totalCount,        color: undefined             },
+          { label: "Online",          value: onlineCount,       color: "text-green-500"      },
+          { label: "Maintenance",     value: maintenanceCount,  color: "text-yellow-500"     },
+          { label: "Offline",         value: offlineCount,      color: "text-red-500"        },
         ].map(({ label, value, color }) => (
           <div key={label} className="flex justify-between text-xs">
             <span className={textMuted}>{label}</span>
@@ -636,8 +637,8 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
     isLoading: stationsLoading,
     refetch,
   } = useQuery<WeatherStationAPI[]>({
-    queryKey:        ["weather-stations", selectedStatus],
-    queryFn:         () => stationsAPI.getAll(undefined, (selectedStatus as any) || undefined),
+    queryKey:        ["weather-stations"],
+    queryFn:         () => stationsAPI.getAll(),   // API ignores status param — filter client-side
     refetchInterval: 60_000,
   });
 
@@ -648,10 +649,13 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
   const offlineCount     = stations.filter((s) => s.status === "offline").length;
   const maintenanceCount = stations.filter((s) => s.status === "maintenance").length;
 
-  // ── Stations shown on map — filter to selected station when one is chosen ─
-  const displayedStations = selectedStationCode
-    ? stations.filter((s) => s.code === selectedStationCode)
-    : stations;
+  // ── Stations shown on map — client-side filter by station code + status ───
+  // NOTE: The API does not support server-side status filtering; we filter here.
+  const displayedStations = stations.filter((s) => {
+    const matchesCode   = !selectedStationCode || s.code === selectedStationCode;
+    const matchesStatus = !selectedStatus      || s.status === selectedStatus;
+    return matchesCode && matchesStatus;
+  });
 
   // ── Auto-select station; sync when filter dropdown changes ────────────────
   useEffect(() => {
@@ -680,8 +684,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
   const handleStationCodeChange = (code: string) => {
     setSelectedStationCode(code);
     if (!code) {
-      // "All Stations" — let the effect pick the best default
-      setSelectedStation(null);
+      setSelectedStation(null); // effect will pick best from displayedStations
     } else {
       const found = stations.find((s) => s.code === code);
       if (found) setSelectedStation(found);
@@ -690,7 +693,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
 
   const handleStatusChange = (val: string) => {
     setSelectedStatus(val);
-    setSelectedStation(null);
+    setSelectedStation(null); // effect will re-pick from newly filtered list
   };
 
   // ── Readings — fetch for the currently selected station ───────────────────
@@ -750,7 +753,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
     selectedStatus,      setSelectedStatus: handleStatusChange,
     activeParams,        setActiveParams,
     isDarkMode, textMuted, borderColor, headerText,
-    onlineCount, offlineCount, totalCount: stations.length,
+    onlineCount, offlineCount, maintenanceCount, totalCount: stations.length,
     stations_list: stations,
   };
 
