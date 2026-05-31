@@ -141,7 +141,12 @@ export function FloodHourSlider({
   // Fetches Africa/Kampala time from worldtimeapi.org so a misconfigured
   // local clock doesn't load the wrong WMS layer. Falls back to new Date()
   // after 3 s if the request is slow or fails.
+  // In forecast mode (flood page), skip — let the page set the date from API.
   useEffect(() => {
+    // Check current layerMode from store (may be set by page before this fires)
+    const currentMode = useAppStore.getState().layerMode;
+    if (currentMode === "forecast") return;
+
     let cancelled = false;
 
     const apply = (now: Date) => {

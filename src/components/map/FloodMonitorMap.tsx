@@ -29,10 +29,10 @@ import type {
   UgandaBoundaryMapProps,
   FloodHoverBasin,
 } from "@/types/data_types";
+import { GEOSERVER_WFEWS_WMS } from "@/config";
 
 const FAO_BLUE = "#318DDE";
-const GEO_SERVER_URL =
-  "https://multihazard.rosewillbome.com/geoserver/wfews/wms";
+const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
 
 const WMS_BASE_OPTIONS = {
   format: "image/png" as const,
@@ -537,12 +537,15 @@ export default function FloodMonitorMap({
       // ── Forecast branch: driven by the flood layer toggle ─────────────────
       if (!selectedFloodForecastData) return;
       const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) ?? "";
-      const layerName = `wfews:${selectedFloodForecastData}_${formattedDate}_${forecastStep}h`;
+      if (!formattedDate || formattedDate.length !== 8) return; // Wait for valid date
+      const paddedStep = String(forecastStep).padStart(3, "0");
+      const layerName = `wfews:${selectedFloodForecastData}_${formattedDate}_${paddedStep}h`;
+      console.log("[FloodMap] Loading WMS layer:", layerName, "from", GEO_SERVER_URL);
       FloodMonitorrasterLayerRef.current = L.tileLayer
         .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
         .on("loading", () => setRasterIsLoading(true))
         .on("load", () => setRasterIsLoading(false))
-        .on("tileerror", () => setRasterIsLoading(false))
+        .on("tileerror", (e) => { console.warn("[FloodMap] Tile error for layer:", layerName, e); setRasterIsLoading(false); })
         .addTo(FloodMonitormapRef.current);
       FloodMonitorrasterLayerRef.current.bringToFront();
       return;

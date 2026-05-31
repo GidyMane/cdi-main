@@ -215,13 +215,18 @@ const FloodMap = ({
     isDarkMode={isDarkMode}
     className={`rounded-lg md:rounded-xl ${className}`}
     badgeText={badgeText}
-    legendTitle="Flood Levels"
+    legendTitle="Discharge (m³/s)"
     legendItems={[
-      { label: "Extreme Flood", color: "#b91c1c" },
-      { label: "Severe Flood", color: "#ef4444" },
-      { label: "Moderate Flood", color: "#f97316" },
-      { label: "Minor Flood", color: "#eab308" },
-      { label: "Normal", color: "#22c55e" },
+      { label: "> 3000", color: "#800026" },
+      { label: "1500 – 3000", color: "#bd0026" },
+      { label: "700 – 1500", color: "#f03b20" },
+      { label: "300 – 700", color: "#253494" },
+      { label: "100 – 300", color: "#225ea8" },
+      { label: "50 – 100", color: "#1d91c0" },
+      { label: "20 – 50", color: "#41b6c4" },
+      { label: "5 – 20", color: "#7fcdbb" },
+      { label: "1 – 5", color: "#c7e9b4" },
+      { label: "< 1", color: "#ffffcc" },
     ]}
     floodHoverData={floodHoverData}
   />
@@ -326,21 +331,21 @@ const FilterContent = ({
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Critical Basins</span>
-          <span className="text-red-500 font-medium">2</span>
+          <span className="text-red-500 font-medium">{riverBasins.filter((b) => b.status === "severe" || b.status === "extreme").length}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>At Risk Population</span>
-          <span className="text-orange-500 font-medium">1.6M</span>
+          <span className="text-orange-500 font-medium">{(() => { const pop = riverBasins.reduce((s, b) => s + b.population, 0); return pop >= 1_000_000 ? `${(pop / 1_000_000).toFixed(1)}M` : `${Math.round(pop / 1_000)}K`; })()}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Avg Rainfall</span>
           <span className="font-medium" style={{ color: FAO_BLUE }}>
-            54mm
+            {(() => { const avg = riverBasins.reduce((s, b) => s + b.rainfall, 0) / (riverBasins.length || 1); return `${Math.round(avg)}mm`; })()}
           </span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Active Alerts</span>
-          <span className="text-red-500 font-medium">3</span>
+          <span className="text-red-500 font-medium">{riverBasins.filter((b) => b.status === "severe" || b.status === "extreme" || b.status === "moderate").length}</span>
         </div>
       </div>
     </div>
@@ -360,6 +365,7 @@ export default function FloodMonitoringPage({
 
   // Fetch flood data from API
   const {
+    dashboard,
     basinStatus,
     basinTrend,
     districts,
@@ -373,10 +379,13 @@ export default function FloodMonitoringPage({
     setLayerMode("forecast");
   }, [setLayerMode]);
 
-  // Initialize dateRange to today if not set
+  // Set dateRange to latest forecast date from API; fallback to today
   useEffect(() => {
-    if (!dateRange) setDateRange(new Date().toISOString().split("T")[0]);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const forecastDate = dashboard?.forecast_date;
+    if (forecastDate) {
+      setDateRange(forecastDate);
+    }
+  }, [dashboard?.forecast_date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle initial loading
   useEffect(() => {
@@ -446,11 +455,11 @@ export default function FloodMonitoringPage({
         riverBasins.length,
       )
       : 0;
-  // Infrastructure KPIs (GIS assessment estimates — not yet in live API)
-  const affectedRoadsKm = 847;
-  const affectedBuildings = 12400;
-  const affectedPois = 34;
-  const populationDensityAvg = Math.round(atRiskPopulation / 4500); // people/km² estimate
+  // Infrastructure KPIs (from live API dashboard summary)
+  const affectedRoadsKm = dashboard?.summary?.affected_roads_km ?? 0;
+  const affectedBuildings = dashboard?.summary?.affected_buildings ?? 0;
+  const affectedPois = dashboard?.summary?.affected_pois ?? 0;
+  const populationDensityAvg = atRiskPopulation > 0 ? Math.round(atRiskPopulation / (dashboard?.summary?.total_flood_extent_km2 || 4500)) : 0;
   const thresholdMode =
     criticalBasins > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
 

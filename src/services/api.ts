@@ -237,10 +237,15 @@ export interface District {
 export interface FloodDashboard {
   status: "no_data" | "ok" | "warning" | "alert";
   forecasts: any[];
+  forecast_date?: string;
   summary?: {
     critical_basins: number;
     at_risk_population: number;
     active_alerts: number;
+    affected_roads_km?: number;
+    affected_buildings?: number;
+    affected_pois?: number;
+    total_flood_extent_km2?: number;
   };
 }
 
