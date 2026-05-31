@@ -30,6 +30,7 @@ import type {
   FloodHoverBasin,
 } from "@/types/data_types";
 import { GEOSERVER_WFEWS_WMS } from "@/config";
+import { floodAPI, type FloodRasterLayer } from "@/services/api";
 
 const FAO_BLUE = "#318DDE";
 const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
@@ -192,8 +193,31 @@ export default function FloodMonitorMap({
   const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(
     null,
   );
+  const [availableFloodLayers, setAvailableFloodLayers] = useState<
+    FloodRasterLayer[]
+  >([]);
 
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    floodAPI
+      .getRasterLayers()
+      .then((response) => {
+        if (!cancelled) setAvailableFloodLayers(response.layers ?? []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn("[FloodMap] Could not load published flood layers", error);
+          setAvailableFloodLayers([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,6 +232,26 @@ export default function FloodMonitorMap({
   };
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  const resolvePublishedFloodLayer = (
+    date: string,
+    leadtimeHours: number,
+  ): FloodRasterLayer | null => {
+    if (!availableFloodLayers.length) return null;
+
+    const exact = availableFloodLayers.find(
+      (layer) =>
+        layer.forecast_date === date && layer.leadtime_hours === leadtimeHours,
+    );
+    if (exact) return exact;
+
+    const sameLead = availableFloodLayers.filter(
+      (layer) => layer.leadtime_hours === leadtimeHours,
+    );
+    if (sameLead.length) return sameLead[0];
+
+    return availableFloodLayers[0];
+  };
 
   // Draw / replace the blue boundary highlight around a district
   const drawBoundary = (geojson: any, color: string) => {
@@ -536,11 +580,10 @@ export default function FloodMonitorMap({
     if (layerMode === "forecast") {
       // ── Forecast branch: driven by the flood layer toggle ─────────────────
       if (!selectedFloodForecastData) return;
-      const formattedDate = dateRange?.replace(/-/g, "").slice(0, 8) ?? "";
-      if (!formattedDate || formattedDate.length !== 8) return; // Wait for valid date
-      const paddedStep = String(forecastStep).padStart(3, "0");
-      const layerName = `wfews:${selectedFloodForecastData}_${formattedDate}_${paddedStep}h`;
-      console.log("[FloodMap] Loading WMS layer:", layerName, "from", GEO_SERVER_URL);
+      if (!dateRange) return;
+      const publishedLayer = resolvePublishedFloodLayer(dateRange, forecastStep);
+      if (!publishedLayer) return;
+      const layerName = publishedLayer.layer_name;
       FloodMonitorrasterLayerRef.current = L.tileLayer
         .wms(GEO_SERVER_URL, { ...WMS_BASE_OPTIONS, layers: layerName })
         .on("loading", () => setRasterIsLoading(true))
@@ -587,6 +630,7 @@ export default function FloodMonitorMap({
     layerMode,
     forecastStep,
     selectedFloodForecastData,
+    availableFloodLayers,
   ]);
 
   // In the component, below where you destructure currentPage from the store

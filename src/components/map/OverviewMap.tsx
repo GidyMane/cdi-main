@@ -246,11 +246,6 @@ export default function OverviewMap({
     const paddedW = textWidth + padding * 2;
     const paddedH = textHeight + padding * 2;
 
-    console.log(
-      "does it fit?",
-      paddedW <= availableWidth && paddedH <= availableHeight,
-    );
-
     return paddedW <= availableWidth && paddedH <= availableHeight;
   };
 

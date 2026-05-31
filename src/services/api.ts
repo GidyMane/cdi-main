@@ -258,6 +258,22 @@ export interface FloodForecast {
   impact_assessment?: string;
 }
 
+export interface FloodRasterLayer {
+  id: number;
+  forecast_id: number;
+  forecast_date: string;
+  valid_date: string;
+  leadtime_hours: number;
+  workspace: string;
+  layer_name: string;
+  raw_layer_name: string;
+  store_name: string;
+  wms_url: string | null;
+  published: boolean;
+  uploaded_to_geoserver: boolean;
+  image: string | null;
+}
+
 /**
  * Flood API
  */
@@ -298,6 +314,20 @@ export const floodAPI = {
    */
   getForecastDates: async () => {
     return fetchData<string[]>("floods/dates/");
+  },
+
+  /**
+   * Get flood raster layers that are actually published in GeoServer.
+   */
+  getRasterLayers: async (date?: string) => {
+    const endpoint = date
+      ? `floods/layers/?date=${date}`
+      : "floods/layers/";
+    return fetchData<{
+      count: number;
+      latest_forecast_date: string | null;
+      layers: FloodRasterLayer[];
+    }>(endpoint);
   },
 
   /**
