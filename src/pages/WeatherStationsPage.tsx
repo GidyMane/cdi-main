@@ -125,9 +125,9 @@ const FilterContent = ({
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
         <option value="">All Districts</option>
-        {district_list?.map((r) => (
-          <option key={r.id} value={r.name}>
-            {r.name}
+        {district_list?.map((d) => (
+          <option key={d.id} value={d.region || d.name}>
+            {d.name}
           </option>
         ))}
       </select>
