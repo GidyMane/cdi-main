@@ -274,6 +274,21 @@ export interface FloodRasterLayer {
   image: string | null;
 }
 
+export interface FloodQuery {
+  date?: string;
+  leadtimeHours?: number;
+}
+
+function floodQueryString(query?: FloodQuery): string {
+  const params = new URLSearchParams();
+  if (query?.date) params.set("date", query.date);
+  if (query?.leadtimeHours !== undefined) {
+    params.set("leadtime_hours", String(query.leadtimeHours));
+  }
+  const value = params.toString();
+  return value ? `?${value}` : "";
+}
+
 /**
  * Flood API
  */
@@ -281,8 +296,8 @@ export const floodAPI = {
   /**
    * Get flood dashboard with overall status and recent forecasts
    */
-  getDashboard: async () => {
-    return fetchData<FloodDashboard>("floods/dashboard/");
+  getDashboard: async (query?: FloodQuery) => {
+    return fetchData<FloodDashboard>(`floods/dashboard/${floodQueryString(query)}`);
   },
 
   /**
@@ -295,17 +310,22 @@ export const floodAPI = {
   /**
    * Get basin status for all rivers
    */
-  getBasinStatus: async () => {
-    return fetchData<BasinStatus[]>("floods/basin-status/");
+  getBasinStatus: async (query?: FloodQuery) => {
+    return fetchData<BasinStatus[]>(`floods/basin-status/${floodQueryString(query)}`);
   },
 
   /**
    * Get basin trend for a specific basin
    */
-  getBasinTrend: async (basin?: string) => {
-    const endpoint = basin
-      ? `floods/basin-trend/?basin=${basin}`
-      : "floods/basin-trend/";
+  getBasinTrend: async (basin?: string, query?: FloodQuery) => {
+    const params = new URLSearchParams();
+    if (basin) params.set("basin", basin);
+    if (query?.date) params.set("date", query.date);
+    if (query?.leadtimeHours !== undefined) {
+      params.set("leadtime_hours", String(query.leadtimeHours));
+    }
+    const queryString = params.toString();
+    const endpoint = `floods/basin-trend/${queryString ? `?${queryString}` : ""}`;
     return fetchData<BasinTrend>(endpoint);
   },
 
@@ -333,10 +353,11 @@ export const floodAPI = {
   /**
    * Get flood forecasts, optionally filtered by date
    */
-  getForecasts: async (date?: string) => {
-    const endpoint = date
-      ? `floods/forecasts/?date=${date}`
-      : "floods/forecasts/";
+  getForecasts: async (date?: string, leadtimeHours?: number) => {
+    const endpoint = `floods/forecasts/${floodQueryString({
+      date,
+      leadtimeHours,
+    })}`;
     return fetchData<FloodForecast[]>(endpoint);
   },
 
@@ -350,9 +371,9 @@ export const floodAPI = {
   /**
    * Get districts affected by floods
    */
-  getDistricts: async () => {
+  getDistricts: async (query?: FloodQuery) => {
     return fetchData<{ date: string | null; districts: District[] }>(
-      "floods/districts/",
+      `floods/districts/${floodQueryString(query)}`,
     );
   },
 

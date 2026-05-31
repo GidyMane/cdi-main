@@ -42,6 +42,10 @@ const WMS_BASE_OPTIONS = {
   opacity: 0.85,
 };
 
+interface FloodMonitorMapProps extends UgandaBoundaryMapProps {
+  onLayerResolved?: (layer: FloodRasterLayer | null) => void;
+}
+
 function clearLayer<T extends L.Layer>(
   map: L.Map,
   ref: React.MutableRefObject<T | null>,
@@ -154,7 +158,8 @@ export default function FloodMonitorMap({
   zoom = 6.8,
   minZoom = 6.8,
   floodHoverData,
-}: UgandaBoundaryMapProps) {
+  onLayerResolved,
+}: FloodMonitorMapProps) {
   const {
     selectedParameter,
     dateRange,
@@ -582,6 +587,7 @@ export default function FloodMonitorMap({
       if (!selectedFloodForecastData) return;
       if (!dateRange) return;
       const publishedLayer = resolvePublishedFloodLayer(dateRange, forecastStep);
+      onLayerResolved?.(publishedLayer);
       if (!publishedLayer) return;
       const layerName = publishedLayer.layer_name;
       FloodMonitorrasterLayerRef.current = L.tileLayer
@@ -631,6 +637,7 @@ export default function FloodMonitorMap({
     forecastStep,
     selectedFloodForecastData,
     availableFloodLayers,
+    onLayerResolved,
   ]);
 
   // In the component, below where you destructure currentPage from the store

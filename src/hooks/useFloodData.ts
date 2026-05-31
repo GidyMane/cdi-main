@@ -82,7 +82,7 @@ export interface FloodDataError {
   forecasts?: boolean;
 }
 
-export function useFloodData() {
+export function useFloodData(date?: string, leadtimeHours?: number) {
   const [dashboard, setDashboard] = useState<FloodDashboard | null>(null);
   const [basinStatus, setBasinStatus] = useState<BasinStatus[]>([]);
   const [basinTrend, setBasinTrend] = useState<BasinTrend | null>(null);
@@ -91,6 +91,10 @@ export function useFloodData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [partialErrors, setPartialErrors] = useState<FloodDataError>({});
+
+  const query = { date, leadtimeHours };
+  const cachePrefix = `${date ?? "latest"}:${leadtimeHours ?? "all"}`;
+  const cacheKey = useCallback((key: string) => `${cachePrefix}:${key}`, [cachePrefix]);
 
   const isCacheValid = useCallback((key: string) => {
     const lastFetch = floodDataCache.lastFetch?.[key];
@@ -105,21 +109,22 @@ export function useFloodData() {
       setPartialErrors({});
 
       // Use Promise.allSettled to handle partial failures gracefully
+      const useCache = !date && leadtimeHours === undefined;
       const results = await Promise.allSettled([
-        !isCacheValid('dashboard')
-          ? floodAPI.getDashboard()
+        !useCache || !isCacheValid(cacheKey('dashboard'))
+          ? floodAPI.getDashboard(query)
           : Promise.resolve(floodDataCache.dashboard),
-        !isCacheValid('basinStatus')
-          ? floodAPI.getBasinStatus()
+        !useCache || !isCacheValid(cacheKey('basinStatus'))
+          ? floodAPI.getBasinStatus(query)
           : Promise.resolve(floodDataCache.basinStatus),
-        !isCacheValid('basinTrend')
-          ? floodAPI.getBasinTrend()
+        !useCache || !isCacheValid(cacheKey('basinTrend'))
+          ? floodAPI.getBasinTrend(undefined, query)
           : Promise.resolve(floodDataCache.basinTrend),
-        !isCacheValid('districts')
-          ? floodAPI.getDistricts().then(res => res?.districts || [])
+        !useCache || !isCacheValid(cacheKey('districts'))
+          ? floodAPI.getDistricts(query).then(res => res?.districts || [])
           : Promise.resolve(floodDataCache.districts),
-        !isCacheValid('forecasts')
-          ? floodAPI.getForecasts()
+        !useCache || !isCacheValid(cacheKey('forecasts'))
+          ? floodAPI.getForecasts(date, leadtimeHours)
           : Promise.resolve(floodDataCache.forecasts),
       ]);
 
@@ -131,7 +136,7 @@ export function useFloodData() {
       const dashboardResult = results[0];
       if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
         floodDataCache.dashboard = dashboardResult.value;
-        floodDataCache.lastFetch.dashboard = Date.now();
+        floodDataCache.lastFetch[cacheKey('dashboard')] = Date.now();
         setDashboard(dashboardResult.value);
       } else {
         errors.dashboard = true;
@@ -142,7 +147,7 @@ export function useFloodData() {
       const basinStatusResult = results[1];
       if (basinStatusResult.status === 'fulfilled' && basinStatusResult.value && basinStatusResult.value.length > 0) {
         floodDataCache.basinStatus = basinStatusResult.value;
-        floodDataCache.lastFetch.basinStatus = Date.now();
+        floodDataCache.lastFetch[cacheKey('basinStatus')] = Date.now();
         setBasinStatus(basinStatusResult.value);
       } else {
         errors.basinStatus = true;
@@ -153,7 +158,7 @@ export function useFloodData() {
       const basinTrendResult = results[2];
       if (basinTrendResult.status === 'fulfilled' && basinTrendResult.value) {
         floodDataCache.basinTrend = basinTrendResult.value;
-        floodDataCache.lastFetch.basinTrend = Date.now();
+        floodDataCache.lastFetch[cacheKey('basinTrend')] = Date.now();
         setBasinTrend(basinTrendResult.value);
       } else {
         errors.basinTrend = true;
@@ -164,7 +169,7 @@ export function useFloodData() {
       const districtsResult = results[3];
       if (districtsResult.status === 'fulfilled' && districtsResult.value && districtsResult.value.length > 0) {
         floodDataCache.districts = districtsResult.value;
-        floodDataCache.lastFetch.districts = Date.now();
+        floodDataCache.lastFetch[cacheKey('districts')] = Date.now();
         setDistricts(districtsResult.value);
       } else {
         errors.districts = true;
@@ -175,7 +180,7 @@ export function useFloodData() {
       const forecastsResult = results[4];
       if (forecastsResult.status === 'fulfilled' && forecastsResult.value && forecastsResult.value.length > 0) {
         floodDataCache.forecasts = forecastsResult.value;
-        floodDataCache.lastFetch.forecasts = Date.now();
+        floodDataCache.lastFetch[cacheKey('forecasts')] = Date.now();
         setForecasts(forecastsResult.value);
       } else {
         errors.forecasts = true;
@@ -207,7 +212,7 @@ export function useFloodData() {
     } finally {
       setLoading(false);
     }
-  }, [isCacheValid]);
+  }, [cacheKey, date, isCacheValid, leadtimeHours]);
 
   useEffect(() => {
     fetchFloodData();

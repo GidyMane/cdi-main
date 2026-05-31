@@ -19,6 +19,7 @@ import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useAppStore } from "@/store/useAppStore";
+import type { FloodRasterLayer } from "@/services/api";
 
 interface FloodMonitoringPageProps {
   isDarkMode?: boolean;
@@ -205,11 +206,13 @@ const FloodMap = ({
   className = "",
   badgeText = "Forecast",
   floodHoverData,
+  onLayerResolved,
 }: {
   isDarkMode: boolean;
   className?: string;
   badgeText?: string;
   floodHoverData?: import("@/types/data_types").FloodHoverData;
+  onLayerResolved?: (layer: FloodRasterLayer | null) => void;
 }) => (
   <FloodMonitorMap
     isDarkMode={isDarkMode}
@@ -229,6 +232,7 @@ const FloodMap = ({
       { label: "< 1", color: "#ffffcc" },
     ]}
     floodHoverData={floodHoverData}
+    onLayerResolved={onLayerResolved}
   />
 );
 
@@ -297,8 +301,8 @@ const FilterContent = ({
         onChange={(e) => setSelectedBasin(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        {riverBasins.map((b) => (
-          <option key={b.name} value={b.name}>
+        {riverBasins.map((b, index) => (
+          <option key={`${b.name}-${index}`} value={b.name}>
             {b.name}
           </option>
         ))}
@@ -362,6 +366,11 @@ export default function FloodMonitoringPage({
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
   const [selectedBasin, setSelectedBasin] = useState("Nile Basin");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [selectedFloodLayer, setSelectedFloodLayer] =
+    useState<FloodRasterLayer | null>(null);
+
+  const statsDate = selectedFloodLayer?.forecast_date || dateRange || undefined;
+  const statsLeadtime = selectedFloodLayer?.leadtime_hours ?? forecastStep;
 
   // Fetch flood data from API
   const {
@@ -372,7 +381,7 @@ export default function FloodMonitoringPage({
     loading: dataLoading,
     partialErrors = {},
     refetch,
-  } = useFloodData();
+  } = useFloodData(statsDate, statsLeadtime);
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
@@ -382,10 +391,17 @@ export default function FloodMonitoringPage({
   // Set dateRange to latest forecast date from API; fallback to today
   useEffect(() => {
     const forecastDate = dashboard?.forecast_date;
-    if (forecastDate) {
+    if (forecastDate && !selectedFloodLayer) {
       setDateRange(forecastDate);
     }
-  }, [dashboard?.forecast_date]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dashboard?.forecast_date, selectedFloodLayer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLayerResolved = (layer: FloodRasterLayer | null) => {
+    setSelectedFloodLayer((current) => {
+      if (current?.layer_name === layer?.layer_name) return current;
+      return layer;
+    });
+  };
 
   // Handle initial loading
   useEffect(() => {
@@ -675,6 +691,7 @@ export default function FloodMonitoringPage({
                         className="absolute inset-0 w-full h-full"
                         badgeText={`+${forecastStep}h Forecast`}
                         floodHoverData={floodHoverData}
+                        onLayerResolved={handleLayerResolved}
                       />
                     </div>
                     <FloodHourSlider
@@ -748,7 +765,7 @@ export default function FloodMonitoringPage({
                     >
                       Districts at Risk
                     </p>
-                    {districts.slice(0, 4).map((d) => {
+                    {districts.slice(0, 4).map((d, index) => {
                       const pop = d.population_affected ?? 0;
                       const maxPop = Math.max(
                         ...districts.map((x) => x.population_affected ?? 0),
@@ -762,7 +779,7 @@ export default function FloodMonitoringPage({
                             ? "#f97316"
                             : "#eab308";
                       return (
-                        <div key={d.id} className="flex items-center gap-1.5">
+                        <div key={`${d.id}-${d.name}-${index}`} className="flex items-center gap-1.5">
                           <span
                             className={`text-[9px] w-[72px] truncate flex-shrink-0 ${textMuted}`}
                           >
@@ -982,7 +999,7 @@ export default function FloodMonitoringPage({
                       Flood Extent by Basin
                     </p>
                     <div className="space-y-1.5">
-                      {riverBasins.map((b) => {
+                      {riverBasins.map((b, index) => {
                         const extent = Math.round(
                           b.level * 200 + b.discharge / 20,
                         );
@@ -1003,7 +1020,7 @@ export default function FloodMonitoringPage({
                                 : "#22c55e";
                         return (
                           <div
-                            key={b.name}
+                            key={`${b.name}-${index}`}
                             className="flex items-center gap-1.5"
                           >
                             <span
@@ -1118,7 +1135,7 @@ export default function FloodMonitoringPage({
               </div>
             </div>
             <div className="space-y-1">
-              {districts.slice(0, 3).map((d) => {
+              {districts.slice(0, 3).map((d, index) => {
                 const pop = d.population_affected ?? 0;
                 const maxPop = Math.max(
                   ...districts.map((x) => x.population_affected ?? 0),
@@ -1131,7 +1148,7 @@ export default function FloodMonitoringPage({
                       ? "#f97316"
                       : "#eab308";
                 return (
-                  <div key={d.id} className="flex items-center gap-2">
+                  <div key={`${d.id}-${d.name}-${index}`} className="flex items-center gap-2">
                     <span className={`text-[9px] w-20 truncate ${textMuted}`}>
                       {d.name}
                     </span>
@@ -1178,6 +1195,7 @@ export default function FloodMonitoringPage({
                     className="absolute inset-0 w-full h-full"
                     badgeText={`+${forecastStep}h`}
                     floodHoverData={floodHoverData}
+                    onLayerResolved={handleLayerResolved}
                   />
                 </div>
                 <button
