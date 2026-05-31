@@ -32,6 +32,7 @@ import {
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
 import { useRainAnimation } from "./useRainAnimation";
+import { useRasterValue } from "@/hooks/useRasterValue";
 import { weatherAPI } from "@/services/api";
 import {
   API_BASE,
@@ -175,6 +176,7 @@ export default function WeatherForcastMap({
     {},
   );
   const weatherMarkersRef = useRef<L.Marker[]>([]);
+  const districtWeatherRef = useRef<Record<string, any>>({});
 
   // ── Rain canvas ref (for animated drop overlay) ────────────────────────────
   const rainCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -228,6 +230,23 @@ export default function WeatherForcastMap({
   // Keep the ref up-to-date so the map's mousemove listener always calls
   // the latest version without needing to re-register the listener.
   handleMouseMoveRef.current = handleMouseMove;
+
+  // ── GeoTIFF-based district values (temperature) ───────────────────────────
+  // For temperature we read directly from the WCS GeoTIFF instead of the
+  // weather/map/ REST endpoint — gives real model values with no backend dep.
+  const isTemperatureParam = selectedParameter?.toLowerCase() === "temperature";
+  const { values: rasterDistrictValues, loading: rasterLoading, error: rasterError } = useRasterValue(
+    isTemperatureParam ? "temperature" : "",   // only fetch when needed
+    GEOSERVER_WEATHER_WCS,
+    geoData,
+    // Pass the active WCS layer name so values recalculate when the raster
+    // frame changes (slider move, model switch). activeRainLayer tracks the
+    // current layer for all parameters, not just rain.
+    isTemperatureParam ? (activeRainLayer ?? undefined) : undefined,
+  );
+
+  // Log raster errors in dev so they're visible
+  if (rasterError) console.warn("[WeatherForcastMap] raster value error:", rasterError);
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -340,7 +359,7 @@ export default function WeatherForcastMap({
         wmsLayer.bringToFront();
         weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer as any;
       }
-      // Replace active set with only keep layers + the new one
+      // Replace active set with only keep layers + the new onee
       setActiveLayers((prev) => {
         const next = new Set([...prev].filter((id) => keepLayers.has(id)));
         next.add(layerDef.id);
@@ -789,9 +808,18 @@ export default function WeatherForcastMap({
   // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
   // The FloodHourSlider advances the hour — the effect above swaps the layer.
 
-  // ── Weather district markers — real data from weather/map API ──────────────
-  const districtWeatherRef = useRef<Record<string, any>>({});
+  // ── Sync raster values into districtWeatherRef for hover tooltip ─────────────
+  // The marker useEffect only runs for the target district, but the tooltip
+  // needs values for every district the user can hover over.
+  useEffect(() => {
+    if (selectedParameter?.toLowerCase() !== "temperature") return;
+    if (!Object.keys(rasterDistrictValues).length) return;
+    districtWeatherRef.current = { ...rasterDistrictValues };
+  }, [rasterDistrictValues, selectedParameter]);
 
+  // ── Weather district markers ──────────────────────────────────────────────
+  // Temperature: read directly from the WCS GeoTIFF (real model values).
+  // All other params: fetch from weather/map/ REST API as before.
   useEffect(() => {
     if (!weatherforcastMapRef.current || !geoData?.features) return;
 
@@ -799,15 +827,63 @@ export default function WeatherForcastMap({
     const config = PARAM_LEGENDS[param];
     if (!config) return;
 
-    // Fetch real weather data for all districts
+    // Clear old markers first
+    weatherMarkersRef.current.forEach((m) => m.remove());
+    weatherMarkersRef.current = [];
+
+    // ── Temperature: use raster values already fetched by useRasterValue ──
+    if (param === "temperature") {
+      // Still fetching — the effect will re-run when rasterDistrictValues populates
+      if (rasterLoading) return;
+
+      const hasRasterData = Object.keys(rasterDistrictValues).length > 0;
+
+      if (hasRasterData) {
+        // Populate the full ref for ALL districts so hover tooltip works everywhere
+        districtWeatherRef.current = { ...rasterDistrictValues };
+
+        const target =
+          getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
+            ? getTheBounds.trim()
+            : "Kampala";
+
+        (geoData.features as any[]).forEach((feature) => {
+          const name: string = feature?.properties?.name ?? "";
+          if (!name.toLowerCase().includes(target.toLowerCase())) return;
+
+          const value = rasterDistrictValues[name.toLowerCase()];
+          if (value == null) return;
+
+          const center = L.geoJSON(feature).getBounds().getCenter();
+          const color  = getValueColor(value, param);
+          const marker = L.marker(center, {
+            icon: L.divIcon({
+              className: "",
+              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 200,
+          }).addTo(weatherforcastMapRef.current!);
+          weatherMarkersRef.current.push(marker);
+        });
+
+        return; // done — skip the API fetch below
+      }
+
+      // Raster fetch failed or returned nothing — fall through to API
+      console.warn("[WeatherForcastMap] raster returned no values, falling back to weather/map API");
+    }
+
+    // ── All other params: fetch from weather/map/ REST API ────────────────
     const paramApiMap: Record<string, string> = {
-      temperature: "temperature",
-      rainfall: "rainfall",
+      rainfall:    "rainfall",
       precipitation: "rainfall",
-      humidity: "humidity",
-      wind: "wind_speed",
+      humidity:    "humidity",
+      wind:        "wind_speed",
     };
-    const apiParam = paramApiMap[param] || "temperature";
+    const apiParam = paramApiMap[param] || param;
 
     fetch(`${API_BASE}weather/map/?parameter=${apiParam}`)
       .catch(() => null)
@@ -823,11 +899,10 @@ export default function WeatherForcastMap({
         }
         districtWeatherRef.current = lookup;
 
-        // Clear old markers
+        // Clear markers again (API response may have arrived after a re-render)
         weatherMarkersRef.current.forEach((m) => m.remove());
         weatherMarkersRef.current = [];
 
-        // Show marker for the selected district; fall back to Kampala
         const target =
           getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
             ? getTheBounds.trim()
@@ -837,24 +912,16 @@ export default function WeatherForcastMap({
           const name: string = feature?.properties?.name ?? "";
           if (!name.toLowerCase().includes(target.toLowerCase())) return;
 
-          const center = L.geoJSON(feature).getBounds().getCenter();
+          const center    = L.geoJSON(feature).getBounds().getCenter();
           const realValue = lookup[name.toLowerCase()];
-          const value =
-            realValue != null ? Math.round(realValue * 10) / 10 : null;
+          const value     = realValue != null ? Math.round(realValue * 10) / 10 : null;
+          if (value == null) return;
 
-          if (value == null) return; // Skip districts with no data
-
-          const color = getValueColor(value, param);
+          const color  = getValueColor(value, param);
           const marker = L.marker(center, {
             icon: L.divIcon({
               className: "",
-              html: makeMarkerHtml(
-                name,
-                Math.round(value),
-                config.unit,
-                color,
-                param,
-              ),
+              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
               iconSize: [1, 1],
               iconAnchor: [0, 0],
             }),
@@ -865,11 +932,10 @@ export default function WeatherForcastMap({
         });
       })
       .catch(() => {
-        // Fallback: clear markers if API fails
         weatherMarkersRef.current.forEach((m) => m.remove());
         weatherMarkersRef.current = [];
       });
-  }, [selectedParameter, geoData, getTheBounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedParameter, geoData, getTheBounds, rasterDistrictValues, rasterLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // In the component, below where you destructure currentPage from the store
   const isVisibleOnPage = (layer: LayerDef): boolean => {
