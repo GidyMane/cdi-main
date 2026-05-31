@@ -49,6 +49,7 @@ export type StationStatus = "online" | "maintenance" | "offline";
 
 export interface WeatherStation {
   id: string;
+  code?: string;           // station code used for readings API, e.g. "ARU001"
   name: string;
   region?: string;
   status: StationStatus;

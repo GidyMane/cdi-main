@@ -433,9 +433,10 @@ export const stationsAPI = {
     return fetchData<WeatherStation>(`weather-stations/${stationId}/`);
   },
 
-  getReadings: async (stationId: string | number, hours: number = 24) => {
+  getReadings: async (stationCode: string, hours: number = 24) => {
+    // Endpoint: /api/v1/weather-stations/{station_code}/readings/?hours=N
     return fetchData<StationReading[]>(
-      `weather-stations/${stationId}/readings/?hours=${hours}`
+      `weather-stations/${stationCode}/readings/?hours=${hours}`
     );
   },
 
