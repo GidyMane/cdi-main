@@ -10,7 +10,7 @@ import {
   Wind,
   Gauge,
   CloudRain,
-  AlertTriangle,
+  // AlertTriangle,
   Info,
   BarChart3,
   Filter,
