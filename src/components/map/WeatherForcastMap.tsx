@@ -31,11 +31,9 @@ import {
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
 import { clippedWms } from "./clippedWmsLayer";
-import { useRainAnimation } from "./useRainAnimation";
 import { useRasterValue } from "@/hooks/useRasterValue";
 import { weatherAPI } from "@/services/api";
 import {
-  API_BASE,
   GEOSERVER_WFEWS_WMS,
   GEOSERVER_WEATHER_WMS,
   GEOSERVER_WEATHER_WCS,
@@ -178,12 +176,6 @@ export default function WeatherForcastMap({
   const weatherMarkersRef = useRef<L.Marker[]>([]);
   const districtWeatherRef = useRef<Record<string, any>>({});
 
-  // ── Rain canvas ref (for animated drop overlay) ────────────────────────────
-  const rainCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Stable ref so the map's mousemove listener always calls the latest version
-  const handleMouseMoveRef = useRef<((latlng: L.LatLng) => void) | null>(null);
-  // Tracks the WMS layer name currently displayed — rain drops fetch the
-  // matching WCS GeoTIFF so drops always reflect the visible raster frame.
   const activeRainLayerRef = useRef<string | null>(null);
 
   const [_selectedForcastData, setSelectedForcastData] = useState<
@@ -200,52 +192,21 @@ export default function WeatherForcastMap({
     null,
   );
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  // ── Rain animation (canvas drop overlay + cursor GetFeatureInfo) ────────────
-  const isRainParam =
-    selectedParameter?.toLowerCase() === "rainfall" ||
-    selectedParameter?.toLowerCase() === "precipitation";
 
-  // rainLayerName tracks the exact WMS layer currently shown on the map.
-  // This ensures the WCS GeoTIFF fetch in useRainAnimation always matches
-  // the visible raster frame (including slider-driven frame changes).
-  const rainLayerName = isRainParam ? (activeRainLayer ?? null) : null;
+  // ── GeoTIFF-based district values (all weather parameters) ──────────────
+  // Read directly from the WCS GeoTIFF instead of the weather/map/ REST
+  // endpoint — gives real model values with no backend dependency.
+  // Re-fetches automatically when activeRainLayer changes (slider / model switch).
+  const isWeatherParam = ["temperature", "rainfall", "precipitation", "humidity", "wind"]
+    .includes(selectedParameter?.toLowerCase() ?? "");
 
-  const {
-    cursorRainValue,
-    handleMouseMove,
-    resizeCanvas: resizeRainCanvas,
-  } = useRainAnimation({
-    canvasRef: rainCanvasRef,
-    mapRef: weatherforcastMapRef,
-    layerName: rainLayerName,
-    wcsUrl: GEOSERVER_WEATHER_WCS,
-    wmsUrl: GEOSERVER_WEATHER_WMS,
-    isRainParam,
-    // rasterReady: true once we have a layer name — don't wait for tile load
-    // since the WCS fetch is independent of WMS tile rendering
-    rasterReady: rainLayerName !== null,
-    districtGeoJSON: geoData,
-  });
-
-  // Keep the ref up-to-date so the map's mousemove listener always calls
-  // the latest version without needing to re-register the listener.
-  handleMouseMoveRef.current = handleMouseMove;
-
-  // ── GeoTIFF-based district values (temperature) ───────────────────────────
-  // For temperature we read directly from the WCS GeoTIFF instead of the
-  // weather/map/ REST endpoint — gives real model values with no backend dep.
-  const isTemperatureParam = selectedParameter?.toLowerCase() === "temperature";
   const { values: rasterDistrictValues, loading: rasterLoading, error: rasterError } = useRasterValue(
-    isTemperatureParam ? "temperature" : "",   // only fetch when needed
+    isWeatherParam ? selectedParameter : "",
     GEOSERVER_WEATHER_WCS,
     geoData,
-    // Pass the active WCS layer name so values recalculate when the raster
-    // frame changes (slider move, model switch). activeRainLayer tracks the
-    // current layer for all parameters, not just rain.
-    isTemperatureParam ? (activeRainLayer ?? undefined) : undefined,
+    isWeatherParam ? (activeRainLayer ?? undefined) : undefined,
   );
 
-  // Log raster errors in dev so they're visible
   if (rasterError) console.warn("[WeatherForcastMap] raster value error:", rasterError);
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
@@ -513,8 +474,6 @@ export default function WeatherForcastMap({
           found = layer.feature?.properties?.name ?? null;
       });
       setHoveredDistrictName(found);
-      // Forward to rain animation hook for GetFeatureInfo (via ref to avoid stale closure)
-      handleMouseMoveRef.current?.(ev.latlng);
     });
     weatherforcastMapRef.current.on("mouseout", () =>
       setHoveredDistrictName(null),
@@ -539,7 +498,6 @@ export default function WeatherForcastMap({
     // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() => {
       weatherforcastMapRef.current?.invalidateSize();
-      resizeRainCanvas();
     });
     ro.observe(mapWeatherforcastContainerRef.current);
 
@@ -668,9 +626,10 @@ export default function WeatherForcastMap({
           return;
         }
 
-        // Show the first frame only — use base layer name for reliability
+        // Show the first frame — use per-frame layer name for accuracy,
+        // fall back to base layer if future_wms_layer is not available.
         const firstFrame = data.frames[0];
-        const layerName = firstFrame.wms_layer;
+        const layerName = firstFrame.future_wms_layer || firstFrame.wms_layer;
 
         clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
         weatherforcastrasterLayerRef.current = clippedWms(
@@ -764,12 +723,14 @@ export default function WeatherForcastMap({
     const targetHour = bestFrame.forecast_hour;
     if (targetHour === activeFrameHourRef.current) return;
 
-    // Remove old layer, add new one with slide-in animation
+    // Remove old layer, add new one with fade-in animation
     const map = weatherforcastMapRef.current!;
     const prevLayer = weatherforcastrasterLayerRef.current;
 
-    // Always use the base layer name — per-frame layers may not be published
-    const layerName = bestFrame.wms_layer;
+    // Use the per-frame timestamped layer name (future_wms_layer) so each
+    // slider position shows the correct forecast hour from GeoServer.
+    // Fall back to the base layer name if future_wms_layer is not available.
+    const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
 
     const newLayer = clippedWms(cached.wmsUrl, {
       ...getWmsOptions(layerName, 0),
@@ -809,17 +770,13 @@ export default function WeatherForcastMap({
   // The FloodHourSlider advances the hour — the effect above swaps the layer.
 
   // ── Sync raster values into districtWeatherRef for hover tooltip ─────────────
-  // The marker useEffect only runs for the target district, but the tooltip
-  // needs values for every district the user can hover over.
   useEffect(() => {
-    if (selectedParameter?.toLowerCase() !== "temperature") return;
+    if (!isWeatherParam) return;
     if (!Object.keys(rasterDistrictValues).length) return;
     districtWeatherRef.current = { ...rasterDistrictValues };
-  }, [rasterDistrictValues, selectedParameter]);
+  }, [rasterDistrictValues, isWeatherParam]);
 
-  // ── Weather district markers ──────────────────────────────────────────────
-  // Temperature: read directly from the WCS GeoTIFF (real model values).
-  // All other params: fetch from weather/map/ REST API as before.
+  // ── Weather district markers — all params from GeoTIFF ───────────────────
   useEffect(() => {
     if (!weatherforcastMapRef.current || !geoData?.features) return;
 
@@ -827,114 +784,45 @@ export default function WeatherForcastMap({
     const config = PARAM_LEGENDS[param];
     if (!config) return;
 
-    // Clear old markers first
+    // Clear old markers
     weatherMarkersRef.current.forEach((m) => m.remove());
     weatherMarkersRef.current = [];
 
-    // ── Temperature: use raster values already fetched by useRasterValue ──
-    if (param === "temperature") {
-      // Still fetching — the effect will re-run when rasterDistrictValues populates
-      if (rasterLoading) return;
+    // Wait for raster fetch to complete
+    if (rasterLoading) return;
 
-      const hasRasterData = Object.keys(rasterDistrictValues).length > 0;
+    // No raster data — nothing to show
+    if (!Object.keys(rasterDistrictValues).length) return;
 
-      if (hasRasterData) {
-        // Populate the full ref for ALL districts so hover tooltip works everywhere
-        districtWeatherRef.current = { ...rasterDistrictValues };
+    // Populate full ref so hover tooltip works on every district
+    districtWeatherRef.current = { ...rasterDistrictValues };
 
-        const target =
-          getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
-            ? getTheBounds.trim()
-            : "Kampala";
+    const target =
+      getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
+        ? getTheBounds.trim()
+        : "Kampala";
 
-        (geoData.features as any[]).forEach((feature) => {
-          const name: string = feature?.properties?.name ?? "";
-          if (!name.toLowerCase().includes(target.toLowerCase())) return;
+    (geoData.features as any[]).forEach((feature) => {
+      const name: string = feature?.properties?.name ?? "";
+      if (!name.toLowerCase().includes(target.toLowerCase())) return;
 
-          const value = rasterDistrictValues[name.toLowerCase()];
-          if (value == null) return;
+      const value = rasterDistrictValues[name.toLowerCase()];
+      if (value == null) return;
 
-          const center = L.geoJSON(feature).getBounds().getCenter();
-          const color  = getValueColor(value, param);
-          const marker = L.marker(center, {
-            icon: L.divIcon({
-              className: "",
-              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
-              iconSize: [1, 1],
-              iconAnchor: [0, 0],
-            }),
-            interactive: false,
-            zIndexOffset: 200,
-          }).addTo(weatherforcastMapRef.current!);
-          weatherMarkersRef.current.push(marker);
-        });
-
-        return; // done — skip the API fetch below
-      }
-
-      // Raster fetch failed or returned nothing — fall through to API
-      console.warn("[WeatherForcastMap] raster returned no values, falling back to weather/map API");
-    }
-
-    // ── All other params: fetch from weather/map/ REST API ────────────────
-    const paramApiMap: Record<string, string> = {
-      rainfall:    "rainfall",
-      precipitation: "rainfall",
-      humidity:    "humidity",
-      wind:        "wind_speed",
-    };
-    const apiParam = paramApiMap[param] || param;
-
-    fetch(`${API_BASE}weather/map/?parameter=${apiParam}`)
-      .catch(() => null)
-      .then((res) => res?.json?.())
-      .then((data) => {
-        if (!data?.features || !weatherforcastMapRef.current) return;
-
-        // Build lookup: district_name → value
-        const lookup: Record<string, number | null> = {};
-        for (const feature of data.features) {
-          const props = feature.properties;
-          lookup[props.district_name?.toLowerCase()] = props.value;
-        }
-        districtWeatherRef.current = lookup;
-
-        // Clear markers again (API response may have arrived after a re-render)
-        weatherMarkersRef.current.forEach((m) => m.remove());
-        weatherMarkersRef.current = [];
-
-        const target =
-          getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
-            ? getTheBounds.trim()
-            : "Kampala";
-
-        (geoData.features as any[]).forEach((feature) => {
-          const name: string = feature?.properties?.name ?? "";
-          if (!name.toLowerCase().includes(target.toLowerCase())) return;
-
-          const center    = L.geoJSON(feature).getBounds().getCenter();
-          const realValue = lookup[name.toLowerCase()];
-          const value     = realValue != null ? Math.round(realValue * 10) / 10 : null;
-          if (value == null) return;
-
-          const color  = getValueColor(value, param);
-          const marker = L.marker(center, {
-            icon: L.divIcon({
-              className: "",
-              html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
-              iconSize: [1, 1],
-              iconAnchor: [0, 0],
-            }),
-            interactive: false,
-            zIndexOffset: 200,
-          }).addTo(weatherforcastMapRef.current!);
-          weatherMarkersRef.current.push(marker);
-        });
-      })
-      .catch(() => {
-        weatherMarkersRef.current.forEach((m) => m.remove());
-        weatherMarkersRef.current = [];
-      });
+      const center = L.geoJSON(feature).getBounds().getCenter();
+      const color  = getValueColor(value, param);
+      const marker = L.marker(center, {
+        icon: L.divIcon({
+          className: "",
+          html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
+          iconSize: [1, 1],
+          iconAnchor: [0, 0],
+        }),
+        interactive: false,
+        zIndexOffset: 200,
+      }).addTo(weatherforcastMapRef.current!);
+      weatherMarkersRef.current.push(marker);
+    });
   }, [selectedParameter, geoData, getTheBounds, rasterDistrictValues, rasterLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // In the component, below where you destructure currentPage from the store
@@ -957,13 +845,6 @@ export default function WeatherForcastMap({
         style={{
           background: isDarkMode ? "#07111f" : "#dceaf4",
         }}
-      />
-
-      {/* Rain drop canvas — sits below the raster, above the base tile */}
-      <canvas
-        ref={rainCanvasRef}
-        className="absolute inset-0 pointer-events-none"
-        style={{ zIndex: 2 }}
       />
 
       {/* Loading overlay */}
@@ -1416,18 +1297,10 @@ export default function WeatherForcastMap({
           const param = selectedParameter?.toLowerCase() ?? "";
           const config = PARAM_LEGENDS[param];
 
-          // For rainfall: prefer the precise cursor value from GetFeatureInfo
-          // over the district-level average from the weather/map API.
-          const cursorNumeric =
-            isRainParam && cursorRainValue ? parseFloat(cursorRainValue) : null;
-
           const districtAvg =
             districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
 
-          const rawValue =
-            cursorNumeric !== null && !isNaN(cursorNumeric)
-              ? cursorNumeric
-              : (districtAvg ?? null);
+          const rawValue = districtAvg ?? null;
 
           const value =
             config && rawValue != null ? Math.round(rawValue * 10) / 10 : null;

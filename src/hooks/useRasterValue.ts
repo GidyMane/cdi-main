@@ -42,7 +42,6 @@ const PARAM_TO_LAYER: Record<string, string> = {
  */
 function detectParam(layerName: string): string | null {
   const l = layerName.toLowerCase();
-  console.log("layer name ",l)
   if (l.includes("temperature")) return "temperature";
   if (l.includes("precipitation") || l.includes("precip")) return "rainfall";
   if (l.includes("humidity")) return "humidity";
@@ -77,7 +76,6 @@ interface Grid {
 // ── Fetch + parse GeoTIFF ─────────────────────────────────────────────────────
 
 async function fetchGrid(wcsUrl: string, layerName: string, signal?: AbortSignal): Promise<Grid> {
-  console.log("second layerName ",layerName)
   const params = new URLSearchParams({
     service:  "WCS",
     version:  "1.0.0",
@@ -91,13 +89,11 @@ async function fetchGrid(wcsUrl: string, layerName: string, signal?: AbortSignal
   });
 
   const url = `${wcsUrl}?${params}`;
-  console.log(`[useRasterValue] fetching ${layerName} from`, url);
 
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`WCS HTTP ${res.status} for ${layerName}`);
 
   const ct = res.headers.get("content-type") ?? "";
-  console.log(`[useRasterValue] response content-type:`, ct);
 
   // GeoServer returns XML on error even with format=GeoTIFF
   if (ct.includes("xml") || ct.includes("exception")) {
@@ -107,7 +103,6 @@ async function fetchGrid(wcsUrl: string, layerName: string, signal?: AbortSignal
   }
 
   const buffer = await res.arrayBuffer();
-  console.log(`[useRasterValue] GeoTIFF buffer size:`, buffer.byteLength, "bytes");
 
   const tiff   = await fromArrayBuffer(buffer);
   const image  = await tiff.getImage();
@@ -119,12 +114,6 @@ async function fetchGrid(wcsUrl: string, layerName: string, signal?: AbortSignal
   const ny = image.getHeight();
   const fileDir = (image as any).fileDirectory;
   const nodata  = fileDir?.GDAL_NODATA != null ? parseFloat(fileDir.GDAL_NODATA) : null;
-
-  console.log(`[useRasterValue] grid ${nx}×${ny}, bbox=[${west},${south},${east},${north}], nodata=${nodata}`);
-
-  // Sample a few raw values to detect Kelvin vs Celsius
-  const midVal = (raw as any)[Math.floor(raw.length / 2)] as number;
-  console.log(`[useRasterValue] sample raw pixel (mid):`, midVal, midVal > 200 ? "→ Kelvin, will convert" : "→ already °C");
 
   const data = new Float32Array(raw.length);
   for (let i = 0; i < raw.length; i++) {
@@ -234,7 +223,6 @@ export function useRasterValue(
         if (controller.signal.aborted) return;
 
         const result: Record<string, number> = {};
-        let sampled = 0;
 
         for (const feature of geoJSON.features) {
           const name = feature?.properties?.name as string | undefined;
@@ -248,13 +236,7 @@ export function useRasterValue(
           if (raw === null) continue;
 
           result[name.toLowerCase()] = convert(raw);
-          sampled++;
         }
-
-        console.log(
-          `[useRasterValue] "${resolvedLayer}" → ${sampled} districts. ` +
-          `Sample: ${Object.entries(result).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(", ")}`
-        );
 
         setValues(result);
         setLoading(false);
