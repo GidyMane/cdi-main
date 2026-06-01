@@ -90,6 +90,10 @@ export interface AppStoreState {
   forecastStep: number;
   // setForecastStep: (step: number) => void;
   setForecastStep: (value: number | ((prev: number) => number)) => void;
+
+  // Chart metric from map interaction
+  mapInteractionMetric: "temp" | "rain" | "wind" | null;
+  setMapInteractionMetric: (metric: "temp" | "rain" | "wind" | null) => void;
 }
 
 export const useAppStore = create<AppStoreState>()(
@@ -179,6 +183,11 @@ export const useAppStore = create<AppStoreState>()(
           forecastStep:
             typeof value === "function" ? value(state.forecastStep) : value,
         })),
+
+      // Chart metric from map interaction
+      mapInteractionMetric: null,
+      setMapInteractionMetric: (metric) =>
+        set({ mapInteractionMetric: metric }),
     }),
     {
       name: "app-store",

@@ -148,6 +148,7 @@ export default function WeatherForcastMap({
     setSelectedDistrictId,
     layerMode,
     forecastStep,
+    setMapInteractionMetric,
   } = useAppStore((state) => state);
 
   const LAYER_GROUPS = getLayerGroups({
@@ -444,6 +445,18 @@ export default function WeatherForcastMap({
     // Reference uses getBounds().contains() which gives rectangles.
     // We use isPointInPolygon() so the highlight matches the actual shape.
     weatherforcastMapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
+      // Sync chart metric with current weather parameter
+      const paramMap: Record<string, "temp" | "rain" | "wind"> = {
+        temperature: "temp",
+        rainfall: "rain",
+        precipitation: "rain",
+        wind: "wind",
+      };
+      const param = selectedParameter?.toLowerCase() || "temperature";
+      const metric = paramMap[param] || "temp";
+      setMapInteractionMetric(metric);
+
+      // Detect and highlight clicked district
       let clickedFeature: any = null;
 
       weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
