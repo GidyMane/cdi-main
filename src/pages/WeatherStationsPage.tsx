@@ -34,7 +34,7 @@ import { stationsAPI } from "@/services/api";
 import type { WeatherStationAPI } from "@/services/api";
 
 // ---------------------------------------------------------------------------
-// Types & constants
+// Types & constantss
 // ---------------------------------------------------------------------------
 interface WeatherStationsPageProps {
   isDarkMode?: boolean;
