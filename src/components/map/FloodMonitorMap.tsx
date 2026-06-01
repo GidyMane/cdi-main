@@ -992,7 +992,7 @@ export default function FloodMonitorMap({
             ? "rgba(255,255,255,0.08)"
             : "rgba(0,0,0,0.08)";
 
-          // ── Flood modes ────────────────────────────────────────────────────────
+          // ── Flood mode ────────────────────────────────────────────────────────
           if (
             layerMode === "forecast" &&
             floodHoverData &&
