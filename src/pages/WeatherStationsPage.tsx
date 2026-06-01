@@ -55,8 +55,8 @@ const PARAM_META = [
 
 const stationTabs = [
   { id: "all",      label: "All Stations",    icon: Radio         },
-  { id: "readings", label: "Recent Readings", icon: BarChart3     },
-  { id: "alerts",   label: "Alerts",          icon: AlertTriangle },
+  // { id: "readings", label: "Recent Readings", icon: BarChart3     },
+  // { id: "alerts",   label: "Alerts",          icon: AlertTriangle },
 ];
 
 // ---------------------------------------------------------------------------
