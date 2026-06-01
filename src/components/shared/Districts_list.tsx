@@ -21,7 +21,7 @@ function Districts_list({ district_list, isDarkMode, textMuted }: any) {
         value={selectedDistrictId?.id ?? ""}
         onChange={(e) => {
           if (!e.target.value) {
-            // "All Districts" selected — clear district and reset map
+            // "All Districts" selected — clear district and reset maps
             setSelectedDistrictId(undefined);
             return;
           }
