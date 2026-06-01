@@ -320,7 +320,7 @@ export default function WeatherForcastMap({
         wmsLayer.bringToFront();
         weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer as any;
       }
-      // Replace active set with only keep layers + the new one
+      // Replace active set with only keep layers + the new onee
       setActiveLayers((prev) => {
         const next = new Set([...prev].filter((id) => keepLayers.has(id)));
         next.add(layerDef.id);
