@@ -468,12 +468,21 @@ function AppContent() {
   );
 }
 
+// Create once outside the component so the cache persists across re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes default
+      gcTime: 30 * 60 * 1000,   // 30 minutes in memory
+    },
+  },
+});
+
 /**
  * Main App component with ThemeProvider wrapper
  * This ensures theme is available throughout the entire app
  */
 function App() {
-  const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>

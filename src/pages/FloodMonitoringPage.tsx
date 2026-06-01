@@ -558,7 +558,15 @@ export default function FloodMonitoringPage({
 
       <div className="relative z-10 w-full">
         {/* Fallback data banner (hidden when data loads ok) */}
-        {isUsingFallback && <div />}
+        {isUsingFallback && !dataLoading && (
+          <div
+            className="mb-3 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2"
+            style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            Flood data unavailable — check API connection or try refreshing.
+          </div>
+        )}
 
         {/* Header */}
         <div
@@ -575,7 +583,7 @@ export default function FloodMonitoringPage({
                 </h1>
                 <p className="text-slate-200 text-xs md:text-sm 3xl:text-base 4xl:text-lg">
                   Real-time rainfall data and flood risk assessment
-                  {isUsingFallback && " (Demo Data)"}
+                  {isUsingFallback && !dataLoading && " · No live data"}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {criticalBasins > 0 && (

@@ -420,13 +420,10 @@ export default function WeatherForcastMap({
       if (!clickedFeature) return;
 
       if (setSelectedDistrictId) {
+        const clickedName: string = clickedFeature.properties.name?.trim().toLowerCase() ?? "";
         const filtered = unique.find(
-          (item) =>
-            item?.name?.toLowerCase() ===
-            clickedFeature.properties.name?.toLowerCase(),
+          (item) => item?.name?.trim().toLowerCase() === clickedName,
         );
-
-        console.log("filtered", filtered);
         setSelectedDistrictId(filtered);
       }
 
@@ -1305,8 +1302,7 @@ export default function WeatherForcastMap({
           const value =
             config && rawValue != null ? Math.round(rawValue * 10) / 10 : null;
 
-          const color =
-            config && value !== null ? getValueColor(value, param) : FAO_BLUE;
+          const color = "#45FF12";
           const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;
           const ty = Math.max(mousePos.y - 48, 8);
           return (
@@ -1320,9 +1316,7 @@ export default function WeatherForcastMap({
                   letterSpacing: 1,
                   textTransform: "uppercase",
                   fontWeight: 600,
-                  color: isDarkMode
-                    ? "rgba(255,255,255,0.55)"
-                    : "rgba(0,0,0,0.55)",
+                  color: "#45FF12",
                   textShadow: isDarkMode
                     ? "0 1px 3px rgba(0,0,0,0.8)"
                     : "0 1px 3px rgba(255,255,255,0.9)",
@@ -1351,6 +1345,35 @@ export default function WeatherForcastMap({
                   </span>
                 </p>
               )}
+              {config && value === null && rasterLoading && (
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    color: "#45FF12",
+                    textShadow: isDarkMode
+                      ? "0 1px 4px rgba(0,0,0,0.9)"
+                      : "0 1px 4px rgba(255,255,255,0.9)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      border: `2px solid #45FF1240`,
+                      borderTopColor: "#45FF12",
+                      animation: "spin 0.7s linear infinite",
+                    }}
+                  />
+                  Loading…
+                </p>
+              )}
             </div>
           );
         })()}
@@ -1368,6 +1391,7 @@ export default function WeatherForcastMap({
       white-space: nowrap;
       pointer-events: none;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .waterAreas-label {
       background: transparent !important;
       border: none !important;

@@ -332,6 +332,8 @@ export default function WeatherForecastPage({
   const { data: district_list = [] } = useQuery<district[]>({
     queryKey: ["districts"],
     queryFn: DistrictsAPI.getAll,
+    staleTime: 10 * 60 * 1000,  // districts don't change — cache for 10 min
+    gcTime: 30 * 60 * 1000,     // keep in memory for 30 min
   });
 
   const {
