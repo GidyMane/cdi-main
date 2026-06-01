@@ -2,6 +2,7 @@ import { useAppStore } from "@/store/useAppStore";
 import type { district } from "@/types/data_types";
 
 function Districts_list({ district_list, isDarkMode, textMuted }: any) {
+  console.log("district_list ",district_list)
   const { selectedDistrictId, setSelectedDistrictId } = useAppStore(
     (state) => state,
   );
@@ -20,7 +21,7 @@ function Districts_list({ district_list, isDarkMode, textMuted }: any) {
         value={selectedDistrictId?.id ?? ""}
         onChange={(e) => {
           if (!e.target.value) {
-            // "All Districts" selected — clear district and reset map
+            // "All Districts" selected — clear district and reset maps
             setSelectedDistrictId(undefined);
             return;
           }
