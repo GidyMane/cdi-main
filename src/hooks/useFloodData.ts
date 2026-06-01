@@ -88,18 +88,18 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       }
 
       // Basin Status
-      const basinStatusResult = results[1];
+      const basinStatusResult:any = results[1];
       if (basinStatusResult.status === 'fulfilled' && basinStatusResult.value?.length > 0) {
         floodDataCache.basinStatus = basinStatusResult.value;
         floodDataCache.lastFetch[cacheKey('basinStatus')] = Date.now();
-        setBasinStatus(basinStatusResult.value);
+        setBasinStatus(basinStatusResult?.value);
       } else {
         errors.basinStatus = true;
         setBasinStatus([]);
       }
 
       // Basin Trend
-      const basinTrendResult = results[2];
+      const basinTrendResult:any = results[2];
       if (basinTrendResult.status === 'fulfilled' && basinTrendResult.value) {
         floodDataCache.basinTrend = basinTrendResult.value;
         floodDataCache.lastFetch[cacheKey('basinTrend')] = Date.now();
@@ -110,7 +110,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       }
 
       // Districts
-      const districtsResult = results[3];
+      const districtsResult:any = results[3];
       if (districtsResult.status === 'fulfilled' && districtsResult.value?.length > 0) {
         floodDataCache.districts = districtsResult.value;
         floodDataCache.lastFetch[cacheKey('districts')] = Date.now();
@@ -121,7 +121,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       }
 
       // Forecasts
-      const forecastsResult = results[4];
+      const forecastsResult:any = results[4];
       if (forecastsResult.status === 'fulfilled' && forecastsResult.value?.length > 0) {
         floodDataCache.forecasts = forecastsResult.value;
         floodDataCache.lastFetch[cacheKey('forecasts')] = Date.now();
