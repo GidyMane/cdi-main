@@ -60,166 +60,107 @@ const ThresholdBar = ({ value, min, max, segments, isDarkMode }: {
   );
 };
 
-/* ── Module art SVGs ───────────────────────────────────────────── */
+/* ── Module art SVGs — single centred icon per card ─────────────── */
+
+/* Weather: cloud-rain icon */
 const WeatherArtCard = () => (
   <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
-    {/* subtle grid */}
-    {[0,1,2,3,4].map(i=><line key={i} x1="0" y1={i*50} x2="300" y2={i*50} stroke="white" strokeOpacity="0.04" strokeWidth="1"/>)}
-    {[0,1,2,3,4,5].map(i=><line key={i} x1={i*60} y1="0" x2={i*60} y2="200" stroke="white" strokeOpacity="0.04" strokeWidth="1"/>)}
-    {/* low-pressure isobar rings */}
-    {[82,62,44,29,17,9].map((r,i)=>(
-      <circle key={i} cx="238" cy="58" r={r}
-        stroke="white" strokeOpacity={0.07+i*0.05} strokeWidth={i===5?1.5:1}
-        strokeDasharray={i%2===0?"4 7":"none"}
-        fill={i>=4?"white":"none"} fillOpacity={i===5?0.7:i===4?0.25:0}/>
-    ))}
-    <text x="232" y="63" fontSize="11" fontWeight="bold" fill="white" fillOpacity="0.85">L</text>
-    <line x1="238" y1="58" x2="298" y2="8"  stroke="white" strokeOpacity="0.18" strokeWidth="1.2"/>
-    <line x1="238" y1="58" x2="298" y2="108" stroke="white" strokeOpacity="0.10" strokeWidth="1"/>
-    {/* cloud mass */}
-    <ellipse cx="92"  cy="118" rx="70" ry="30" fill="white" fillOpacity="0.16"/>
-    <ellipse cx="124" cy="100" rx="52" ry="30" fill="white" fillOpacity="0.20"/>
-    <ellipse cx="60"  cy="124" rx="40" ry="22" fill="white" fillOpacity="0.12"/>
-    <ellipse cx="158" cy="108" rx="36" ry="22" fill="white" fillOpacity="0.14"/>
-    <ellipse cx="118" cy="93"  rx="30" ry="13" fill="white" fillOpacity="0.10"/>
-    {/* rain streaks */}
-    {[48,64,82,100,118,136,154,58,90,110,130,148].map((x,i)=>(
-      <line key={i} x1={x} y1={143+(i%3)*9} x2={x-4} y2={158+(i%3)*9}
-        stroke="white" strokeOpacity="0.38" strokeWidth="1.2" strokeLinecap="round"/>
-    ))}
-    {/* wind streamlines */}
-    <path d="M162 152 Q200 140 244 152 Q272 160 296 154"
-      stroke="white" strokeOpacity="0.15" strokeWidth="1.5" fill="none"/>
-    <path d="M130 168 Q190 156 248 168 Q276 175 300 168"
-      stroke="white" strokeOpacity="0.10" strokeWidth="1" fill="none"/>
-  </svg>
-);
-
-const DroughtArtCard = () => (
-  <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
-    {/* sun glow halos */}
-    <circle cx="222" cy="70" r="95" fill="white" fillOpacity="0.02"/>
-    <circle cx="222" cy="70" r="70" fill="white" fillOpacity="0.04"/>
-    <circle cx="222" cy="70" r="48" fill="white" fillOpacity="0.07"/>
-    <circle cx="222" cy="70" r="30" fill="white" fillOpacity="0.16"/>
-    <circle cx="222" cy="70" r="17" fill="white" fillOpacity="0.55"/>
-    {/* sun rays */}
-    {Array.from({length:18},(_,i)=>{
-      const a=(i*20*Math.PI)/180, r1=32, r2=53;
-      return <line key={i}
-        x1={222+r1*Math.cos(a)} y1={70+r1*Math.sin(a)}
-        x2={222+r2*Math.cos(a)} y2={70+r2*Math.sin(a)}
-        stroke="white" strokeOpacity={i%2===0?0.55:0.32} strokeWidth={i%2===0?1.8:1.2} strokeLinecap="round"/>;
-    })}
-    {/* heat shimmer waves */}
-    {[0,1,2,3,4].map(y=>(
-      <path key={y} d={`M0 ${122+y*9} Q50 ${117+y*9} 100 ${122+y*9} Q150 ${127+y*9} 200 ${122+y*9} Q240 ${117+y*9} 280 ${122+y*9}`}
-        stroke="white" strokeOpacity={0.13-y*0.02} strokeWidth="1" fill="none"/>
-    ))}
-    {/* cracked earth silhouette */}
-    <path d="M0 158 L42 148 L85 156 L132 144 L178 154 L224 143 L268 152 L300 144 L300 200 L0 200 Z"
-      fill="white" fillOpacity="0.09"/>
-    {/* crack lines */}
-    <path d="M48 153 L60 166 L54 180" stroke="white" strokeOpacity="0.22" strokeWidth="0.9" fill="none"/>
-    <path d="M115 149 L128 163 L121 177 M128 163 L140 171" stroke="white" strokeOpacity="0.22" strokeWidth="0.9" fill="none"/>
-    <path d="M202 147 L214 161 L207 174 M214 161 L226 168" stroke="white" strokeOpacity="0.20" strokeWidth="0.9" fill="none"/>
-    <path d="M262 150 L274 163 L267 177" stroke="white" strokeOpacity="0.18" strokeWidth="0.9" fill="none"/>
-    {/* thermometer left */}
-    <rect x="20" y="42" width="9" height="82" rx="4.5" stroke="white" strokeOpacity="0.28" strokeWidth="1" fill="none"/>
-    <circle cx="24.5" cy="130" r="8.5" stroke="white" strokeOpacity="0.28" strokeWidth="1" fill="none"/>
-    <rect x="22.5" y="72" width="4" height="56" rx="2" fill="white" fillOpacity="0.42"/>
-    <circle cx="24.5" cy="130" r="5.5" fill="white" fillOpacity="0.42"/>
-    {[52,67,82,97,112].map((y,i)=>(
-      <line key={i} x1="29" y1={y} x2="36" y2={y} stroke="white" strokeOpacity="0.28" strokeWidth="0.8"/>
-    ))}
-  </svg>
-);
-
-const FloodArtCard = () => (
-  <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
-    {/* rain drops */}
-    {[22,52,88,126,165,204,245,282,38,106,178,255].map((x,i)=>(
-      <ellipse key={i} cx={x} cy={10+(i%5)*14} rx="1.8" ry="5.5"
-        fill="white" fillOpacity="0.42"/>
-    ))}
-    {/* basin fill */}
-    <ellipse cx="150" cy="160" rx="200" ry="70" fill="white" fillOpacity="0.05"/>
-    {/* wave crests */}
-    {[0,1,2,3].map(i=>(
-      <path key={i}
-        d={`M${-10+i*3} ${98-i*13} C${72+i*3} ${85-i*13} ${144+i*2} ${106-i*13} ${208} ${92-i*13} C${258-i*2} ${78-i*13} ${288-i*3} ${98-i*13} ${315} ${88-i*13}`}
-        stroke="white" strokeOpacity={0.42-i*0.08} strokeWidth={2.4-i*0.35} fill="none"/>
-    ))}
-    {/* water fill layers */}
-    <path d="M-10 152 C62 139 124 160 186 146 C244 132 278 152 315 143 L315 200 L-10 200 Z"
-      fill="white" fillOpacity="0.12"/>
-    <path d="M-10 138 C72 125 148 146 212 132 C262 120 290 138 315 130 L315 200 L-10 200 Z"
-      fill="white" fillOpacity="0.09"/>
-    <path d="M-10 122 C82 109 158 130 222 116 C270 105 296 122 315 114 L315 200 L-10 200 Z"
-      fill="white" fillOpacity="0.07"/>
-    {/* ripple rings */}
-    {[[72,136],[188,142],[272,132]].map(([cx,cy],i)=>(
+    <circle cx="150" cy="82" r="36" fill="white" fillOpacity="0.90"/>
+    <circle cx="114" cy="96" r="27" fill="white" fillOpacity="0.90"/>
+    <circle cx="186" cy="96" r="27" fill="white" fillOpacity="0.90"/>
+    <rect   x="114"  y="96"  width="72" height="28" fill="white" fillOpacity="0.90"/>
+    {[122,140,158,176].map((x,i)=>(
       <React.Fragment key={i}>
-        <circle cx={cx} cy={cy} r="7"  stroke="white" strokeOpacity="0.24" strokeWidth="1" fill="none"/>
-        <circle cx={cx} cy={cy} r="15" stroke="white" strokeOpacity="0.14" strokeWidth="1" fill="none"/>
-        <circle cx={cx} cy={cy} r="26" stroke="white" strokeOpacity="0.07" strokeWidth="1" fill="none"/>
+        <line x1={x}   y1="132" x2={x-5}   y2="152" stroke="white" strokeOpacity="0.80" strokeWidth="3.5" strokeLinecap="round"/>
+        <line x1={x+4} y1="144" x2={x-1}   y2="164" stroke="white" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round"/>
       </React.Fragment>
     ))}
-    {/* water-level gauge */}
-    <rect x="272" y="68" width="7" height="92" rx="3.5" stroke="white" strokeOpacity="0.28" strokeWidth="1" fill="none"/>
-    <rect x="273.5" y="120" width="4" height="40" rx="2" fill="white" fillOpacity="0.38"/>
-    {[78,93,108,123,138,153].map((y,i)=>(
-      <line key={i} x1="279" y1={y} x2="285" y2={y} stroke="white" strokeOpacity="0.25" strokeWidth="0.8"/>
-    ))}
-    <text x="268" y="118" fontSize="7" fill="white" fillOpacity="0.40" textAnchor="end">HWM</text>
   </svg>
 );
 
+/* Drought: tree + sun icon */
+const DroughtArtCard = () => (
+  <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
+    {/* Sun top-right */}
+    <circle cx="218" cy="58" r="30" fill="white" fillOpacity="0.90"/>
+    {Array.from({length:12},(_,i)=>{
+      const a=(i*30*Math.PI)/180, r1=34, r2=50;
+      return <line key={i}
+        x1={218+r1*Math.cos(a)} y1={58+r1*Math.sin(a)}
+        x2={218+r2*Math.cos(a)} y2={58+r2*Math.sin(a)}
+        stroke="white" strokeOpacity="0.70" strokeWidth="3" strokeLinecap="round"/>;
+    })}
+    {/* Tree trunk */}
+    <rect x="131" y="128" width="18" height="44" rx="4" fill="white" fillOpacity="0.85"/>
+    {/* Tree canopy */}
+    <circle cx="140" cy="110" r="36" fill="white" fillOpacity="0.90"/>
+    <circle cx="112" cy="120" r="24" fill="white" fillOpacity="0.88"/>
+    <circle cx="168" cy="120" r="24" fill="white" fillOpacity="0.88"/>
+    <circle cx="124" cy="100" r="26" fill="white" fillOpacity="0.88"/>
+    <circle cx="156" cy="100" r="26" fill="white" fillOpacity="0.88"/>
+    <circle cx="140" cy="88"  r="22" fill="white" fillOpacity="0.86"/>
+    {/* Ground */}
+    <line x1="60" y1="172" x2="220" y2="172" stroke="white" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round"/>
+  </svg>
+);
+
+/* Flood: house + rising water icon */
+const FloodArtCard = () => (
+  <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
+    {/* Roof */}
+    <polygon points="100,86 150,44 200,86" fill="white" fillOpacity="0.90"/>
+    {/* Chimney */}
+    <rect x="168" y="52" width="13" height="28" rx="2" fill="white" fillOpacity="0.85"/>
+    {/* Walls */}
+    <rect x="100" y="86" width="100" height="52" fill="white" fillOpacity="0.85"/>
+    {/* Door */}
+    <rect x="135" y="110" width="20" height="28" rx="3" fill="white" fillOpacity="0.30"/>
+    {/* Windows */}
+    <rect x="109" y="96" width="22" height="18" rx="2" fill="white" fillOpacity="0.30"/>
+    <rect x="169" y="96" width="22" height="18" rx="2" fill="white" fillOpacity="0.30"/>
+    {/* Water waves */}
+    <path d="M20 138 C65 126 100 144 150 132 C200 120 240 138 280 128"
+      stroke="white" strokeOpacity="0.90" strokeWidth="4" strokeLinecap="round" fill="none"/>
+    <path d="M20 156 C65 144 100 162 150 150 C200 138 240 156 280 146"
+      stroke="white" strokeOpacity="0.70" strokeWidth="4" strokeLinecap="round" fill="none"/>
+    <path d="M20 172 C65 160 100 178 150 166 C200 154 240 172 280 162"
+      stroke="white" strokeOpacity="0.50" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+  </svg>
+);
+
+/* Stations: weather mast + anemometer icon */
 const StationsArtCard = () => (
   <svg viewBox="0 0 300 200" fill="none" className="w-full h-full">
-    {/* topographic grid */}
-    {[0,1,2,3].map(i=>(
+    {/* Signal arcs */}
+    {[28,50,74].map((r,i)=>(
       <path key={i}
-        d={`M0 ${48+i*42} Q75 ${42+i*42} 150 ${48+i*42} Q225 ${54+i*42} 300 ${48+i*42}`}
-        stroke="white" strokeOpacity="0.05" strokeWidth="1" fill="none"/>
+        d={`M ${150-r} 52 A ${r} ${r} 0 0 1 ${150+r} 52`}
+        stroke="white" strokeOpacity={0.75-i*0.18} strokeWidth="3.5"
+        strokeLinecap="round" fill="none"/>
     ))}
-    {[0,1,2,3,4,5].map(i=>(
-      <line key={i} x1={i*60} y1="0" x2={i*60} y2="200" stroke="white" strokeOpacity="0.04" strokeWidth="1"/>
-    ))}
-    {/* broadcast rings from main hub */}
-    {[22,40,58,78].map((r,i)=>(
-      <circle key={i} cx="150" cy="75" r={r}
-        stroke="white" strokeOpacity={0.17-i*0.03}
-        strokeWidth="1" strokeDasharray={i%2===0?"3 6":"none"} fill="none"/>
-    ))}
-    {/* connection lines */}
-    {[
-      [150,75, 52,42],[150,75,250,48],[150,75,108,125],
-      [150,75,222,112],[108,125,52,42],[108,125,68,156],
-      [222,112,250,48],[222,112,268,145],[250,48,292,32],
-      [68,156,40,180],[268,145,290,168],
-    ].map(([x1,y1,x2,y2],i)=>(
-      <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke="white" strokeOpacity={i<4?0.38:0.20}
-        strokeWidth={i<4?1.3:0.9}
-        strokeDasharray={i>=4?"3 5":"none"}/>
-    ))}
-    {/* station nodes */}
-    {[
-      [150,75,13,0.88],[52,42,7.5,0.72],[250,48,7.5,0.72],
-      [108,125,7,0.65],[222,112,7,0.65],
-      [68,156,6,0.55],[268,145,6,0.55],[292,32,5.5,0.50],[40,180,5,0.45],[290,168,5,0.45],
-    ].map(([cx,cy,r,op],i)=>(
-      <g key={i}>
-        <circle cx={cx as number} cy={cy as number} r={(r as number)*2.2} fill="white" fillOpacity="0.06"/>
-        <circle cx={cx as number} cy={cy as number} r={r as number} fill="white" fillOpacity={op as number}/>
-      </g>
-    ))}
-    {/* telemetry bar */}
-    {[0,1,2,3,4,5,6,7,8].map(i=>(
-      <rect key={i} x={10+i*32} y={178-(6+(i%3)*5)} width="22" height={6+(i%3)*5} rx="1.5"
-        fill="white" fillOpacity={0.10+i*0.02}/>
-    ))}
+    {/* Mast */}
+    <rect x="145" y="50" width="10" height="116" rx="4" fill="white" fillOpacity="0.88"/>
+    {/* Anemometer crossbar */}
+    <line x1="102" y1="86" x2="198" y2="86" stroke="white" strokeOpacity="0.80" strokeWidth="4" strokeLinecap="round"/>
+    {/* 3 anemometer cups */}
+    <circle cx="102" cy="86" r="11" fill="white" fillOpacity="0.88"/>
+    <circle cx="198" cy="86" r="11" fill="white" fillOpacity="0.88"/>
+    <circle cx="150" cy="68" r="11" fill="white" fillOpacity="0.88"/>
+    {/* cup arms from hub */}
+    <line x1="150" y1="86" x2="150" y2="79" stroke="white" strokeOpacity="0.70" strokeWidth="3"/>
+    <line x1="150" y1="86" x2="113" y2="86" stroke="white" strokeOpacity="0.50" strokeWidth="2"/>
+    <line x1="150" y1="86" x2="187" y2="86" stroke="white" strokeOpacity="0.50" strokeWidth="2"/>
+    {/* center hub */}
+    <circle cx="150" cy="86" r="7" fill="white" fillOpacity="0.95"/>
+    {/* Sensor arm */}
+    <line x1="118" y1="122" x2="182" y2="122" stroke="white" strokeOpacity="0.70" strokeWidth="3.5" strokeLinecap="round"/>
+    <circle cx="118" cy="122" r="8" fill="white" fillOpacity="0.80"/>
+    <circle cx="182" cy="122" r="8" fill="white" fillOpacity="0.80"/>
+    {/* Tripod */}
+    <line x1="150" y1="166" x2="116" y2="190" stroke="white" strokeOpacity="0.75" strokeWidth="4" strokeLinecap="round"/>
+    <line x1="150" y1="166" x2="184" y2="190" stroke="white" strokeOpacity="0.75" strokeWidth="4" strokeLinecap="round"/>
+    {/* Ground */}
+    <line x1="90" y1="192" x2="210" y2="192" stroke="white" strokeOpacity="0.45" strokeWidth="3" strokeLinecap="round"/>
   </svg>
 );
 
@@ -235,7 +176,7 @@ const MODULES: {
     id: "weather", title: "Weather Forecast", color: FAO_BLUE,
     tag: "7-Day Forecast",
     desc: "High-resolution precipitation, temperature and wind predictions across all Uganda districts using ICON & GFS models.",
-    gradient: "linear-gradient(150deg, #1d4ed8 0%, #1e3a8a 100%)",
+    gradient: "rgba(49,141,222,0.95)",
     Art: WeatherArtCard,
     stats: [
       { label: "Forecast Range", value: "7 Days" },
