@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(grep -n \"setSelectedStation\\\\|selectedStation\\\\|\\)}$\\\\|activeParams\\\\|readingsLoading\\\\|chartData\\\\|readings\\\\.\" /Users/macbook/Documents/cdi/src/pages/WeatherStationsPage.tsx)",
+      "Bash(awk 'NR==559,/^              <\\\\/div>$/{print NR\": \"$0}' /Users/macbook/Documents/cdi/src/pages/WeatherStationsPage.tsx)",
+      "WebFetch(domain:dashboards.impact-initiatives.org)"
+    ]
+  }
+}
