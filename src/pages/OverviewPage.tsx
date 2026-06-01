@@ -226,10 +226,9 @@ const MODULES: {
 export default function OverviewPage({ onNavigate, isDarkMode = true }: OverviewPageProps) {
   const { selectedDistrictId } = useAppStore((s) => s);
 
-  const [isLoading,   setIsLoading]   = useState(true);
-  const [weather,     setWeather]     = useState<any>(null);
-  const [moduleStats, setModuleStats] = useState<any>(null);
-  const [quickStats,  setQuickStats]  = useState({ lastUpdated: "", alerts: 0, online: 0, total: 0 });
+  const [isLoading,  setIsLoading]  = useState(true);
+  const [weather,    setWeather]    = useState<any>(null);
+  const [quickStats, setQuickStats] = useState({ lastUpdated: "", alerts: 0, online: 0, total: 0 });
   const [modules,     setModules]     = useState(MODULES);
   const [apiError,    setApiError]    = useState<string | null>(null);
 
@@ -241,7 +240,6 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
           overviewAPI.getQuickStats()  as Promise<any>,
           weatherAPI.getDashboard()    as Promise<any>,
         ]);
-        if (ms) setModuleStats(ms);
         setQuickStats({
           lastUpdated: qs?.last_updated ? formatTimeAgo(qs.last_updated) : "",
           alerts: qs?.active_alerts ?? 0,
