@@ -343,6 +343,7 @@ export default function WeatherForecastPage({
     setDateRange,
     selectedDistrictId,
     setLayerMode,
+    mapInteractionMetric,
   } = useAppStore((state) => state);
 
   const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
@@ -363,6 +364,13 @@ export default function WeatherForecastPage({
   const [maxForecastTime, setMaxForecastTime] = useState<string | undefined>(
     undefined,
   );
+
+  // Sync chart metric with map interaction
+  useEffect(() => {
+    if (mapInteractionMetric) {
+      setChartMetric(mapInteractionMetric);
+    }
+  }, [mapInteractionMetric]);
 
   // Fetch max forecast time from raster frames API
   useEffect(() => {
