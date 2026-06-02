@@ -20,10 +20,8 @@ import {
   Minus,
 } from "lucide-react";
 import {
-  getValueColor,
   isPointInPolygon,
   isValidGeoJSON,
-  makeMarkerHtml,
   PARAM_LEGENDS,
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
@@ -312,7 +310,6 @@ export default function WeatherForcastMap({
   const ugandaLayerRef = useRef<L.GeoJSON | null>(null);
   const ugandaGeoJsonRef = useRef<any>(null);
   const ugandaBoundsRef = useRef<L.LatLngBounds | null>(null);
-  const weatherMarkersRef = useRef<L.Marker[]>([]);
   const currentOmUrlRef = useRef<string>("");
   const variableRef = useRef<string>("temperature_2m");
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1158,69 +1155,6 @@ export default function WeatherForcastMap({
       context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     };
   }, [variable, domain, clipUganda, clipRevision, currentOmUrl, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Value marker for the focused district (sampled from Open-Meteo) ──────────
-  useEffect(() => {
-    const map = weatherforcastMapRef.current;
-    if (!map || !geoData || !currentOmUrl) return;
-
-    let cancelled = false;
-    const config = PARAM_LEGENDS[paramKey];
-
-    weatherMarkersRef.current.forEach((m) => m.remove());
-    weatherMarkersRef.current = [];
-    if (!config) return;
-
-    const target =
-      getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
-        ? getTheBounds.trim()
-        : "Kampala";
-
-    const feature = (geoData as any).features.find((f: any) =>
-      (f?.properties?.name ?? "")
-        .toLowerCase()
-        .includes(target.toLowerCase()),
-    );
-    if (!feature) return;
-
-    const center = L.geoJSON(feature).getBounds().getCenter();
-
-    (async () => {
-      try {
-        const result = await getValueFromLatLong(
-          center.lat,
-          center.lng,
-          currentOmUrl,
-        );
-        if (cancelled || !Number.isFinite(result?.value)) return;
-        const value = Number(result.value);
-        const color = getValueColor(value, paramKey);
-        const marker = L.marker(center, {
-          icon: L.divIcon({
-            className: "",
-            html: makeMarkerHtml(
-              feature.properties.name,
-              Math.round(value),
-              config.unit,
-              color,
-              paramKey,
-            ),
-            iconSize: [1, 1],
-            iconAnchor: [0, 0],
-          }),
-          interactive: false,
-          zIndexOffset: 200,
-        }).addTo(map);
-        weatherMarkersRef.current.push(marker);
-      } catch {
-        /* sampling failed — no marker */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentOmUrl, getTheBounds, paramKey, geoData]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (

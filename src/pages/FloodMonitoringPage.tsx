@@ -205,13 +205,11 @@ const FloodMap = ({
   isDarkMode,
   className = "",
   badgeText = "Forecast",
-  floodHoverData,
   onLayerResolved,
 }: {
   isDarkMode: boolean;
   className?: string;
   badgeText?: string;
-  floodHoverData?: import("@/types/data_types").FloodHoverData;
   onLayerResolved?: (layer: FloodRasterLayer | null) => void;
 }) => (
   <FloodMonitorMap
@@ -231,15 +229,14 @@ const FloodMap = ({
       { label: "1 – 5", color: "#c7e9b4" },
       { label: "< 1", color: "#ffffcc" },
     ]}
-    floodHoverData={floodHoverData}
     onLayerResolved={onLayerResolved}
   />
 );
 
-// ── FilterContent ─────────────────────────────────────────────────────────────
+// ── FilterContents ─────────────────────────────────────────────────────────────
 const FilterContent = ({
-  timeRange,
-  setTimeRange,
+  // timeRange,
+  // setTimeRange,
   selectedBasin,
   setSelectedBasin,
   // dateRange,
@@ -282,7 +279,7 @@ const FilterContent = ({
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       />
     </div> */}
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Time Range</label>
       <select
         value={timeRange}
@@ -293,7 +290,7 @@ const FilterContent = ({
         <option value="Last 7 Days">Last 7 Days</option>
         <option value="Last 30 Days">Last 30 Days</option>
       </select>
-    </div>
+    </div> */}
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>River Basin</label>
       <select
@@ -478,36 +475,6 @@ export default function FloodMonitoringPage({
   const populationDensityAvg = atRiskPopulation > 0 ? Math.round(atRiskPopulation / (dashboard?.summary?.total_flood_extent_km2 || 4500)) : 0;
   const thresholdMode =
     criticalBasins > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
-
-  // Flood hover data — passed to map for on-hover tooltips
-  const floodHoverData = {
-    basinStatus: riverBasins.map((b) => ({
-      name: b.name,
-      level: b.level,
-      status: b.status as
-        | "normal"
-        | "minor"
-        | "moderate"
-        | "severe"
-        | "extreme",
-      population_at_risk: b.population,
-      discharge_rate: b.discharge,
-    })),
-    basinTrend: basinTrend
-      ? {
-        trend: basinTrend.trend as
-          | "unknown"
-          | "rising"
-          | "falling"
-          | "stable",
-        current_level_m: basinTrend.current_level_m,
-        readings: (basinTrend.readings ?? []).map((r) => ({
-          level: r.level ?? 0,
-        })),
-      }
-      : null,
-    forecasts: [],
-  };
 
   const isUsingFallback =
     basinStatus.length === 0 ||
@@ -698,7 +665,6 @@ export default function FloodMonitoringPage({
                         isDarkMode={isDarkMode}
                         className="absolute inset-0 w-full h-full"
                         badgeText={`+${forecastStep}h Forecast`}
-                        floodHoverData={floodHoverData}
                         onLayerResolved={handleLayerResolved}
                       />
                     </div>
@@ -1202,7 +1168,6 @@ export default function FloodMonitoringPage({
                     isDarkMode={isDarkMode}
                     className="absolute inset-0 w-full h-full"
                     badgeText={`+${forecastStep}h`}
-                    floodHoverData={floodHoverData}
                     onLayerResolved={handleLayerResolved}
                   />
                 </div>
