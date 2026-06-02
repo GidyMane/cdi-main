@@ -45,6 +45,7 @@ export interface DailyEntry {
   weather_code: number;
   wind_speed_max: number;
   weather_description: string;
+  humidity?: number;
 }
 
 export interface ForecastPerHour {
@@ -62,6 +63,7 @@ export interface DailyForecastItem {
   weather_code: number;
   wind_speed_max: number;
   weather_description: string;
+  humidity?: number;
 }
 
 export interface DailyForecastResponse {
