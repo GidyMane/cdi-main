@@ -44,12 +44,84 @@ import { useAppStore } from "@/store/useAppStore";
 import { useQuery } from "@tanstack/react-query";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import Districts_list from "@/components/shared/Districts_list";
+import { geoData } from "@/utils/geodata";
 
 interface WeatherForecastPageProps {
   isDarkMode?: boolean;
 }
 
 const FAO_BLUE = "#318DDE";
+
+// ── District centroid from geoData ────────────────────────────────────────────
+
+function getDistrictCentroid(districtName: string): { lat: number; lng: number } | null {
+  if (!geoData || !(geoData as any).features) return null;
+  const name = districtName.trim().toLowerCase();
+  const feature = (geoData as any).features.find(
+    (f: any) => f?.properties?.name?.trim().toLowerCase() === name,
+  );
+  if (!feature?.geometry) return null;
+
+  // Collect all coordinate pairs from Polygon or MultiPolygon
+  const coords: number[][] = [];
+  const addRing = (ring: number[][]) => ring.forEach((c) => coords.push(c));
+  if (feature.geometry.type === "Polygon") {
+    feature.geometry.coordinates.forEach(addRing);
+  } else if (feature.geometry.type === "MultiPolygon") {
+    feature.geometry.coordinates.forEach((poly: number[][][]) =>
+      poly.forEach(addRing),
+    );
+  }
+  if (!coords.length) return null;
+
+  const sumLng = coords.reduce((s, c) => s + c[0], 0);
+  const sumLat = coords.reduce((s, c) => s + c[1], 0);
+  return { lat: sumLat / coords.length, lng: sumLng / coords.length };
+}
+
+// ── Open-Meteo 7-day forecast fetch ──────────────────────────────────────────
+
+interface OmDailyPoint {
+  label: string;
+  temp: number;
+  rain: number;
+  wind: number;
+  humidity: number;
+}
+
+async function fetchOmDailyForecast(lat: number, lng: number): Promise<OmDailyPoint[]> {
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", String(lat));
+  url.searchParams.set("longitude", String(lng));
+  url.searchParams.set(
+    "daily",
+    "temperature_2m_max,precipitation_sum,wind_speed_10m_max,relative_humidity_2m_mean",
+  );
+  url.searchParams.set("timezone", "Africa/Kampala");
+  url.searchParams.set("forecast_days", "7");
+
+  const res = await fetch(url.href);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const json = await res.json();
+
+  const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const dates: string[] = json.daily?.time ?? [];
+  const temps: number[] = json.daily?.temperature_2m_max ?? [];
+  const rains: number[] = json.daily?.precipitation_sum ?? [];
+  const winds: number[] = json.daily?.wind_speed_10m_max ?? [];
+  const humidities: number[] = json.daily?.relative_humidity_2m_mean ?? [];
+
+  return dates.map((dateStr, i) => {
+    const d = new Date(dateStr);
+    return {
+      label: `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`,
+      temp: Math.round((temps[i] ?? 0) * 10) / 10,
+      rain: Math.round((rains[i] ?? 0) * 100) / 100,
+      wind: Math.round((winds[i] ?? 0) * 10) / 10,
+      humidity: Math.round((humidities[i] ?? 0) * 10) / 10,
+    };
+  });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,15 +179,16 @@ const CustomMetricTooltip = ({
   payload?: any[];
   label?: string;
   isDarkMode: boolean;
-  metric: "temp" | "rain" | "wind";
+  metric: "temp" | "rain" | "wind" | "humidity";
   unit: string;
 }) => {
   if (!active || !payload?.length) return null;
 
-  const metricLabels: Record<"temp" | "rain" | "wind", string> = {
+  const metricLabels: Record<"temp" | "rain" | "wind" | "humidity", string> = {
     temp: "Temperature",
     rain: "Rainfall",
     wind: "Wind Speed",
+    humidity: "Humidity",
   };
 
   return (
@@ -150,7 +223,7 @@ const WeatherTrendChart = ({
   margin: object;
   fontSize: number;
   chartData?: any[];
-  metric?: "temp" | "rain" | "wind";
+  metric?: "temp" | "rain" | "wind" | "humidity";
 }) => {
   const dataToDisplay = chartData || hourlyForecast;
   if (!dataToDisplay || dataToDisplay.length < 2) {
@@ -168,9 +241,10 @@ const WeatherTrendChart = ({
     temp: { label: "Temperature", unit: "°C", color: FAO_BLUE, key: "temp" },
     rain: { label: "Rainfall", unit: "mm", color: "#3b82f6", key: "rain" },
     wind: { label: "Wind Speed", unit: "km/h", color: "#f97316", key: "wind" },
+    humidity: { label: "Humidity", unit: "%", color: "#22c55e", key: "humidity" },
   };
 
-  const config = metricConfig[metric];
+  const config = metricConfig[metric] ?? metricConfig.temp;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -358,12 +432,13 @@ export default function WeatherForecastPage({
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(
     null,
   );
-  const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind">(
+  const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind" | "humidity">(
     "temp",
   );
   const [maxForecastTime, setMaxForecastTime] = useState<string | undefined>(
     undefined,
   );
+  const [omDailyForecast, setOmDailyForecast] = useState<OmDailyPoint[]>([]);
 
   // Unified tab setter: keeps map layerMode in sync with the forecast tab
   const setActiveTab = (tab: "nowcast" | "forecast") => {
@@ -380,11 +455,11 @@ export default function WeatherForecastPage({
 
   // Sync chart metric when the parameter filter changes
   useEffect(() => {
-    const paramToMetric: Record<string, "temp" | "rain" | "wind"> = {
+    const paramToMetric: Record<string, "temp" | "rain" | "wind" | "humidity"> = {
       temperature: "temp",
       rainfall: "rain",
       wind: "wind",
-      humidity: "temp", // no dedicated humidity chart key; show temp as fallback
+      humidity: "humidity",
     };
     const mapped = paramToMetric[selectedParameter?.toLowerCase() ?? "temperature"];
     if (mapped) setChartMetric(mapped);
@@ -415,6 +490,25 @@ export default function WeatherForecastPage({
     setLayerMode("nowcast");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fetch Open-Meteo 7-day forecast (used as fallback / humidity source for forecast tab)
+  useEffect(() => {
+    if (activeTab !== "forecast") return;
+    let cancelled = false;
+    const districtName = selectedDistrictId?.name ?? kampala?.name ?? "";
+    const centroid = getDistrictCentroid(districtName);
+    if (!centroid) return;
+    fetchOmDailyForecast(centroid.lat, centroid.lng)
+      .then((data) => {
+        if (!cancelled) setOmDailyForecast(data);
+      })
+      .catch(() => {
+        if (!cancelled) setOmDailyForecast([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch dashboard + forecasts whenever the stats district changes
   useEffect(() => {
@@ -513,12 +607,26 @@ export default function WeatherForecastPage({
         };
       });
     } else {
-      let filtered = dailyForecast;
+      // For 7-day forecast, prefer Open-Meteo data (same source as the map)
+      // which always includes all 4 parameters including humidity.
+      // Fall back to backend dailyForecast if OM data hasn't loaded yet.
+      const forecastSource =
+        omDailyForecast.length > 0
+          ? omDailyForecast
+          : dailyForecast.map((d) => ({
+              label: d.rawDate
+                ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+                : d.date,
+              temp: d.high,
+              rain: d.rain,
+              wind: d.windSpeed || 0,
+              humidity: d.humidity ?? null,
+            }));
 
       // Filter by date if dateRange is set
       if (dateRange) {
         const selectedDate = new Date(dateRange);
-        filtered = dailyForecast.filter((d) => {
+        const filtered = dailyForecast.filter((d) => {
           if (!d.rawDate) return false;
           return (
             d.rawDate.getFullYear() === selectedDate.getFullYear() &&
@@ -526,29 +634,24 @@ export default function WeatherForecastPage({
             d.rawDate.getDate() === selectedDate.getDate()
           );
         });
-      }
-
-      let sliced = filtered;
-      if (selectedCardIndex !== null && filtered[selectedCardIndex]) {
-        const startIdx = Math.max(0, selectedCardIndex - 1);
-        const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
-        sliced = filtered.slice(startIdx, endIdx);
-      } else if (!dateRange) {
-        // If no card selected and no date filter, show all 7-day forecast
-        sliced = filtered;
-      }
-
-      return sliced.map((d) => {
-        const displayDate = d.rawDate
-          ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-          : d.date;
-        return {
-          label: displayDate,
+        return filtered.map((d) => ({
+          label: d.rawDate
+            ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+            : d.date,
           temp: d.high,
           rain: d.rain,
           wind: d.windSpeed || 0,
-        };
-      });
+          humidity: d.humidity ?? null,
+        }));
+      }
+
+      if (selectedCardIndex !== null) {
+        const startIdx = Math.max(0, selectedCardIndex - 1);
+        const endIdx = Math.min(forecastSource.length, selectedCardIndex + 2);
+        return forecastSource.slice(startIdx, endIdx);
+      }
+
+      return forecastSource;
     }
   };
 
@@ -984,7 +1087,7 @@ export default function WeatherForecastPage({
                       Weather Trend
                     </h3>
                     <div className="flex gap-1">
-                      {(["temp", "rain", "wind"] as const).map((m) => (
+                      {(["temp", "rain", "wind", "humidity"] as const).map((m) => (
                         <button
                           key={m}
                           onClick={() => setChartMetric(m)}
@@ -1002,7 +1105,9 @@ export default function WeatherForecastPage({
                             ? "Temp"
                             : m === "rain"
                               ? "Rain"
-                              : "Wind"}
+                              : m === "wind"
+                                ? "Wind"
+                                : "Humid"}
                         </button>
                       ))}
                     </div>
@@ -1209,7 +1314,7 @@ export default function WeatherForecastPage({
                 Weather Trend
               </h3>
               <div className="flex gap-1">
-                {(["temp", "rain", "wind"] as const).map((m) => (
+                {(["temp", "rain", "wind", "humidity"] as const).map((m) => (
                   <button
                     key={m}
                     onClick={() => setChartMetric(m)}
@@ -1221,7 +1326,7 @@ export default function WeatherForecastPage({
                         chartMetric === m ? FAO_BLUE : "transparent",
                     }}
                   >
-                    {m === "temp" ? "°C" : m === "rain" ? "mm" : "km/h"}
+                    {m === "temp" ? "°C" : m === "rain" ? "mm" : m === "wind" ? "km/h" : "%"}
                   </button>
                 ))}
               </div>
