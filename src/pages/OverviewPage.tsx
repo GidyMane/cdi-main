@@ -1,7 +1,7 @@
 import {
   Thermometer, Droplets, Wind, CloudRain,
   ArrowRight, MapPin, TrendingUp, TrendingDown, Minus, Clock,
-  Cloud, Sun, Radio, RefreshCw, BarChart2,
+  Cloud, Sun, Radio, BarChart2,
   Activity, AlertCircle, Signal, Timer, Users,
 } from "lucide-react";
 import React, { useState, useEffect } from "react";
