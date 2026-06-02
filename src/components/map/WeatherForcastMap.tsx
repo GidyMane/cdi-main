@@ -20,77 +20,195 @@ import {
   Minus,
 } from "lucide-react";
 import {
-  formatDate,
-  getLayerGroups,
   getValueColor,
   isPointInPolygon,
   isValidGeoJSON,
   makeMarkerHtml,
-  mapLayerName,
   PARAM_LEGENDS,
 } from "@/utils/woker_fn";
 import { geoData } from "@/utils/geodata";
-import { clippedWms } from "./clippedWmsLayer";
-import { useRasterValue } from "@/hooks/useRasterValue";
-import { weatherAPI } from "@/services/api";
+// @ts-ignore — the Open-Meteo weather map layer ships no type declarations
 import {
-  GEOSERVER_WFEWS_WMS,
-  GEOSERVER_WEATHER_WMS,
-  GEOSERVER_WEATHER_WCS,
-} from "@/config";
-import type {
-  district,
-  LayerDef,
-  UgandaBoundaryMapProps,
-} from "@/types/data_types";
+  addLeafletProtocolSupport,
+  defaultOmProtocolSettings,
+  getValueFromLatLong,
+  omProtocol,
+} from "@openmeteo/weather-map-layer";
+import type { district, UgandaBoundaryMapProps } from "@/types/data_types";
 
 const FAO_BLUE = "#318DDE";
-const GEO_SERVER_URL = GEOSERVER_WFEWS_WMS;
 
-// Local Uganda Weather GeoServer (ICON, GFS, IMERG satellite precipitation)
-const LOCAL_GEO_SERVER_URL = GEOSERVER_WEATHER_WMS;
+// ── Open-Meteo configuration ──────────────────────────────────────────────────
+const UGANDA_GEOJSON_URL =
+  "https://map-assets.open-meteo.com/world-geojson/countries/uganda.json";
+const OM_TILES_BASE = "https://map-tiles.open-meteo.com/data_spatial";
 
-/** Shared WMS options used for every raster layer */
-const WMS_BASE_OPTIONS = {
-  format: "image/png" as const,
-  transparent: true,
-  version: "1.1.0",
-  opacity: 0.85,
+const DOMAIN_NOWCAST = "dwd_icon"; // ICON
+const DOMAIN_FORECAST = "ncep_gfs013"; // GFS
+
+/** Map the app's `selectedParameter` to an Open-Meteo variable name */
+const VARIABLE_MAP: Record<string, string> = {
+  temperature: "temperature_2m",
+  rainfall: "precipitation",
+  precipitation: "precipitation",
+  humidity: "relative_humidity_2m",
+  wind: "wind_u_component_10m",
 };
 
-/** Map layer names to their GeoServer SLD style names */
-const LAYER_STYLE_MAP: Record<string, string> = {
-  precipitation: "precipitation_style",
-  temperature_2m: "temperature_2m_style",
-  humidity: "humidity_style",
-  wind_u_10m: "wind_u_10m_style",
-  wind_v_10m: "wind_v_10m_style",
-  cloud_cover: "cloud_cover_style",
-  pressure_msl: "pressure_msl_style",
-  gfs_precipitation: "precipitation_style",
-  gfs_temperature_2m: "temperature_2m_style",
-  gfs_humidity: "humidity_style",
-  gfs_wind_u_10m: "wind_u_10m_style",
-  gfs_wind_v_10m: "wind_v_10m_style",
-  gfs_cloud_cover: "cloud_cover_style",
-  gfs_pressure_msl: "pressure_msl_style",
-  imerg_precip: "precipitation_style",
-};
+const UGANDA_BOUNDS = { south: -1.55, west: 29.45, north: 4.35, east: 35.15 };
+const UGANDA_OM_BOUNDS = [
+  UGANDA_BOUNDS.west,
+  UGANDA_BOUNDS.south,
+  UGANDA_BOUNDS.east,
+  UGANDA_BOUNDS.north,
+];
+const DEFAULT_CENTER: [number, number] = [1.37, 32.29];
+const ANIMATION_MIN_ZOOM = 8;
 
-/** Get WMS options with the correct style for a layer */
-function getWmsOptions(layerName: string, opacity = 0.85) {
-  return {
-    ...WMS_BASE_OPTIONS,
-    layers: layerName,
-    styles: LAYER_STYLE_MAP[layerName] || "",
-    opacity,
+// ── GeoJSON point-in-polygon helpers (for the rain/wind animation mask) ───────
+function forEachGeoJsonRing(
+  geojson: any,
+  callback: (ring: number[][]) => void,
+) {
+  const visitGeometry = (geometry: any) => {
+    if (!geometry) return;
+    if (geometry.type === "Polygon") {
+      geometry.coordinates.forEach(callback);
+    } else if (geometry.type === "MultiPolygon") {
+      geometry.coordinates.forEach((polygon: any) => polygon.forEach(callback));
+    } else if (geometry.type === "GeometryCollection") {
+      geometry.geometries.forEach(visitGeometry);
+    }
   };
+
+  if (geojson.type === "FeatureCollection") {
+    geojson.features.forEach((feature: any) => visitGeometry(feature.geometry));
+  } else if (geojson.type === "Feature") {
+    visitGeometry(geojson.geometry);
+  } else {
+    visitGeometry(geojson);
+  }
 }
 
-/** Remove a layer from the map and null the ref */
+function pointInRing(lat: number, lng: number, ring: number[][]) {
+  let inside = false;
+  for (
+    let index = 0, previous = ring.length - 1;
+    index < ring.length;
+    previous = index, index += 1
+  ) {
+    const [x1, y1] = ring[index];
+    const [x2, y2] = ring[previous];
+    const intersects =
+      y1 > lat !== y2 > lat &&
+      lng < ((x2 - x1) * (lat - y1)) / (y2 - y1) + x1;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInGeoJson(lat: number, lng: number, geojson: any) {
+  if (!geojson) return true;
+  let inside = false;
+  forEachGeoJsonRing(geojson, (ring) => {
+    if (pointInRing(lat, lng, ring)) inside = !inside;
+  });
+  return inside;
+}
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+const formatOmModelRun = (date: Date) =>
+  `${date.getUTCFullYear()}/${pad(date.getUTCMonth() + 1)}/${pad(
+    date.getUTCDate(),
+  )}/${pad(date.getUTCHours())}00Z`;
+
+const formatOmValidTime = (date: Date) =>
+  `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+    date.getUTCDate(),
+  )}T${pad(date.getUTCHours())}00.om`;
+
+const resolveValidTime = (metadata: any, timeStep: string): Date | null => {
+  if (!metadata?.valid_times?.length) return null;
+  const indexMatch = timeStep?.match(/^valid_times_(\d+)$/);
+  const index = indexMatch ? Number(indexMatch[1]) : 0;
+  return new Date(
+    metadata.valid_times[
+      Math.min(Math.max(index, 0), metadata.valid_times.length - 1)
+    ],
+  );
+};
+
+/** Build a data_spatial .om tile URL (ported from the standalone weather map) */
+function buildOmUrl({
+  domain,
+  variable,
+  timeStep,
+  overlays,
+  tileSize,
+  darkMode,
+  clipHash,
+  metadata,
+}: {
+  domain: string;
+  variable: string;
+  timeStep: string;
+  overlays: { grid: boolean; arrows: boolean; contours: boolean };
+  tileSize: string;
+  darkMode: boolean;
+  clipHash: string;
+  metadata: any;
+}) {
+  const modelRun = metadata?.reference_time
+    ? new Date(metadata.reference_time)
+    : null;
+  const validTime = resolveValidTime(metadata, timeStep);
+  const filePath =
+    modelRun &&
+    validTime &&
+    Number.isFinite(modelRun.getTime()) &&
+    Number.isFinite(validTime.getTime())
+      ? `${formatOmModelRun(modelRun)}/${formatOmValidTime(validTime)}`
+      : "latest.json";
+
+  const url = new URL(`${OM_TILES_BASE}/${domain}/${filePath}`);
+  url.searchParams.set("variable", variable);
+  url.searchParams.set("tile_size", tileSize);
+  if (filePath === "latest.json") url.searchParams.set("time_step", timeStep);
+  if (darkMode) url.searchParams.set("dark", "true");
+  if (overlays.grid) url.searchParams.set("grid", "true");
+  if (overlays.arrows) url.searchParams.set("arrows", "true");
+  if (overlays.contours) url.searchParams.set("contours", "true");
+  if (clipHash) url.searchParams.set("clipping_options_hash", clipHash);
+
+  return url.href;
+}
+
+/** Resolve a slider date + hour to the nearest Open-Meteo valid_times index */
+function resolveTimeStep(metadata: any, dateRange: string, hour: number) {
+  const validTimes: string[] = metadata?.valid_times ?? [];
+  if (!validTimes.length) return "current_time_1H";
+
+  const targetDate = dateRange || new Date().toISOString().slice(0, 10);
+  const target = new Date(
+    `${targetDate}T${pad(hour)}:00:00Z`,
+  ).getTime();
+
+  let bestIdx = 0;
+  let bestDiff = Infinity;
+  validTimes.forEach((vt, i) => {
+    const diff = Math.abs(new Date(vt).getTime() - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  });
+  return `valid_times_${bestIdx}`;
+}
+
 function clearLayer<T extends L.Layer>(
   map: L.Map,
-  ref: React.MutableRefObject<T | null>,
+  ref: React.RefObject<T | null>,
 ) {
   if (ref.current) {
     map.removeLayer(ref.current);
@@ -125,13 +243,9 @@ function ParamIcon({
   }
 }
 
-// ── Layer panel definitions (matches screenshot) ──────────────────────────────
-
 export default function WeatherForcastMap({
   className = "",
   isDarkMode,
-  // district,
-  // setDistrict,
   getTheBounds,
   zoom = 6.8,
   minZoom = 6.8,
@@ -140,22 +254,18 @@ export default function WeatherForcastMap({
   const {
     selectedParameter,
     dateRange,
-    currentPage,
     sliderhourIndexValue,
-    // selectedDistrictId,
     setSelectedDistrictId,
     layerMode,
-    forecastStep,
     setMapInteractionMetric,
   } = useAppStore((state) => state);
 
-  const LAYER_GROUPS = getLayerGroups({
-    today: formatDate(dateRange),
-    forecastStep,
-    dateRange,
-  });
+  // Derived Open-Meteo selection
+  const domain = layerMode === "forecast" ? DOMAIN_FORECAST : DOMAIN_NOWCAST;
+  const variable =
+    VARIABLE_MAP[selectedParameter?.toLowerCase() ?? ""] ?? "temperature_2m";
 
-  //clean districts
+  // Clean districts for click → store matching
   const unique: district[] = district_list
     ? Array.from(
         new Map((district_list as district[]).map((d) => [d.id, d])).values(),
@@ -165,50 +275,53 @@ export default function WeatherForcastMap({
   // ── Refs ────────────────────────────────────────────────────────────────────
   const rootRef = useRef<HTMLDivElement>(null);
   const mapWeatherforcastContainerRef = useRef<HTMLDivElement>(null);
+  const windCanvasRef = useRef<HTMLCanvasElement>(null);
+  const windAnimationRef = useRef<number | null>(null);
   const weatherforcastMapRef = useRef<L.Map | null>(null);
   const weatherforcastdistrictLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastboundaryLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcastriverLayerRef = useRef<L.GeoJSON | null>(null);
   const weatherforcasttileLayerRef = useRef<L.TileLayer | null>(null);
-  const weatherforcastrasterLayerRef = useRef<L.TileLayer | null>(null);
-  const weatherforcastwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>(
-    {},
-  );
+  const rasterLayerRef = useRef<L.Layer | null>(null);
+  const protocolRef = useRef<any>(null);
+  const ugandaLayerRef = useRef<L.GeoJSON | null>(null);
+  const ugandaGeoJsonRef = useRef<any>(null);
+  const ugandaBoundsRef = useRef<L.LatLngBounds | null>(null);
   const weatherMarkersRef = useRef<L.Marker[]>([]);
-  const districtWeatherRef = useRef<Record<string, any>>({});
+  const currentOmUrlRef = useRef<string>("");
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverReqRef = useRef(0);
+  const protocolSettingsRef = useRef<any>({
+    ...defaultOmProtocolSettings,
+    clippingOptions: undefined,
+  });
 
-  const activeRainLayerRef = useRef<string | null>(null);
-
-  const [_selectedForcastData, setSelectedForcastData] = useState<
-    string | null
-  >(null);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [activeLayers, setActiveLayers] = useState<Set<string>>(
-    new Set(["country"]),
-  );
-  const [isRasterLoading, setRasterIsLoading] = useState(false);
-  const [activeRainLayer, setActiveRainLayer] = useState<string | null>(null);
+  const [isRasterLoading, setRasterIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredDistrictName, setHoveredDistrictName] = useState<string | null>(
     null,
   );
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const [hoverLoading, setHoverLoading] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [metadata, setMetadata] = useState<any>(null);
+  const [currentOmUrl, setCurrentOmUrl] = useState<string>("");
+  const [clipRevision, setClipRevision] = useState(0);
 
-  // ── GeoTIFF-based district values (all weather parameters) ──────────────
-  // Read directly from the WCS GeoTIFF instead of the weather/map/ REST
-  // endpoint — gives real model values with no backend dependency.
-  // Re-fetches automatically when activeRainLayer changes (slider / model switch).
-  const isWeatherParam = ["temperature", "rainfall", "precipitation", "humidity", "wind"]
-    .includes(selectedParameter?.toLowerCase() ?? "");
+  // Open-Meteo overlay controls (drive the "Layers" panel)
+  const [clipUganda, setClipUganda] = useState(true);
+  const [opacity, setOpacity] = useState(85);
+  const [overlays, setOverlays] = useState({
+    contours: false,
+    grid: false,
+    arrows: false,
+  });
 
-  const { values: rasterDistrictValues, loading: rasterLoading, error: rasterError } = useRasterValue(
-    isWeatherParam ? selectedParameter : "",
-    GEOSERVER_WEATHER_WCS,
-    geoData,
-    isWeatherParam ? (activeRainLayer ?? undefined) : undefined,
-  );
-
-  if (rasterError) console.warn("[WeatherForcastMap] raster value error:", rasterError);
+  const paramKey = selectedParameter?.toLowerCase() ?? "temperature";
+  const legendConfig = PARAM_LEGENDS[paramKey];
+  const legendUnit = legendConfig?.unit ?? "";
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -222,7 +335,6 @@ export default function WeatherForcastMap({
   };
 
   // Check whether a district label fits inside its polygon at current zoom
-  // (exact port of doesNameFitInLeafletBoundary from reference)
   const doesNameFitInLeafletBoundary = (
     layer: any,
     name: string,
@@ -252,104 +364,30 @@ export default function WeatherForcastMap({
     return paddedW <= availableWidth && paddedH <= availableHeight;
   };
 
-  // Toggle a panel layer on/off
-  const toggleLayer = (layerDef: LayerDef) => {
-    const forecastParam =
-      layerDef?.id === "tmax"
-        ? "gfs_tmax"
-        : layerDef?.id === "tmin"
-          ? "gfs_tmin"
-          : null;
-    setSelectedForcastData(forecastParam);
-
-    if (!weatherforcastMapRef.current) return;
-
-    if (activeLayers.has(layerDef.id)) {
-      // Toggle off — remove the layer
-      if (weatherforcastwmsLayersRef.current[layerDef.id]) {
-        weatherforcastMapRef.current.removeLayer(
-          weatherforcastwmsLayersRef.current[layerDef.id],
-        );
-        delete weatherforcastwmsLayersRef.current[layerDef.id];
-      }
-      setActiveLayers((prev) => {
-        const next = new Set(prev);
-        next.delete(layerDef.id);
-        return next;
-      });
-    } else {
-      // Remove any existing weather raster layer first (one at a time)
-      // Keep boundary/infrastructure layers (country, districts, rivers, etc.)
-      const keepLayers = new Set([
-        "country",
-        "districts",
-        "rivers",
-        "waterways",
-        "water_bodies",
-        "roads",
-        "places",
-        "landuse",
-        "buildings",
-      ]);
-      for (const [id, layer] of Object.entries(
-        weatherforcastwmsLayersRef.current,
-      )) {
-        if (!keepLayers.has(id)) {
-          weatherforcastMapRef.current.removeLayer(layer);
-          delete weatherforcastwmsLayersRef.current[id];
-        }
-      }
-      // Also clear the raster layer ref if active
-      clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
-
-      // tmax / tmin are handled via the raster useEffect; skip adding a WMS layer here
-      if (layerDef.id !== "tmax" && layerDef.id !== "tmin") {
-        // Route to local GeoServer for ICON/GFS/IMERG layers
-        const isLocal = layerDef.wms.startsWith("local:");
-        const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
-        const layerName = isLocal
-          ? layerDef.wms.replace("local:", "")
-          : `wfews:${layerDef.wms}`;
-
-        const wmsLayer = clippedWms(serverUrl, {
-          layers: layerName,
-          format: "image/png",
-          transparent: true,
-          version: "1.1.0",
-          opacity: isLocal ? 0.75 : 1.0,
-        }).addTo(weatherforcastMapRef.current);
-        wmsLayer.bringToFront();
-        weatherforcastwmsLayersRef.current[layerDef.id] = wmsLayer as any;
-      }
-      // Replace active set with only keep layers + the new onee
-      setActiveLayers((prev) => {
-        const next = new Set([...prev].filter((id) => keepLayers.has(id)));
-        next.add(layerDef.id);
-        return next;
-      });
-    }
-  };
-
   // ── Initialise map once geoData arrives ────────────────────────────────────
   useEffect(() => {
     if (!mapWeatherforcastContainerRef.current || !geoData) return;
     if (!isValidGeoJSON(geoData)) {
-      console.error("UgandaBoundaryMap: invalid GeoJSON:", geoData);
+      console.error("WeatherForcastMap: invalid GeoJSON:", geoData);
       return;
     }
 
-    // Destroy stale instance (StrictMode / hot-reload safetyy)
     if (weatherforcastMapRef.current) {
       weatherforcastMapRef.current.remove();
       weatherforcastMapRef.current = null;
     }
 
-    // ── CartoDB base tile (same style as Overview map) ────────────────────
+    // ── Register the Open-Meteo `om://` protocol ──────────────────────────
+    const protocol = addLeafletProtocolSupport(L as any);
+    protocol.addProtocol("om", omProtocol as any, protocolSettingsRef.current);
+    protocolRef.current = protocol;
+
+    // ── CartoDB base tile (same style as the rest of the app) ─────────────
     weatherforcasttileLayerRef.current = L.tileLayer(
       isDarkMode
         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, attribution: "© CartoDB" },
+      { maxZoom: 12, attribution: "© CartoDB" },
     );
 
     weatherforcastMapRef.current = L.map(
@@ -358,6 +396,7 @@ export default function WeatherForcastMap({
         center: [1.3733, 32.2903],
         zoom,
         minZoom,
+        maxZoom: 12,
         layers: [weatherforcasttileLayerRef.current],
         zoomControl: false,
         attributionControl: false,
@@ -370,9 +409,6 @@ export default function WeatherForcastMap({
     }).addTo(weatherforcastMapRef.current);
 
     // ── District name labels ──────────────────────────────────────────────
-    // Exact port from reference: calls doesNameFitInLeafletBoundary,
-    // binds tooltip, opens it, and calls bringToFront() — then chains
-    // .addTo(weatherforcastMapRef.current) at the end of eachLayer like the reference does.
     const updateLabelVisibility = () => {
       if (
         !weatherforcastMapRef.current ||
@@ -384,9 +420,7 @@ export default function WeatherForcastMap({
         layer.closeTooltip();
         const name = layer.feature?.properties?.name;
         if (!name) return;
-
-        const fits = doesNameFitInLeafletBoundary(layer, name);
-        if (fits) {
+        if (doesNameFitInLeafletBoundary(layer, name)) {
           layer
             .bindTooltip(name, {
               permanent: true,
@@ -402,11 +436,8 @@ export default function WeatherForcastMap({
     weatherforcastMapRef.current.on("zoomend", updateLabelVisibility);
     updateLabelVisibility();
 
-    // ── Click → highlight clicked district (ray-casting, not bounding box) ─
-    // Reference uses getBounds().contains() which gives rectangles.
-    // We use isPointInPolygon() so the highlight matches the actual shape.
+    // ── Click → highlight clicked district (ray-casting) ──────────────────
     weatherforcastMapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
-      // Sync chart metric with current weather parameter
       const paramMap: Record<string, "temp" | "rain" | "wind"> = {
         temperature: "temp",
         rainfall: "rain",
@@ -414,33 +445,26 @@ export default function WeatherForcastMap({
         wind: "wind",
       };
       const param = selectedParameter?.toLowerCase() || "temperature";
-      const metric = paramMap[param] || "temp";
-      setMapInteractionMetric(metric);
+      setMapInteractionMetric(paramMap[param] || "temp");
 
-      // Detect and highlight clicked district
       let clickedFeature: any = null;
-
       weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
-        if (clickedFeature) return; // stop after first match
-
-        if (layer instanceof L.Polygon || (layer as any)) {
-          if (isPointInPolygon(ev.latlng, layer.getLatLngs())) {
-            clickedFeature = layer.feature;
-          }
+        if (clickedFeature) return;
+        if (isPointInPolygon(ev.latlng, layer.getLatLngs())) {
+          clickedFeature = layer.feature;
         }
       });
-
       if (!clickedFeature) return;
 
       if (setSelectedDistrictId) {
-        const clickedName: string = clickedFeature.properties.name?.trim().toLowerCase() ?? "";
+        const clickedName: string =
+          clickedFeature.properties.name?.trim().toLowerCase() ?? "";
         const filtered = unique.find(
           (item) => item?.name?.trim().toLowerCase() === clickedName,
         );
         setSelectedDistrictId(filtered);
       }
 
-      // Highlight only the clicked feature
       clearLayer(weatherforcastMapRef.current!, weatherforcastboundaryLayerRef);
       weatherforcastboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
@@ -467,58 +491,80 @@ export default function WeatherForcastMap({
               direction: "center",
               className: "waterAreas-label",
             });
-            // layer.bringToFront();
           }
         },
       }).addTo(weatherforcastMapRef.current);
       weatherforcastriverLayerRef.current.bringToBack();
     }
 
-    // ── Hover: district detection on mouse move ───────────────────────────
-    weatherforcastMapRef.current.on("mousemove", (ev: L.LeafletMouseEvent) => {
-      setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
-      let found: string | null = null;
-      weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
-        if (found) return;
-        if (isPointInPolygon(ev.latlng, layer.getLatLngs()))
-          found = layer.feature?.properties?.name ?? null;
-      });
-      setHoveredDistrictName(found);
-    });
-    weatherforcastMapRef.current.on("mouseout", () =>
-      setHoveredDistrictName(null),
+    // ── Hover: district detection + value sampling ────────────────────────
+    weatherforcastMapRef.current.on(
+      "mousemove",
+      (ev: L.LeafletMouseEvent) => {
+        setMousePos({ x: ev.containerPoint.x, y: ev.containerPoint.y });
+        let found: string | null = null;
+        weatherforcastdistrictLayerRef.current?.eachLayer((layer: any) => {
+          if (found) return;
+          if (isPointInPolygon(ev.latlng, layer.getLatLngs()))
+            found = layer.feature?.properties?.name ?? null;
+        });
+        setHoveredDistrictName(found);
+
+        const omUrl = currentOmUrlRef.current;
+        if (!found || !omUrl) {
+          setHoverValue(null);
+          setHoverLoading(false);
+          return;
+        }
+
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        const requestId = hoverReqRef.current + 1;
+        hoverReqRef.current = requestId;
+        setHoverLoading(true);
+        const { lat, lng } = ev.latlng;
+        hoverTimerRef.current = setTimeout(async () => {
+          try {
+            const result = await getValueFromLatLong(lat, lng, omUrl);
+            if (hoverReqRef.current !== requestId) return;
+            setHoverValue(
+              Number.isFinite(result?.value) ? Number(result.value) : null,
+            );
+            setHoverLoading(false);
+          } catch {
+            if (hoverReqRef.current !== requestId) return;
+            setHoverValue(null);
+            setHoverLoading(false);
+          }
+        }, 120);
+      },
     );
+    weatherforcastMapRef.current.on("mouseout", () => {
+      setHoveredDistrictName(null);
+      setHoverValue(null);
+      setHoverLoading(false);
+    });
 
-    // ── Country boundary on by default ───────────────────────────────────
-    const countryWms = L.tileLayer
-      .wms(GEO_SERVER_URL, {
-        layers: "wfews:country",
-        format: "image/png",
-        transparent: true,
-        version: "1.1.0",
-        opacity: 0.92,
-      })
-      .addTo(weatherforcastMapRef.current);
-    countryWms.bringToFront();
-    weatherforcastwmsLayersRef.current["country"] = countryWms;
-
-    // The raster layer useEffect will load the initial weather layer
-    // based on the current selectedParameter — no need to add one here.
-
-    // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() => {
       weatherforcastMapRef.current?.invalidateSize();
     });
     ro.observe(mapWeatherforcastContainerRef.current);
 
+    setMapReady(true);
+
     return () => {
       ro.disconnect();
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      try {
+        protocol.removeProtocol("om");
+      } catch {}
+      protocolRef.current = null;
       weatherforcastMapRef.current?.remove();
       weatherforcastMapRef.current = null;
+      setMapReady(false);
     };
   }, [geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Swap full CartoDB tile on dark/light toggle ──────────────────────────────
+  // ── Swap CartoDB tile on dark/light toggle ───────────────────────────────────
   useEffect(() => {
     if (!weatherforcastMapRef.current || !weatherforcasttileLayerRef.current)
       return;
@@ -529,322 +575,614 @@ export default function WeatherForcastMap({
       isDarkMode
         ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, attribution: "© CartoDB" },
+      { maxZoom: 12, attribution: "© CartoDB" },
     ).addTo(weatherforcastMapRef.current);
     weatherforcasttileLayerRef.current.bringToBack();
   }, [isDarkMode]);
 
+  // ── Focus / highlight a district when getTheBounds changes ───────────────────
   useEffect(() => {
     if (!weatherforcastMapRef.current || !geoData || !isValidGeoJSON(geoData))
       return;
 
-    // Empty / "all" → reset to full Uganda and remove any district lock
     if (
       !getTheBounds ||
       getTheBounds.trim() === "" ||
       getTheBounds.trim().toLowerCase() === "all"
     ) {
       clearLayer(weatherforcastMapRef.current, weatherforcastboundaryLayerRef);
-      weatherforcastMapRef.current.setMaxBounds(
-        L.latLngBounds([
-          [-90, -180],
-          [90, 180],
-        ]),
-      );
-      weatherforcastMapRef.current.setMinZoom(minZoom);
       weatherforcastMapRef.current.setView([1.3733, 32.2903], zoom);
       return;
     }
 
-    const matched = geoData.features.filter(
+    const matched = (geoData as any).features.filter(
       (f: any) =>
         f?.properties?.name === capitalize(getTheBounds.toLowerCase()),
     );
     if (!matched.length) return;
 
     clearLayer(weatherforcastMapRef.current, weatherforcastboundaryLayerRef);
-
     weatherforcastboundaryLayerRef.current = L.geoJSON(
-      { ...geoData, features: matched } as FeatureCollection,
+      { ...(geoData as any), features: matched } as FeatureCollection,
       { style: { color: FAO_BLUE, weight: 2, fill: false } },
     )
       .addTo(weatherforcastMapRef.current)
-      .bringToBack();
+      .bringToFront();
 
     const bounds = weatherforcastboundaryLayerRef.current.getBounds();
     if (bounds.isValid()) {
       weatherforcastMapRef.current.fitBounds(bounds, { padding: [40, 40] });
-      weatherforcastMapRef.current.setMaxBounds(bounds.pad(0.3));
     }
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Zoom.earth-style raster animation system ────────────────────────────────
-  // Pre-loads all frames as WMS layers, then rapidly toggles visibility for
-  // smooth rainfall/wind animation without per-frame network requests.
-
-  const framesRef = useRef<{
-    model: string;
-    param: string;
-    frames: any[];
-    wmsUrl: string;
-  } | null>(null);
-
-  // Only ONE active raster layer at a time
-  const activeFrameHourRef = useRef<number>(-1);
-  const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Fetch frame metadata when model or parameter changes
+  // ── Fetch Open-Meteo metadata when the model (domain) changes ────────────────
   useEffect(() => {
-    const paramMap: Record<string, string> = {
-      rainfall: "precipitation",
-      precipitation: "precipitation",
-      temperature: "temperature",
-      wind: "wind-u",
-      humidity: "humidity",
-      cloud_cover: "cloud-cover",
-      clouds: "cloud-cover",
-      pressure: "pressure",
-    };
-    const apiParam =
-      paramMap[selectedParameter?.toLowerCase()] ||
-      selectedParameter?.toLowerCase();
-    const model = layerMode === "forecast" ? "gfs" : "icon";
-
-    // Remove current raster layer
-    if (weatherforcastMapRef.current) {
-      clearLayer(weatherforcastMapRef.current, weatherforcastrasterLayerRef);
-    }
-    activeFrameHourRef.current = -1;
-    // Reset rain layer so drops don't show stale data while new frames load
-    activeRainLayerRef.current = null;
-    setActiveRainLayer(null);
-
+    if (!mapReady) return;
+    let cancelled = false;
     setRasterIsLoading(true);
-
-    weatherAPI
-      .getRasterFrames(model, apiParam)
+    fetch(`${OM_TILES_BASE}/${domain}/latest.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data) => {
-        framesRef.current = {
-          model,
-          param: apiParam,
-          frames: data.frames,
-          wmsUrl: LOCAL_GEO_SERVER_URL,
-        };
-
-        if (!weatherforcastMapRef.current || !data.frames.length) {
-          setRasterIsLoading(false);
-          return;
-        }
-
-        // Show the first frame — use per-frame layer name for accuracy,
-        // fall back to base layer if future_wms_layer is not available.
-        const firstFrame = data.frames[0];
-        const layerName = firstFrame.future_wms_layer || firstFrame.wms_layer;
-
-        clearLayer(weatherforcastMapRef.current!, weatherforcastrasterLayerRef);
-        weatherforcastrasterLayerRef.current = clippedWms(
-          LOCAL_GEO_SERVER_URL,
-          getWmsOptions(layerName, 0.85),
-        )
-          .on("load", () => setRasterIsLoading(false))
-          .on("tileerror", () => setRasterIsLoading(false))
-          .addTo(weatherforcastMapRef.current!) as any;
-        weatherforcastrasterLayerRef.current!.bringToFront();
-        activeFrameHourRef.current = firstFrame.forecast_hour;
-        // Sync rain animation — set regardless of current param,
-        // isRainParam check happens in the hook via the layerName prop
-        activeRainLayerRef.current = layerName;
-        setActiveRainLayer(layerName);
+        if (!cancelled) setMetadata(data);
       })
-      .catch((err) => {
-        console.warn("Failed to fetch raster frames:", err);
-        framesRef.current = null;
-        setRasterIsLoading(false);
-        // Fallback
-        const layerName = mapLayerName({
-          parameter: selectedParameter,
-          date: dateRange,
-          mode: layerMode === "forecast" ? "forecast" : "daily",
-        });
-        if (layerName && weatherforcastMapRef.current) {
-          clearLayer(
-            weatherforcastMapRef.current,
-            weatherforcastrasterLayerRef,
-          );
-          const isLocal = layerName.startsWith("local:");
-          const serverUrl = isLocal ? LOCAL_GEO_SERVER_URL : GEO_SERVER_URL;
-          const wmsLayerName = isLocal
-            ? layerName.replace("local:", "")
-            : layerName;
-          weatherforcastrasterLayerRef.current = clippedWms(
-            serverUrl,
-            getWmsOptions(wmsLayerName),
-          )
-            .on("loading", () => setRasterIsLoading(true))
-            .on("load", () => setRasterIsLoading(false))
-            .addTo(weatherforcastMapRef.current) as any;
-          weatherforcastrasterLayerRef.current!.bringToFront();
-          // Sync rain animation to fallback layer
-          activeRainLayerRef.current = wmsLayerName;
-          setActiveRainLayer(wmsLayerName);
-        }
+      .catch(() => {
+        if (!cancelled) setMetadata(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [domain, mapReady]);
+
+  // ── Load / remove the Uganda clip outline ────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = weatherforcastMapRef.current;
+    if (!map) return;
+    let cancelled = false;
+
+    if (!clipUganda) {
+      protocolSettingsRef.current.clippingOptions = undefined;
+      clearLayer(map, ugandaLayerRef);
+      ugandaGeoJsonRef.current = null;
+      ugandaBoundsRef.current = null;
+      setClipRevision((c) => c + 1);
+      return;
+    }
+
+    fetch(UGANDA_GEOJSON_URL)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((geojson) => {
+        if (cancelled) return;
+        protocolSettingsRef.current.clippingOptions = {
+          geojson,
+          bounds: UGANDA_OM_BOUNDS,
+          fillRule: "evenodd",
+        };
+        ugandaGeoJsonRef.current = geojson;
+        clearLayer(map, ugandaLayerRef);
+        ugandaLayerRef.current = L.geoJSON(geojson, {
+          interactive: false,
+          style: {
+            color: FAO_BLUE,
+            weight: 1.5,
+            opacity: 0.9,
+            fillOpacity: 0,
+          },
+        }).addTo(map);
+        const bounds = ugandaLayerRef.current.getBounds();
+        if (bounds.isValid()) ugandaBoundsRef.current = bounds;
+        setClipRevision((c) => c + 1);
+      })
+      .catch(() => {
+        if (!cancelled) setClipRevision((c) => c + 1);
       });
 
     return () => {
-      // Cleanup animation on parameter/model change
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-        animationRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [selectedParameter, layerMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clipUganda, mapReady]);
 
-  // ── Show frame matching current hour (single layer swap) ─────────────────────
+  // ── Build & swap the Open-Meteo raster layer ─────────────────────────────────
   useEffect(() => {
-    if (!weatherforcastMapRef.current || !framesRef.current) return;
-
-    const cached = framesRef.current;
-    if (!cached.frames.length) return;
+    const map = weatherforcastMapRef.current;
+    const protocol = protocolRef.current;
+    if (!mapReady || !map || !protocol) return;
 
     const hour =
-      sliderhourIndexValue === "000"
-        ? 0
+      sliderhourIndexValue === "000" || sliderhourIndexValue == null
+        ? new Date().getHours()
         : parseInt(String(sliderhourIndexValue), 10) || 0;
-    const targetDate = dateRange || new Date().toISOString().split("T")[0];
+    const timeStep = resolveTimeStep(metadata, dateRange, hour);
 
-    // Find best matching frame
-    let bestFrame = cached.frames[0];
-    let bestDiff = Infinity;
-    for (const frame of cached.frames) {
-      const runDate = new Date(frame.run);
-      const effectiveTime = new Date(
-        runDate.getTime() + frame.forecast_hour * 3600000,
-      );
-      const targetTime = new Date(
-        `${targetDate}T${String(hour).padStart(2, "0")}:00:00Z`,
-      );
-      const diff = Math.abs(effectiveTime.getTime() - targetTime.getTime());
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestFrame = frame;
+    const clipHash = clipUganda ? `uganda-${clipRevision}` : "";
+    const omUrl = buildOmUrl({
+      domain,
+      variable,
+      timeStep,
+      overlays,
+      tileSize: "512",
+      darkMode: !!isDarkMode,
+      clipHash,
+      metadata,
+    });
+
+    const layerBounds =
+      clipUganda && ugandaBoundsRef.current
+        ? ugandaBoundsRef.current
+        : undefined;
+
+    setRasterIsLoading(true);
+    if (rasterLayerRef.current) {
+      map.removeLayer(rasterLayerRef.current);
+      rasterLayerRef.current = null;
+    }
+
+    const layer = protocol
+      .createTileLayer(`om://${omUrl}`, {
+        opacity: opacity / 100,
+        maxZoom: 12,
+        bounds: layerBounds,
+      })
+      .addTo(map);
+    layer.on?.("load", () => setRasterIsLoading(false));
+    layer.on?.("tileerror", () => setRasterIsLoading(false));
+    rasterLayerRef.current = layer;
+    currentOmUrlRef.current = `om://${omUrl}`;
+    setCurrentOmUrl(`om://${omUrl}`);
+
+    // Safety: clear the spinner even if the load event doesn't fire
+    const fallback = window.setTimeout(() => setRasterIsLoading(false), 2500);
+
+    return () => {
+      window.clearTimeout(fallback);
+    };
+  }, [
+    domain,
+    variable,
+    metadata,
+    overlays,
+    clipUganda,
+    clipRevision,
+    dateRange,
+    sliderhourIndexValue,
+    isDarkMode,
+    mapReady,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Live opacity update without rebuilding the layer ─────────────────────────
+  useEffect(() => {
+    (rasterLayerRef.current as any)?.setOpacity?.(opacity / 100);
+  }, [opacity]);
+
+  // ── Rainfall / wind particle animation (ported from the standalone map) ──────
+  useEffect(() => {
+    if (!mapReady) return undefined;
+    const canvas = windCanvasRef.current;
+    const map = weatherforcastMapRef.current;
+    if (!canvas || !map) return undefined;
+
+    const context = canvas.getContext("2d");
+    if (!context) return undefined;
+
+    const particles: any[] = [];
+    const isRainMode = variable === "precipitation";
+    const isWindMode = variable === "wind_u_component_10m";
+    const activeAnimation = isWindMode || isRainMode;
+    const particleCount = isRainMode ? 760 : 520;
+    const ugandaGeoJson = ugandaGeoJsonRef.current;
+    const rainCells: any[] = [];
+    let rainMaskReady = !isRainMode;
+    let rainMaskLoading = false;
+    let cancelled = false;
+
+    const resizeCanvas = () => {
+      const { clientWidth, clientHeight } = canvas;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(clientWidth * dpr));
+      canvas.height = Math.max(1, Math.floor(clientHeight * dpr));
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const randomPosition = (): any => {
+      if (isRainMode) {
+        if (rainCells.length === 0) return null;
+        const totalWeight = rainCells.reduce(
+          (sum, cell) => sum + cell.weight,
+          0,
+        );
+        let pick = Math.random() * totalWeight;
+        const cell =
+          rainCells.find((candidate) => {
+            pick -= candidate.weight;
+            return pick <= 0;
+          }) ?? rainCells[rainCells.length - 1];
+        return {
+          lat: cell.lat + (Math.random() - 0.5) * cell.latSize,
+          lng: cell.lng + (Math.random() - 0.5) * cell.lngSize,
+          cell,
+        };
+      }
+
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const lat =
+          UGANDA_BOUNDS.south +
+          Math.random() * (UGANDA_BOUNDS.north - UGANDA_BOUNDS.south);
+        const lng =
+          UGANDA_BOUNDS.west +
+          Math.random() * (UGANDA_BOUNDS.east - UGANDA_BOUNDS.west);
+        if (pointInGeoJson(lat, lng, ugandaGeoJson)) return { lat, lng };
+      }
+      return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
+    };
+
+    const randomParticle = (): any => {
+      const position = randomPosition();
+      if (!position) return null;
+      return {
+        ...position,
+        cell: position.cell ?? null,
+        age: Math.random() * 80,
+        life: 70 + Math.random() * 90,
+        speed: isRainMode
+          ? 0.018 + Math.random() * 0.034
+          : 0.006 + Math.random() * 0.014,
+        length: isRainMode ? 6 + Math.random() * 13 : 0,
+        drift: isRainMode ? -0.16 + Math.random() * 0.22 : 0,
+        alpha: isRainMode ? 0.2 + Math.random() * 0.5 : 1,
+      };
+    };
+
+    const resetParticle = (particle: any) => {
+      const next = randomParticle();
+      if (!next) {
+        particle.age = Number.POSITIVE_INFINITY;
+        return;
+      }
+      particle.lat = next.lat;
+      particle.lng = next.lng;
+      particle.cell = next.cell ?? null;
+      particle.age = 0;
+      particle.life = next.life;
+      particle.speed = next.speed;
+      particle.length = next.length;
+      particle.drift = next.drift;
+      particle.alpha = next.alpha;
+    };
+
+    const vectorAt = (lat: number, lng: number, elapsed: number) => {
+      const wave = Math.sin(lng * 1.8 + elapsed * 0.00028) * 0.42;
+      const shear = Math.cos(lat * 2.6 - elapsed * 0.00022) * 0.34;
+      const basinTurn = Math.sin((lat + lng) * 1.2) * 0.22;
+      const angle = 0.86 + wave + shear + basinTurn;
+      const strength = 0.75 + Math.sin(lat * 4.2 + lng * 0.7) * 0.25;
+      return {
+        dLat: Math.sin(angle) * strength,
+        dLng: Math.cos(angle) * strength,
+      };
+    };
+
+    const clipToUganda = () => {
+      if (!ugandaGeoJson) return false;
+      context.beginPath();
+      forEachGeoJsonRing(ugandaGeoJson, (ring) => {
+        ring.forEach(([lng, lat]: number[], index: number) => {
+          const point = map.latLngToContainerPoint([lat, lng]);
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.closePath();
+      });
+      (context as any).clip("evenodd");
+      return true;
+    };
+
+    const waitForActiveOmUrl = async () => {
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        if (cancelled) return "";
+        if (currentOmUrlRef.current) return currentOmUrlRef.current;
+        await new Promise((resolve) => window.setTimeout(resolve, 80));
+      }
+      return "";
+    };
+
+    const isAnimationZoomReady = () => map.getZoom() >= ANIMATION_MIN_ZOOM;
+
+    const loadRainMask = async () => {
+      if (!isRainMode || rainMaskLoading || !isAnimationZoomReady()) return;
+      rainMaskLoading = true;
+      const omUrl = await waitForActiveOmUrl();
+      if (!omUrl || cancelled) {
+        rainMaskLoading = false;
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 240));
+
+      const rows = 44;
+      const columns = 38;
+      const latSize = (UGANDA_BOUNDS.north - UGANDA_BOUNDS.south) / rows;
+      const lngSize = (UGANDA_BOUNDS.east - UGANDA_BOUNDS.west) / columns;
+      const candidates: any[] = [];
+
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+          const lat = UGANDA_BOUNDS.south + (row + 0.5) * latSize;
+          const lng = UGANDA_BOUNDS.west + (column + 0.5) * lngSize;
+          if (pointInGeoJson(lat, lng, ugandaGeoJson)) {
+            candidates.push({ lat, lng, latSize, lngSize });
+          }
+        }
+      }
+
+      const sampled: any[] = [];
+      for (let index = 0; index < candidates.length; index += 8) {
+        if (cancelled) {
+          rainMaskLoading = false;
+          return;
+        }
+        const batch = candidates.slice(index, index + 8);
+        const values = await Promise.all(
+          batch.map(async (cell) => {
+            try {
+              const result = await getValueFromLatLong(
+                cell.lat,
+                cell.lng,
+                omUrl,
+              );
+              return { ...cell, value: Number(result.value) || 0 };
+            } catch {
+              return { ...cell, value: 0 };
+            }
+          }),
+        );
+        sampled.push(...values);
+      }
+
+      if (cancelled) {
+        rainMaskLoading = false;
+        return;
+      }
+      const rainy = sampled
+        .filter((cell) => cell.value >= 0.05)
+        .map((cell) => ({
+          ...cell,
+          weight: Math.min(8, 1 + Math.sqrt(cell.value) * 3),
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      rainCells.splice(0, rainCells.length, ...rainy);
+      rainMaskReady = true;
+      particles.splice(0, particles.length);
+      const targetParticles =
+        rainCells.length === 0
+          ? 0
+          : Math.min(particleCount, Math.max(80, rainCells.length * 28));
+      for (let index = 0; index < targetParticles; index += 1) {
+        const particle = randomParticle();
+        if (particle) particles.push(particle);
+      }
+      rainMaskLoading = false;
+      context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    };
+
+    resizeCanvas();
+    if (isRainMode && isAnimationZoomReady()) {
+      loadRainMask();
+    } else if (!isRainMode) {
+      for (let index = 0; index < particleCount; index += 1) {
+        const particle = randomParticle();
+        if (particle) particles.push(particle);
       }
     }
 
-    const targetHour = bestFrame.forecast_hour;
-    if (targetHour === activeFrameHourRef.current) return;
+    const draw = (elapsed: number) => {
+      if (!activeAnimation) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
 
-    // Remove old layer, add new one with fade-in animation
-    const map = weatherforcastMapRef.current!;
-    const prevLayer = weatherforcastrasterLayerRef.current;
+      if (!isAnimationZoomReady()) {
+        context.clearRect(0, 0, width, height);
+        windAnimationRef.current = window.requestAnimationFrame(draw);
+        return;
+      }
 
-    // Use the per-frame timestamped layer name (future_wms_layer) so each
-    // slider position shows the correct forecast hour from GeoServer.
-    // Fall back to the base layer name if future_wms_layer is not available.
-    const layerName = bestFrame.future_wms_layer || bestFrame.wms_layer;
+      if (isRainMode && (!rainMaskReady || rainCells.length === 0)) {
+        loadRainMask();
+        context.clearRect(0, 0, width, height);
+        windAnimationRef.current = window.requestAnimationFrame(draw);
+        return;
+      }
 
-    const newLayer = clippedWms(cached.wmsUrl, {
-      ...getWmsOptions(layerName, 0),
-    })
-      .on("load", () => {
-        setRasterIsLoading(false);
-        // Slide-in: fade from 0 to 0.85 over 400ms
-        let opacity = 0;
-        const step = 0.85 / 8; // 8 steps × 50ms = 400ms
-        const fadeIn = setInterval(() => {
-          opacity += step;
-          if (opacity >= 0.85) {
-            opacity = 0.85;
-            clearInterval(fadeIn);
-            // Remove old layer after transition
-            if (prevLayer && map.hasLayer(prevLayer)) {
-              map.removeLayer(prevLayer);
-            }
-          }
-          try {
-            (newLayer as any).setOpacity(opacity);
-          } catch {}
-        }, 50);
-      })
-      .on("tileerror", () => setRasterIsLoading(false))
-      .addTo(map) as any;
-    newLayer.bringToFront();
+      context.save();
+      const hasBoundaryClip = clipToUganda();
+      context.globalCompositeOperation = "destination-in";
+      context.fillStyle = isRainMode
+        ? "rgba(0, 0, 0, 0.82)"
+        : "rgba(0, 0, 0, 0.9)";
+      context.fillRect(0, 0, width, height);
+      context.globalCompositeOperation = "lighter";
+      context.lineCap = "round";
 
-    weatherforcastrasterLayerRef.current = newLayer;
-    activeFrameHourRef.current = targetHour;
-    // Sync rain animation to the newly displayed frame
-    activeRainLayerRef.current = layerName;
-    setActiveRainLayer(layerName);
-  }, [sliderhourIndexValue, dateRange, forecastStep]);
+      for (const particle of particles) {
+        const start = map.latLngToContainerPoint([particle.lat, particle.lng]);
+        if (isRainMode) {
+          particle.lat -= particle.speed;
+          particle.lng += particle.drift * particle.speed;
+        } else {
+          const vector = vectorAt(particle.lat, particle.lng, elapsed);
+          particle.lat += vector.dLat * particle.speed;
+          particle.lng += vector.dLng * particle.speed;
+        }
+        particle.age += 1;
 
-  // ── Zoom.earth-style rapid animation (triggered by play button) ─────────────
-  // The FloodHourSlider advances the hour — the effect above swaps the layer.
+        const end = map.latLngToContainerPoint([particle.lat, particle.lng]);
+        const staysInRainCell =
+          !isRainMode ||
+          (particle.cell &&
+            particle.lat >= particle.cell.lat - particle.cell.latSize / 2 &&
+            particle.lat <= particle.cell.lat + particle.cell.latSize / 2 &&
+            particle.lng >= particle.cell.lng - particle.cell.lngSize / 2 &&
+            particle.lng <= particle.cell.lng + particle.cell.lngSize / 2);
+        const visible =
+          end.x >= -40 &&
+          end.x <= width + 40 &&
+          end.y >= -40 &&
+          end.y <= height + 40 &&
+          particle.lat >= UGANDA_BOUNDS.south &&
+          particle.lat <= UGANDA_BOUNDS.north &&
+          particle.lng >= UGANDA_BOUNDS.west &&
+          particle.lng <= UGANDA_BOUNDS.east &&
+          staysInRainCell &&
+          pointInGeoJson(particle.lat, particle.lng, ugandaGeoJson);
 
-  // ── Sync raster values into districtWeatherRef for hover tooltip ─────────────
+        if (!visible || particle.age > particle.life) {
+          resetParticle(particle);
+          continue;
+        }
+
+        const fade = Math.max(0, 1 - particle.age / particle.life);
+        if (isRainMode) {
+          const cell = particle.cell;
+          const northWest = map.latLngToContainerPoint([
+            cell.lat + cell.latSize / 2,
+            cell.lng - cell.lngSize / 2,
+          ]);
+          const southEast = map.latLngToContainerPoint([
+            cell.lat - cell.latSize / 2,
+            cell.lng + cell.lngSize / 2,
+          ]);
+          context.save();
+          context.beginPath();
+          context.rect(
+            Math.min(northWest.x, southEast.x),
+            Math.min(northWest.y, southEast.y),
+            Math.abs(southEast.x - northWest.x),
+            Math.abs(southEast.y - northWest.y),
+          );
+          context.clip();
+          const rainAngle =
+            -0.28 + Math.sin(elapsed * 0.0014 + particle.lng) * 0.08;
+          const tailX = end.x - Math.sin(rainAngle) * particle.length;
+          const tailY = end.y - Math.cos(rainAngle) * particle.length;
+          context.lineWidth = 0.75 + particle.alpha * 0.8;
+          context.strokeStyle = `rgba(190, 229, 255, ${(0.1 + fade * 0.34) * particle.alpha})`;
+          context.beginPath();
+          context.moveTo(tailX, tailY);
+          context.lineTo(end.x, end.y);
+          context.stroke();
+          context.restore();
+          continue;
+        }
+
+        context.lineWidth = 1.15;
+        context.strokeStyle = `rgba(235, 248, 255, ${0.16 + fade * 0.42})`;
+        context.beginPath();
+        context.moveTo(start.x, start.y);
+        context.lineTo(end.x, end.y);
+        context.stroke();
+      }
+
+      context.restore();
+      if (!hasBoundaryClip && clipUganda) {
+        context.clearRect(0, 0, width, height);
+      }
+      windAnimationRef.current = window.requestAnimationFrame(draw);
+    };
+
+    context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+
+    const handleMapChange = () => {
+      resizeCanvas();
+      context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      particles.forEach(resetParticle);
+      if (isRainMode && !rainMaskReady && isAnimationZoomReady()) {
+        loadRainMask();
+      }
+    };
+
+    map.on("moveend", handleMapChange);
+    map.on("zoomend", handleMapChange);
+    map.on("resize", handleMapChange);
+
+    if (activeAnimation) {
+      windAnimationRef.current = window.requestAnimationFrame(draw);
+    }
+
+    return () => {
+      cancelled = true;
+      map.off("moveend", handleMapChange);
+      map.off("zoomend", handleMapChange);
+      map.off("resize", handleMapChange);
+      if (windAnimationRef.current) {
+        window.cancelAnimationFrame(windAnimationRef.current);
+        windAnimationRef.current = null;
+      }
+      context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    };
+  }, [variable, domain, clipUganda, clipRevision, currentOmUrl, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Value marker for the focused district (sampled from Open-Meteo) ──────────
   useEffect(() => {
-    if (!isWeatherParam) return;
-    if (!Object.keys(rasterDistrictValues).length) return;
-    districtWeatherRef.current = { ...rasterDistrictValues };
-  }, [rasterDistrictValues, isWeatherParam]);
+    const map = weatherforcastMapRef.current;
+    if (!map || !geoData || !currentOmUrl) return;
 
-  // ── Weather district markers — all params from GeoTIFF ───────────────────
-  useEffect(() => {
-    if (!weatherforcastMapRef.current || !geoData?.features) return;
+    let cancelled = false;
+    const config = PARAM_LEGENDS[paramKey];
 
-    const param = selectedParameter?.toLowerCase() ?? "";
-    const config = PARAM_LEGENDS[param];
-    if (!config) return;
-
-    // Clear old markers
     weatherMarkersRef.current.forEach((m) => m.remove());
     weatherMarkersRef.current = [];
-
-    // Wait for raster fetch to complete
-    if (rasterLoading) return;
-
-    // No raster data — nothing to show
-    if (!Object.keys(rasterDistrictValues).length) return;
-
-    // Populate full ref so hover tooltip works on every district
-    districtWeatherRef.current = { ...rasterDistrictValues };
+    if (!config) return;
 
     const target =
       getTheBounds?.trim() && getTheBounds.trim().toLowerCase() !== "all"
         ? getTheBounds.trim()
         : "Kampala";
 
-    (geoData.features as any[]).forEach((feature) => {
-      const name: string = feature?.properties?.name ?? "";
-      if (!name.toLowerCase().includes(target.toLowerCase())) return;
+    const feature = (geoData as any).features.find((f: any) =>
+      (f?.properties?.name ?? "")
+        .toLowerCase()
+        .includes(target.toLowerCase()),
+    );
+    if (!feature) return;
 
-      const value = rasterDistrictValues[name.toLowerCase()];
-      if (value == null) return;
+    const center = L.geoJSON(feature).getBounds().getCenter();
 
-      const center = L.geoJSON(feature).getBounds().getCenter();
-      const color  = getValueColor(value, param);
-      const marker = L.marker(center, {
-        icon: L.divIcon({
-          className: "",
-          html: makeMarkerHtml(name, Math.round(value), config.unit, color, param),
-          iconSize: [1, 1],
-          iconAnchor: [0, 0],
-        }),
-        interactive: false,
-        zIndexOffset: 200,
-      }).addTo(weatherforcastMapRef.current!);
-      weatherMarkersRef.current.push(marker);
-    });
-  }, [selectedParameter, geoData, getTheBounds, rasterDistrictValues, rasterLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+    (async () => {
+      try {
+        const result = await getValueFromLatLong(
+          center.lat,
+          center.lng,
+          currentOmUrl,
+        );
+        if (cancelled || !Number.isFinite(result?.value)) return;
+        const value = Number(result.value);
+        const color = getValueColor(value, paramKey);
+        const marker = L.marker(center, {
+          icon: L.divIcon({
+            className: "",
+            html: makeMarkerHtml(
+              feature.properties.name,
+              Math.round(value),
+              config.unit,
+              color,
+              paramKey,
+            ),
+            iconSize: [1, 1],
+            iconAnchor: [0, 0],
+          }),
+          interactive: false,
+          zIndexOffset: 200,
+        }).addTo(map);
+        weatherMarkersRef.current.push(marker);
+      } catch {
+        /* sampling failed — no marker */
+      }
+    })();
 
-  // In the component, below where you destructure currentPage from the store
-  const isVisibleOnPage = (layer: LayerDef): boolean => {
-    if (!layer.pages || layer.pages.includes("*")) return true;
-    return layer.pages.some((route) => (currentPage ?? "").startsWith(route));
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [currentOmUrl, getTheBounds, paramKey, geoData]);
 
-  const visibleGroups = LAYER_GROUPS.map((group) => ({
-    ...group,
-    layers: group.layers.filter(isVisibleOnPage),
-  })).filter((group) => group.layers.length > 0);
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div ref={rootRef} className={`relative overflow-hidden ${className}`}>
@@ -854,6 +1192,21 @@ export default function WeatherForcastMap({
         className="absolute inset-0 z-0"
         style={{
           background: isDarkMode ? "#07111f" : "#dceaf4",
+        }}
+      />
+
+      {/* Rain / wind particle animation canvas */}
+      <canvas
+        ref={windCanvasRef}
+        aria-hidden="true"
+        className="absolute inset-0 z-[350] pointer-events-none w-full h-full"
+        style={{
+          opacity:
+            variable === "wind_u_component_10m" || variable === "precipitation"
+              ? 1
+              : 0,
+          transition: "opacity 0.4s ease",
+          mixBlendMode: variable === "precipitation" ? "screen" : "normal",
         }}
       />
 
@@ -880,7 +1233,7 @@ export default function WeatherForcastMap({
         )}
       </AnimatePresence>
 
-      {/* Forecast status — parameter + mode badge only, no "Uganda" text */}
+      {/* Forecast status — model + parameter badge */}
       <div className="absolute top-2 left-2 z-[500]">
         <span
           className="rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-lg backdrop-blur-md"
@@ -899,7 +1252,7 @@ export default function WeatherForcastMap({
         </span>
       </div>
 
-      {/* ── Model Switcher — bottom-right ───────── */}
+      {/* ── Model Switcher — bottom-right (ICON / GFS) ───────── */}
       <div
         className="absolute bottom-2 right-2 z-[500] flex items-center rounded-full overflow-hidden shadow-sm"
         style={{
@@ -915,29 +1268,20 @@ export default function WeatherForcastMap({
           [
             { id: "icon", label: "ICON" },
             { id: "gfs", label: "GFS" },
-            { id: "imerg", label: "Satellite" },
           ] as const
         ).map((model) => {
-          const isSelected = (() => {
-            if (model.id === "imerg") return activeLayers.has("imerg_precip");
-            if (model.id === "gfs") return layerMode === "forecast";
-            return layerMode === "nowcast" && !activeLayers.has("imerg_precip");
-          })();
+          const isSelected =
+            model.id === "gfs"
+              ? layerMode === "forecast"
+              : layerMode !== "forecast";
           return (
             <button
               key={model.id}
-              onClick={() => {
-                if (model.id === "imerg") {
-                  const imergLayer = LAYER_GROUPS.flatMap((g) => g.layers).find(
-                    (l) => l.id === "imerg_precip",
-                  );
-                  if (imergLayer) toggleLayer(imergLayer);
-                } else if (model.id === "gfs") {
-                  useAppStore.getState().setLayerMode("forecast");
-                } else {
-                  useAppStore.getState().setLayerMode("nowcast");
-                }
-              }}
+              onClick={() =>
+                useAppStore
+                  .getState()
+                  .setLayerMode(model.id === "gfs" ? "forecast" : "nowcast")
+              }
               className="px-3 py-1 text-[10px] font-bold tracking-wide transition-all whitespace-nowrap"
               style={{
                 backgroundColor: isSelected ? FAO_BLUE : "transparent",
@@ -1029,7 +1373,7 @@ export default function WeatherForcastMap({
         </button>
       </div>
 
-      {/* ── MAP LAYERS toggle + Zoom (top-right) ──────────────────────────── */}
+      {/* ── MAP LAYERS toggle (top-right) ──────────────────────────── */}
       <button
         onClick={() => setShowLayerPanel((v) => !v)}
         className="absolute top-2 right-2 z-[500] flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold shadow-md transition-all"
@@ -1099,35 +1443,26 @@ export default function WeatherForcastMap({
         ))}
       </div>
 
-      {/* Layer panel */}
+      {/* Layer panel — Open-Meteo overlay controls */}
       <AnimatePresence>
         {showLayerPanel && (
           <>
-            {/* Backdrop */}
             <div
               className="fixed inset-0 z-[600]"
               onClick={() => setShowLayerPanel(false)}
             />
-
             <motion.div
               initial={{ opacity: 0, x: 20, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.95 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className={`
-            absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl
-            flex flex-col
-            ${
-              isDarkMode
-                ? "bg-slate-800 border border-slate-700"
-                : "bg-white border border-slate-200"
-            }
-          `}
-              style={{
-                maxHeight: "90%",
-              }}
+              className={`absolute top-10 right-2 z-[700] w-64 overflow-y-auto rounded-xl shadow-xl flex flex-col ${
+                isDarkMode
+                  ? "bg-slate-800 border border-slate-700"
+                  : "bg-white border border-slate-200"
+              }`}
+              style={{ maxHeight: "90%" }}
             >
-              {/* Panel header */}
               <div
                 className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 border-b"
                 style={{ borderColor: isDarkMode ? "#334155" : "#e2e8f0" }}
@@ -1139,7 +1474,6 @@ export default function WeatherForcastMap({
                 >
                   MAP LAYERS
                 </span>
-
                 <button
                   onClick={() => setShowLayerPanel(false)}
                   className={`p-0.5 rounded transition-colors ${
@@ -1152,88 +1486,102 @@ export default function WeatherForcastMap({
                 </button>
               </div>
 
-              {/* Scrollable layer list */}
-              <div className="overflow-y-auto flex-1 py-1 h-[calc(100%-40px)]">
-                {visibleGroups?.map((group) => (
-                  <div key={group.title} className="mb-1">
-                    {/* Group heading */}
-                    <p
-                      className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
-                      style={{ color: FAO_BLUE }}
+              <div className="overflow-y-auto flex-1 py-1">
+                <p
+                  className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                  style={{ color: FAO_BLUE }}
+                >
+                  OVERLAYS
+                </p>
+                {(
+                  [
+                    { id: "clip", label: "Uganda clip", checked: clipUganda },
+                    {
+                      id: "contours",
+                      label: "Contours",
+                      checked: overlays.contours,
+                    },
+                    { id: "grid", label: "Grid", checked: overlays.grid },
+                    {
+                      id: "arrows",
+                      label: "Wind arrows",
+                      checked: overlays.arrows,
+                    },
+                  ] as const
+                ).map((row) => (
+                  <div
+                    key={row.id}
+                    onClick={() => {
+                      if (row.id === "clip") setClipUganda((v) => !v);
+                      else
+                        setOverlays((cur) => ({
+                          ...cur,
+                          [row.id]: !cur[row.id as keyof typeof cur],
+                        }));
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors select-none ${
+                      isDarkMode ? "hover:bg-slate-700/50" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <div
+                      className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
+                      style={{
+                        backgroundColor: row.checked ? FAO_BLUE : "transparent",
+                        borderColor: row.checked
+                          ? FAO_BLUE
+                          : isDarkMode
+                            ? "#475569"
+                            : "#cbd5e1",
+                      }}
                     >
-                      {group.title}
-                    </p>
-
-                    {/* Layer rows */}
-                    {group.layers.map((layerDef) => {
-                      const isActive = activeLayers.has(layerDef.id);
-
-                      return (
-                        <div
-                          key={layerDef.id}
-                          onClick={() => toggleLayer(layerDef)}
-                          className={`flex items-center justify-between px-3 py-1.5 cursor-pointer transition-colors select-none ${
-                            isDarkMode
-                              ? "hover:bg-slate-700/50"
-                              : "hover:bg-slate-50"
-                          }`}
+                      {row.checked && (
+                        <svg
+                          className="w-2.5 h-2.5 text-white"
+                          viewBox="0 0 10 10"
+                          fill="none"
                         >
-                          <div className="flex items-center gap-2">
-                            {/* Checkbox */}
-                            <div
-                              className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-all"
-                              style={{
-                                backgroundColor: isActive
-                                  ? FAO_BLUE
-                                  : "transparent",
-                                borderColor: isActive
-                                  ? FAO_BLUE
-                                  : isDarkMode
-                                    ? "#475569"
-                                    : "#cbd5e1",
-                              }}
-                            >
-                              {isActive && (
-                                <svg
-                                  className="w-2.5 h-2.5 text-white"
-                                  viewBox="0 0 10 10"
-                                  fill="none"
-                                >
-                                  <path
-                                    d="M1.5 5L4 7.5L8.5 2.5"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              )}
-                            </div>
-
-                            <span
-                              className={`text-xs ${
-                                isDarkMode ? "text-slate-300" : "text-slate-700"
-                              }`}
-                            >
-                              {layerDef.label}
-                            </span>
-                          </div>
-
-                          {/* Date badge */}
-                          {layerDef.date && (
-                            <span
-                              className={`text-[10px] ml-2 flex-shrink-0 ${
-                                isDarkMode ? "text-slate-500" : "text-slate-400"
-                              }`}
-                            >
-                              {layerDef.date}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
+                          <path
+                            d="M1.5 5L4 7.5L8.5 2.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <span
+                      className={`text-xs ${
+                        isDarkMode ? "text-slate-300" : "text-slate-700"
+                      }`}
+                    >
+                      {row.label}
+                    </span>
                   </div>
                 ))}
+
+                <p
+                  className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-widest"
+                  style={{ color: FAO_BLUE }}
+                >
+                  OPACITY
+                </p>
+                <div className="px-3 pb-3 pt-1">
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    value={opacity}
+                    onChange={(e) => setOpacity(Number(e.target.value))}
+                    className="w-full"
+                    style={{ accentColor: FAO_BLUE }}
+                  />
+                  <span
+                    className={`text-[10px] ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                  >
+                    {opacity}%
+                  </span>
+                </div>
               </div>
             </motion.div>
           </>
@@ -1241,136 +1589,144 @@ export default function WeatherForcastMap({
       </AnimatePresence>
 
       {/* Legend — gradient bar with parameter icon + unit labels */}
-      {(() => {
-        const paramKey = selectedParameter?.toLowerCase() ?? "";
-        const config = PARAM_LEGENDS[paramKey];
-        if (!config) return null;
-        const gradientStops = config.stops
-          .map(
-            (s, i) =>
-              `${s.color} ${Math.round((i / (config.stops.length - 1)) * 100)}%`,
-          )
-          .join(", ");
-        const accentColor = config.stops[config.stops.length - 1].color;
-        return (
-          <div
-            className="absolute bottom-4 left-2 z-[400] px-2 py-1.5"
-            style={{ minWidth: 160 }}
-          >
-            {/* Icon + unit label */}
-            <div className="flex items-center gap-1 mb-1.5">
-              <ParamIcon
-                param={selectedParameter ?? ""}
-                className="w-3 h-3"
-                color={accentColor}
-              />
-              <span
-                className="text-[9px] font-bold tracking-widest uppercase"
-                style={{ color: accentColor }}
-              >
-                {config.unit}
-              </span>
-            </div>
-            {/* Gradient bar */}
+      {legendConfig &&
+        (() => {
+          const gradientStops = legendConfig.stops
+            .map(
+              (s: any, i: number) =>
+                `${s.color} ${Math.round((i / (legendConfig.stops.length - 1)) * 100)}%`,
+            )
+            .join(", ");
+          const accentColor =
+            legendConfig.stops[legendConfig.stops.length - 1].color;
+          return (
             <div
-              className="h-1.5 rounded-full w-full"
-              style={{
-                background: `linear-gradient(to right, ${gradientStops})`,
-              }}
-            />
-            {/* Value labels */}
-            <div className="flex justify-between mt-0.5">
-              {config.stops.map((s) => (
+              className="absolute bottom-4 left-2 z-[400] px-2 py-1.5"
+              style={{ minWidth: 160 }}
+            >
+              <div className="flex items-center gap-1 mb-1.5">
+                <ParamIcon
+                  param={selectedParameter ?? ""}
+                  className="w-3 h-3"
+                  color={accentColor}
+                />
                 <span
-                  key={s.label}
-                  className="text-[8px] font-semibold"
-                  style={{
-                    color: isDarkMode
-                      ? "rgba(255,255,255,0.75)"
-                      : "rgba(15,23,42,0.70)",
-                    textShadow: isDarkMode
-                      ? "0 1px 3px rgba(0,0,0,0.9)"
-                      : "0 1px 2px rgba(255,255,255,0.9)",
-                  }}
+                  className="text-[9px] font-bold tracking-widest uppercase"
+                  style={{ color: accentColor }}
                 >
-                  {s.label}
+                  {legendConfig.unit}
                 </span>
-              ))}
+              </div>
+              <div
+                className="h-1.5 rounded-full w-full"
+                style={{
+                  background: `linear-gradient(to right, ${gradientStops})`,
+                }}
+              />
+              <div className="flex justify-between mt-0.5">
+                {legendConfig.stops.map((s: any) => (
+                  <span
+                    key={s.label}
+                    className="text-[8px] font-semibold"
+                    style={{
+                      color: isDarkMode
+                        ? "rgba(255,255,255,0.75)"
+                        : "rgba(15,23,42,0.70)",
+                      textShadow: isDarkMode
+                        ? "0 1px 3px rgba(0,0,0,0.9)"
+                        : "0 1px 2px rgba(255,255,255,0.9)",
+                    }}
+                  >
+                    {s.label}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
-      {/* Hover tooltip — text only, no background or border */}
+      {/* Hover tooltip — styled glassmorphic reading card */}
       {hoveredDistrictName &&
         (() => {
-          const param = selectedParameter?.toLowerCase() ?? "";
-          const config = PARAM_LEGENDS[param];
-
-          const districtAvg =
-            districtWeatherRef.current[hoveredDistrictName.toLowerCase()];
-
-          const rawValue = districtAvg ?? null;
-
           const value =
-            config && rawValue != null ? Math.round(rawValue * 10) / 10 : null;
-
-          const color = "#45FF12";
-          const tx = mousePos.x > 360 ? mousePos.x - 120 : mousePos.x + 12;
-          const ty = Math.max(mousePos.y - 48, 8);
+            hoverValue != null ? Math.round(hoverValue * 10) / 10 : null;
+          const accentColor =
+            legendConfig?.stops?.[legendConfig.stops.length - 1]?.color ??
+            FAO_BLUE;
+          const tx = mousePos.x > 320 ? mousePos.x - 150 : mousePos.x + 16;
+          const ty = Math.max(mousePos.y - 20, 8);
           return (
             <div
               className="absolute pointer-events-none z-[450]"
-              style={{ left: tx, top: ty }}
+              style={{
+                left: tx,
+                top: ty,
+                minWidth: 132,
+                padding: "8px 11px",
+                borderRadius: 12,
+                background: isDarkMode
+                  ? "rgba(10,15,30,0.72)"
+                  : "rgba(255,255,255,0.86)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)"}`,
+                boxShadow: "0 6px 22px rgba(0,0,0,0.28)",
+              }}
             >
-              <p
-                style={{
-                  fontSize: 9,
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  fontWeight: 600,
-                  color: "#45FF12",
-                  textShadow: isDarkMode
-                    ? "0 1px 3px rgba(0,0,0,0.8)"
-                    : "0 1px 3px rgba(255,255,255,0.9)",
-                  marginBottom: 2,
-                }}
-              >
-                {hoveredDistrictName}
-              </p>
-              {config && value !== null && (
-                <p
+              <div className="flex items-center gap-1.5 mb-1">
+                <ParamIcon
+                  param={selectedParameter ?? ""}
+                  className="w-3 h-3"
+                  color={accentColor}
+                />
+                <span
                   style={{
-                    fontSize: 18,
-                    fontWeight: 800,
-                    lineHeight: 1,
-                    color,
-                    textShadow: isDarkMode
-                      ? "0 1px 4px rgba(0,0,0,0.9)"
-                      : "0 1px 4px rgba(255,255,255,0.9)",
+                    fontSize: 9.5,
+                    letterSpacing: 0.8,
+                    textTransform: "uppercase",
+                    fontWeight: 700,
+                    color: isDarkMode
+                      ? "rgba(255,255,255,0.82)"
+                      : "rgba(15,23,42,0.78)",
                   }}
                 >
-                  {value}
+                  {hoveredDistrictName}
+                </span>
+              </div>
+              {value !== null && (
+                <div className="flex items-baseline gap-1">
                   <span
-                    style={{ fontSize: 11, fontWeight: 600, marginLeft: 2 }}
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      color: accentColor,
+                    }}
                   >
-                    {config.unit}
+                    {value}
                   </span>
-                </p>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: isDarkMode
+                        ? "rgba(255,255,255,0.65)"
+                        : "rgba(15,23,42,0.60)",
+                    }}
+                  >
+                    {legendUnit}
+                  </span>
+                </div>
               )}
-              {config && value === null && rasterLoading && (
-                <p
+              {value === null && hoverLoading && (
+                <div
+                  className="flex items-center gap-1.5"
                   style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    lineHeight: 1,
-                    color: "#45FF12",
-                    textShadow: isDarkMode
-                      ? "0 1px 4px rgba(0,0,0,0.9)"
-                      : "0 1px 4px rgba(255,255,255,0.9)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: isDarkMode
+                      ? "rgba(255,255,255,0.70)"
+                      : "rgba(15,23,42,0.65)",
                   }}
                 >
                   <span
@@ -1379,13 +1735,13 @@ export default function WeatherForcastMap({
                       width: 10,
                       height: 10,
                       borderRadius: "50%",
-                      border: `2px solid #45FF1240`,
-                      borderTopColor: "#45FF12",
+                      border: `2px solid ${accentColor}40`,
+                      borderTopColor: accentColor,
                       animation: "spin 0.7s linear infinite",
                     }}
                   />
                   Loading…
-                </p>
+                </div>
               )}
             </div>
           );

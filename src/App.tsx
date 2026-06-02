@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import OverviewPage from "./pages/OverviewPage";
 import WeatherForecastPage from "./pages/WeatherForecastPage";
+
 import DroughtMonitoringPage from "./pages/DroughtMonitoringPage";
 import FloodMonitoringPage from "./pages/FloodMonitoringPage";
 import WeatherStationsPage from "./pages/WeatherStationsPage";
@@ -164,6 +165,7 @@ function AppContent() {
         );
       case "weather":
         return <WeatherForecastPage isDarkMode={isDarkMode} />;
+     
       case "drought":
         return <DroughtMonitoringPage isDarkMode={isDarkMode} />;
       case "flood":

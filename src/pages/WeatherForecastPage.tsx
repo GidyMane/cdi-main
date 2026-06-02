@@ -550,7 +550,7 @@ export default function WeatherForecastPage({
     // The dependency array includes all filter-related variables
   }, [activeTab, selectedCardIndex, dateRange, selectedParameter, statsId]);
 
-  // Stat colours match PARAM_LEGENDS mid-range stops in WeatherForcastMap
+  // Stat colours match Open-Meteo weather map color scale mid-range stops
   const STAT_COLOR = {
     temperature: "#f97316", // warm orange (35° stop)
     rainfall: "#0284c7", // medium blue (50 mm stop)
@@ -881,7 +881,7 @@ export default function WeatherForecastPage({
                         color: FAO_BLUE,
                       }}
                     >
-                      GFS
+                      Open-Meteo
                     </span>
                   </div>
                   <div className="flex-1 relative min-h-0">

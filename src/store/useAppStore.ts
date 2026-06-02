@@ -16,6 +16,7 @@ export interface AppStoreState {
   currentPage:
     | "overview"
     | "weather"
+    | "weathermap"
     | "drought"
     | "flood"
     | "stations"
