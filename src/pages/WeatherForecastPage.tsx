@@ -225,7 +225,7 @@ const WeatherTrendChart = ({
   chartData?: any[];
   metric?: "temp" | "rain" | "wind" | "humidity";
 }) => {
-  const dataToDisplay = chartData || hourlyForecast;
+  const dataToDisplay = (chartData && chartData.length >= 2) ? chartData : (hourlyForecast?.length >= 2 ? hourlyForecast : null);
   if (!dataToDisplay || dataToDisplay.length < 2) {
     return (
       <EmptyState
@@ -491,18 +491,22 @@ export default function WeatherForecastPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch Open-Meteo 7-day forecast (used as fallback / humidity source for forecast tab)
+  // Fetch Open-Meteo 7-day forecast to supplement humidity data for forecast tab
   useEffect(() => {
     if (activeTab !== "forecast") return;
     let cancelled = false;
     const districtName = selectedDistrictId?.name ?? kampala?.name ?? "";
-    const centroid = getDistrictCentroid(districtName);
-    if (!centroid) return;
+    // Try exact name, then title-cased, then fall back to Uganda centre
+    const centroid =
+      getDistrictCentroid(districtName) ??
+      getDistrictCentroid("Kampala") ??
+      { lat: 1.3733, lng: 32.2903 }; // Uganda geographic centre as last resort
     fetchOmDailyForecast(centroid.lat, centroid.lng)
       .then((data) => {
         if (!cancelled) setOmDailyForecast(data);
       })
       .catch(() => {
+        // Silently ignore — chart will use backend data with humidity: 0
         if (!cancelled) setOmDailyForecast([]);
       });
     return () => {
@@ -607,42 +611,41 @@ export default function WeatherForecastPage({
         };
       });
     } else {
-      // For 7-day forecast, prefer Open-Meteo data (same source as the map)
-      // which always includes all 4 parameters including humidity.
-      // Fall back to backend dailyForecast if OM data hasn't loaded yet.
+      // Base forecast data comes from the backend (same source as the DailyCards above).
+      // We merge in humidity from omDailyForecast (Open-Meteo) when available,
+      // since the backend daily API does not always return humidity.
+      const baseSource = dailyForecast.map((d, i) => ({
+        label: d.rawDate
+          ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+          : (d.date ?? ""),
+        temp: d.high ?? 0,
+        rain: d.rain ?? 0,
+        wind: d.windSpeed ?? 0,
+        // Use OM humidity if available for this index, else backend humidity, else 0
+        humidity:
+          omDailyForecast[i]?.humidity ??
+          (d.humidity != null ? d.humidity : 0),
+      }));
+
+      // If backend data is empty but OM data loaded, use OM directly
       const forecastSource =
-        omDailyForecast.length > 0
-          ? omDailyForecast
-          : dailyForecast.map((d) => ({
-              label: d.rawDate
-                ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-                : d.date,
-              temp: d.high,
-              rain: d.rain,
-              wind: d.windSpeed || 0,
-              humidity: d.humidity ?? null,
-            }));
+        baseSource.length > 0
+          ? baseSource
+          : omDailyForecast.map((d) => ({ ...d, humidity: d.humidity ?? 0 }));
 
       // Filter by date if dateRange is set
       if (dateRange) {
         const selectedDate = new Date(dateRange);
-        const filtered = dailyForecast.filter((d) => {
-          if (!d.rawDate) return false;
+        const filtered = forecastSource.filter((_, i) => {
+          const d = dailyForecast[i];
+          if (!d?.rawDate) return false;
           return (
             d.rawDate.getFullYear() === selectedDate.getFullYear() &&
             d.rawDate.getMonth() === selectedDate.getMonth() &&
             d.rawDate.getDate() === selectedDate.getDate()
           );
         });
-        return filtered.map((d) => ({
-          label: d.rawDate
-            ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-            : d.date,
-          temp: d.high,
-          rain: d.rain,
-          wind: d.windSpeed || 0,
-          humidity: d.humidity ?? null,
-        }));
+        return filtered;
       }
 
       if (selectedCardIndex !== null) {
@@ -655,7 +658,9 @@ export default function WeatherForecastPage({
     }
   };
 
-  const chartData = getChartData();
+  const rawChartData = getChartData();
+  // Pass undefined (not []) when empty so the chart component can fall back gracefully
+  const chartData = rawChartData && rawChartData.length >= 2 ? rawChartData : undefined;
 
   // Trigger chart update when filters or parameter changes
   useEffect(() => {
