@@ -346,7 +346,7 @@ export default function WeatherForecastPage({
     mapInteractionMetric,
   } = useAppStore((state) => state);
 
-  const [activeTab, setActiveTab] = useState<"nowcast" | "forecast">("nowcast");
+  const [activeTab, setActiveTabState] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
@@ -365,12 +365,30 @@ export default function WeatherForecastPage({
     undefined,
   );
 
-  // Sync chart metric with map interaction
+  // Unified tab setter: keeps map layerMode in sync with the forecast tab
+  const setActiveTab = (tab: "nowcast" | "forecast") => {
+    setActiveTabState(tab);
+    setLayerMode(tab);
+  };
+
+  // Sync chart metric with map interaction (hover)
   useEffect(() => {
     if (mapInteractionMetric) {
       setChartMetric(mapInteractionMetric);
     }
   }, [mapInteractionMetric]);
+
+  // Sync chart metric when the parameter filter changes
+  useEffect(() => {
+    const paramToMetric: Record<string, "temp" | "rain" | "wind"> = {
+      temperature: "temp",
+      rainfall: "rain",
+      wind: "wind",
+      humidity: "temp", // no dedicated humidity chart key; show temp as fallback
+    };
+    const mapped = paramToMetric[selectedParameter?.toLowerCase() ?? "temperature"];
+    if (mapped) setChartMetric(mapped);
+  }, [selectedParameter]);
 
   // Fetch max forecast time from raster frames API
   useEffect(() => {
@@ -392,9 +410,10 @@ export default function WeatherForecastPage({
   const statsId = selectedDistrictId?.id ?? kampala?.id;
   const statsLabel = selectedDistrictId?.name ?? kampala?.name ?? "Uganda";
 
-  //default layer mode
+  // Ensure layerMode is set correctly on mount (activeTab default is "nowcast")
   useEffect(() => {
     setLayerMode("nowcast");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch dashboard + forecasts whenever the stats district changes
@@ -954,7 +973,7 @@ export default function WeatherForecastPage({
                 <div
                   className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm flex-1 flex flex-col min-h-0`}
                 >
-                  <div className="flex items-center justify-between mb-1 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-0.5 flex-shrink-0">
                     <h3
                       className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}
                     >
@@ -988,6 +1007,9 @@ export default function WeatherForecastPage({
                       ))}
                     </div>
                   </div>
+                  <p className={`text-[10px] ${textMuted} mb-1 flex-shrink-0`}>
+                    {activeTab === "nowcast" ? "Hourly" : "7-Day"} · {statsLabel} · {selectedParameter.charAt(0).toUpperCase() + selectedParameter.slice(1)}
+                  </p>
                   <div className="flex-1 min-h-0">
                     <WeatherTrendChart
                       hourlyForecast={hourlyForecast}
@@ -1179,7 +1201,7 @@ export default function WeatherForecastPage({
           <div
             className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-0.5">
               <h3
                 className={`text-sm font-semibold flex items-center gap-1.5 ${headerText}`}
               >
@@ -1204,6 +1226,9 @@ export default function WeatherForecastPage({
                 ))}
               </div>
             </div>
+            <p className={`text-[10px] ${textMuted} mb-2`}>
+              {activeTab === "nowcast" ? "Hourly" : "7-Day"} · {statsLabel} · {selectedParameter.charAt(0).toUpperCase() + selectedParameter.slice(1)}
+            </p>
             <div className="h-36">
               <WeatherTrendChart
                 hourlyForecast={hourlyForecast}
