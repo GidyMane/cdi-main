@@ -1,8 +1,8 @@
 import {
   Thermometer, Droplets, Wind, CloudRain,
   ArrowRight, MapPin, TrendingUp, TrendingDown, Minus, Clock,
-  Cloud, Sun, Radio, Calendar, RefreshCw, BarChart2, Leaf,
-  Activity, AlertCircle, Signal, Timer,
+  Cloud, Sun, Radio, RefreshCw, BarChart2,
+  Activity, AlertCircle, Signal, Timer, Users,
 } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import type { PageType } from "../App";
@@ -63,7 +63,7 @@ const ThresholdBar = ({ value, min, max, segments, isDarkMode }: {
 };
 
 type StatIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-type ModuleStat = { label: string; value: string; Icon?: StatIcon };
+type ModuleStat = { label: string; value: string; sub?: string; Icon?: StatIcon };
 
 /* ── Module definitions ─────────────────────────────────────────── */
 const MODULES: {
@@ -76,10 +76,10 @@ const MODULES: {
     desc: "24-hour nowcasting & 7-day forecasts with high accuracy predictions.",
     Icon: Cloud, ctaLabel: "Open Forecast Center",
     stats: [
-      { label: "Horizon",        value: "7 Days",  Icon: Calendar },
-      { label: "Update",         value: "6 Hours", Icon: RefreshCw },
-      { label: "Rainfall Today", value: "--",      Icon: CloudRain },
-      { label: "Next Update",    value: "--",      Icon: Clock },
+      { label: "Highest Rainfall", value: "--", sub: undefined, Icon: CloudRain },
+      { label: "Highest Temp",     value: "--", sub: undefined, Icon: Thermometer },
+      { label: "Highest Wind",     value: "--", sub: undefined, Icon: Wind },
+      { label: "Highest Humidity", value: "--", sub: undefined, Icon: Droplets },
     ],
   },
   {
@@ -87,10 +87,10 @@ const MODULES: {
     desc: "Combined Drought Index with TDI, PDI, VDI components for risk assessment.",
     Icon: Sun, ctaLabel: "Open Drought Center",
     stats: [
-      { label: "Districts at Risk", value: "--",    Icon: MapPin },
-      { label: "Drought Index",     value: "SPI",   Icon: BarChart2 },
-      { label: "Vegetation Status", value: "Stable", Icon: Leaf },
-      { label: "Last Analysis",     value: "--",    Icon: Clock },
+      { label: "Extreme Severity", value: "--", Icon: AlertCircle },
+      { label: "Trending",         value: "--", Icon: TrendingUp },
+      { label: "Improving",        value: "--", Icon: TrendingDown },
+      { label: "Districts at Risk", value: "--", Icon: BarChart2 },
     ],
   },
   {
@@ -98,10 +98,10 @@ const MODULES: {
     desc: "Real-time river discharge monitoring and early warning systems.",
     Icon: Droplets, ctaLabel: "Open Flood Center",
     stats: [
-      { label: "Rivers Monitored", value: "9",  Icon: Activity },
-      { label: "Alert Areas",      value: "--", Icon: AlertCircle },
-      { label: "River Status",     value: "--", Icon: Signal },
-      { label: "Last Update",      value: "--", Icon: Clock },
+      { label: "People at Risk",      value: "--", sub: undefined, Icon: Users },
+      { label: "Highest Discharge",   value: "--", sub: undefined, Icon: Activity },
+      { label: "Rising Levels",       value: "--", sub: undefined, Icon: TrendingUp },
+      { label: "Active Alerts",       value: "--", Icon: AlertCircle },
     ],
   },
   {
@@ -143,35 +143,44 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
         });
         if (wd) setWeather(wd);
         if (ms) {
-          const valueUpdates: string[][] = [
+          type StatPatch = { value: string; sub?: string };
+          const statUpdates: StatPatch[][] = [
+            /* weather */
             [
-              "7 Days",
-              "6 Hours",
-              wd?.rainfall_24h != null ? `${wd.rainfall_24h} mm` : "--",
-              "--",
+              { value: wd?.rainfall_24h    != null ? `${wd.rainfall_24h} mm`   : "--", sub: wd?.highest_rainfall_district  ?? wd?.district ?? undefined },
+              { value: wd?.temperature     != null ? `${wd.temperature}°C`     : "--", sub: wd?.highest_temp_district      ?? wd?.district ?? undefined },
+              { value: wd?.wind_speed      != null ? `${wd.wind_speed} km/h`   : "--", sub: wd?.highest_wind_district      ?? wd?.district ?? undefined },
+              { value: wd?.humidity        != null ? `${wd.humidity}%`         : "--", sub: wd?.highest_humidity_district  ?? wd?.district ?? undefined },
             ],
+            /* drought */
             [
-              ms.drought_monitor?.districts_at_risk != null ? String(ms.drought_monitor.districts_at_risk) : "--",
-              "SPI",
-              "Stable",
-              "--",
+              { value: ms.drought_monitor?.extreme_severity != null ? String(ms.drought_monitor.extreme_severity) : "--" },
+              { value: ms.drought_monitor?.trending         != null ? String(ms.drought_monitor.trending)         : "--" },
+              { value: ms.drought_monitor?.improving        != null ? String(ms.drought_monitor.improving)        : "--" },
+              { value: ms.drought_monitor?.districts_at_risk != null ? String(ms.drought_monitor.districts_at_risk) : "--" },
             ],
+            /* flood */
             [
-              "9",
-              ms.flood_monitor?.alert_areas != null ? String(ms.flood_monitor.alert_areas) : "--",
-              (qs?.active_alerts ?? 0) > 0 ? "Watch" : "Normal",
-              "--",
+              { value: ms.flood_monitor?.people_at_risk     != null ? String(ms.flood_monitor.people_at_risk)                          : "--" },
+              { value: ms.flood_monitor?.highest_discharge  != null ? `${ms.flood_monitor.highest_discharge} m³/s`                    : "--", sub: ms.flood_monitor?.highest_discharge_basin ?? undefined },
+              { value: ms.flood_monitor?.rising_rivers      != null ? `${ms.flood_monitor.rising_rivers} river${ms.flood_monitor.rising_rivers !== 1 ? "s" : ""}` : "--", sub: ms.flood_monitor?.primary_rising_river ?? undefined },
+              { value: ms.flood_monitor?.alert_areas        != null ? String(ms.flood_monitor.alert_areas)                             : "--" },
             ],
+            /* stations */
             [
-              ms.weather_stations?.online != null ? `${ms.weather_stations.online}/${ms.weather_stations.total}` : "--",
-              "15 min",
-              "0",
-              qs?.last_updated ? formatTimeAgo(qs.last_updated) : "--",
+              { value: ms.weather_stations?.online != null ? `${ms.weather_stations.online}/${ms.weather_stations.total}` : "--" },
+              { value: "15 min" },
+              { value: "0" },
+              { value: qs?.last_updated ? formatTimeAgo(qs.last_updated) : "--" },
             ],
           ];
           setModules(prev => prev.map((m, i) => ({
             ...m,
-            stats: m.stats.map((s, j) => ({ ...s, value: valueUpdates[i][j] ?? s.value })),
+            stats: m.stats.map((s, j) => ({
+              ...s,
+              value: statUpdates[i][j]?.value ?? s.value,
+              sub:   statUpdates[i][j]?.sub   !== undefined ? statUpdates[i][j].sub : s.sub,
+            })),
           })));
         }
         setApiError(null);
@@ -354,15 +363,18 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
                   {mod.stats.map((s) => {
                     const StatIcon = s.Icon;
                     return (
-                      <div key={s.label} className="flex flex-col gap-1.5">
+                      <div key={s.label} className="flex flex-col gap-1">
                         {StatIcon && (
-                          <div className="w-6 h-6 rounded-md flex items-center justify-center"
+                          <div className="w-6 h-6 rounded-md flex items-center justify-center mb-0.5"
                             style={{ background: `${mod.color}12` }}>
                             <StatIcon className="w-3.5 h-3.5" style={{ color: mod.color }}/>
                           </div>
                         )}
                         <span className="text-[9px] font-medium leading-tight" style={{ color: mt }}>{s.label}</span>
                         <span className="text-sm font-bold leading-tight" style={{ color: hd }}>{s.value}</span>
+                        {s.sub && (
+                          <span className="text-[9px] leading-tight truncate" style={{ color: mod.color, opacity: 0.85 }}>{s.sub}</span>
+                        )}
                       </div>
                     );
                   })}
