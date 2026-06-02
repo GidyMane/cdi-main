@@ -105,6 +105,7 @@ async function fetchOmDailyForecast(lat: number, lng: number): Promise<OmDailyPo
   const json = await res.json();
 
   const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const dates: string[] = json.daily?.time ?? [];
   const temps: number[] = json.daily?.temperature_2m_max ?? [];
   const rains: number[] = json.daily?.precipitation_sum ?? [];
@@ -112,9 +113,11 @@ async function fetchOmDailyForecast(lat: number, lng: number): Promise<OmDailyPo
   const humidities: number[] = json.daily?.relative_humidity_2m_mean ?? [];
 
   return dates.map((dateStr, i) => {
-    const d = new Date(dateStr);
+    // Parse as local date (dateStr is "YYYY-MM-DD" with no time component)
+    const parts = dateStr.split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     return {
-      label: `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`,
+      label: `${DAYS_SHORT[d.getDay()]} ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`,
       temp: Math.round((temps[i] ?? 0) * 10) / 10,
       rain: Math.round((rains[i] ?? 0) * 100) / 100,
       wind: Math.round((winds[i] ?? 0) * 10) / 10,
@@ -262,10 +265,38 @@ const WeatherTrendChart = ({
         />
         <XAxis
           dataKey="label"
-          tick={{ fontSize, fill: isDarkMode ? "#64748b" : "#94a3b8" }}
+          tick={(props: any) => {
+            const { x, y, payload } = props;
+            // label is e.g. "Tue Jun 3" — split on first space to get day vs rest
+            const parts = (payload.value ?? "").split(" ");
+            const day = parts[0] ?? "";
+            const date = parts.slice(1).join(" ");
+            return (
+              <g transform={`translate(${x},${y})`}>
+                <text
+                  x={0} y={0} dy={10}
+                  textAnchor="middle"
+                  fill={isDarkMode ? "#94a3b8" : "#64748b"}
+                  fontSize={fontSize + 1}
+                  fontWeight={600}
+                >
+                  {day}
+                </text>
+                <text
+                  x={0} y={0} dy={22}
+                  textAnchor="middle"
+                  fill={isDarkMode ? "#64748b" : "#94a3b8"}
+                  fontSize={fontSize - 1}
+                >
+                  {date}
+                </text>
+              </g>
+            );
+          }}
           tickLine={false}
           axisLine={false}
-          interval={Math.max(0, Math.floor(dataToDisplay.length / 5))}
+          interval={Math.max(0, Math.floor(dataToDisplay.length / 6))}
+          height={36}
         />
         <YAxis
           domain={["auto", "auto"]}
@@ -567,6 +598,8 @@ export default function WeatherForecastPage({
     "Dec",
   ];
 
+  const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
   // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
     if (activeTab === "nowcast") {
@@ -616,7 +649,7 @@ export default function WeatherForecastPage({
       // since the backend daily API does not always return humidity.
       const baseSource = dailyForecast.map((d, i) => ({
         label: d.rawDate
-          ? `${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+          ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
           : (d.date ?? ""),
         temp: d.high ?? 0,
         rain: d.rain ?? 0,
