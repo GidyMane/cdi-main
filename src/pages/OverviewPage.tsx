@@ -214,7 +214,7 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
     <div className="min-h-screen relative overflow-hidden" style={{ background: bg }}>
       {/* Background Climate Illustration Watermark */}
       <img
-        src="/climate_illustration.png"
+        src="/climate_illustration.jpg"
         alt="Climate Illustration"
         className="fixed bottom-[-5%] right-[-5%] w-[600px] h-[600px] pointer-events-none z-0 object-contain transition-opacity duration-1000"
         style={{
