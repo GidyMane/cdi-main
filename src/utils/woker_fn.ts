@@ -76,7 +76,7 @@ export const normaliseDaily = (raw: DailyEntry[]) => {
       low: Math.round(d.temp_min),
       rain: d.precip_sum,
       windSpeed: d.wind_speed_max,
-      humidity: d.humidity !== undefined ? d.humidity : null,
+      humidity: d.humidity,
       icon: getIconFromCode(d.weather_code),
       confidence: 90,
     };
