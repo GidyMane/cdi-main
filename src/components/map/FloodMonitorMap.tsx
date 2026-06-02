@@ -377,6 +377,20 @@ export default function FloodMonitorMap({
     countryWms.bringToFront();
     FloodMonitorwmsLayersRef.current["country"] = countryWms;
 
+    // ── River basins — always-on layer below the flood forecast raster ────
+    // Uses wfews:rivers which contains Uganda's major river basin boundaries.
+    // Loaded at reduced opacity so the flood raster remains readable on top.
+    const riverBasinsWms = L.tileLayer
+      .wms(GEO_SERVER_URL, {
+        layers: "wfews:river_basins",
+        format: "image/png",
+        transparent: true,
+        version: "1.1.0",
+        opacity: 0.75,
+      })
+      .addTo(FloodMonitormapRef.current);
+    FloodMonitorwmsLayersRef.current["rivers"] = riverBasinsWms;
+
     // ── ResizeObserver ────────────────────────────────────────────────────
     const ro = new ResizeObserver(() =>
       FloodMonitormapRef.current?.invalidateSize(),
