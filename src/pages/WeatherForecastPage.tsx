@@ -515,17 +515,8 @@ export default function WeatherForecastPage({
         const endIdx = Math.min(filtered.length, selectedCardIndex + 2);
         sliced = filtered.slice(startIdx, endIdx);
       } else if (!dateRange) {
-        // If no card selected and no date filter, start from today
-        const today = new Date();
-        let startIdx = 0;
-        for (let i = 0; i < filtered.length; i++) {
-          if (filtered[i].rawDate &&
-              filtered[i].rawDate.toDateString() === today.toDateString()) {
-            startIdx = i;
-            break;
-          }
-        }
-        sliced = filtered.slice(startIdx);
+        // If no card selected and no date filter, show all 7-day forecast
+        sliced = filtered;
       }
 
       return sliced.map((d) => {
