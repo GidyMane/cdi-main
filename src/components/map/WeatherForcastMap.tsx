@@ -184,6 +184,31 @@ function buildOmUrl({
   return url.href;
 }
 
+/** Convert a meteorological wind direction (degrees) into a compass label.
+ *  Open-Meteo reports the direction the wind blows FROM. */
+function degreesToCompass(deg: number): string {
+  const dirs = [
+    "N",
+    "NNE",
+    "NE",
+    "ENE",
+    "E",
+    "ESE",
+    "SE",
+    "SSE",
+    "S",
+    "SSW",
+    "SW",
+    "WSW",
+    "W",
+    "WNW",
+    "NW",
+    "NNW",
+  ];
+  const idx = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
+  return dirs[idx];
+}
+
 /** Resolve a slider date + hour to the nearest Open-Meteo valid_times index */
 function resolveTimeStep(metadata: any, dateRange: string, hour: number) {
   const validTimes: string[] = metadata?.valid_times ?? [];
@@ -289,12 +314,16 @@ export default function WeatherForcastMap({
   const ugandaBoundsRef = useRef<L.LatLngBounds | null>(null);
   const weatherMarkersRef = useRef<L.Marker[]>([]);
   const currentOmUrlRef = useRef<string>("");
+  const variableRef = useRef<string>("temperature_2m");
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverReqRef = useRef(0);
   const protocolSettingsRef = useRef<any>({
     ...defaultOmProtocolSettings,
     clippingOptions: undefined,
   });
+
+  // Keep the latest variable available inside long-lived map event handlers
+  variableRef.current = variable;
 
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [isRasterLoading, setRasterIsLoading] = useState(true);
@@ -304,6 +333,7 @@ export default function WeatherForcastMap({
   );
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const [hoverDirection, setHoverDirection] = useState<number | null>(null);
   const [hoverLoading, setHoverLoading] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
@@ -513,6 +543,7 @@ export default function WeatherForcastMap({
         const omUrl = currentOmUrlRef.current;
         if (!found || !omUrl) {
           setHoverValue(null);
+          setHoverDirection(null);
           setHoverLoading(false);
           return;
         }
@@ -529,10 +560,17 @@ export default function WeatherForcastMap({
             setHoverValue(
               Number.isFinite(result?.value) ? Number(result.value) : null,
             );
+            const isWind = variableRef.current.startsWith("wind_");
+            setHoverDirection(
+              isWind && Number.isFinite(result?.direction)
+                ? Number(result.direction)
+                : null,
+            );
             setHoverLoading(false);
           } catch {
             if (hoverReqRef.current !== requestId) return;
             setHoverValue(null);
+            setHoverDirection(null);
             setHoverLoading(false);
           }
         }, 120);
@@ -541,6 +579,7 @@ export default function WeatherForcastMap({
     weatherforcastMapRef.current.on("mouseout", () => {
       setHoveredDistrictName(null);
       setHoverValue(null);
+      setHoverDirection(null);
       setHoverLoading(false);
     });
 
@@ -1715,6 +1754,43 @@ export default function WeatherForcastMap({
                     }}
                   >
                     {legendUnit}
+                  </span>
+                </div>
+              )}
+              {value !== null && hoverDirection !== null && (
+                <div
+                  className="flex items-center gap-1 mt-0.5"
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: 0.5,
+                    color: isDarkMode
+                      ? "rgba(255,255,255,0.78)"
+                      : "rgba(15,23,42,0.72)",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: "inline-block",
+                      lineHeight: 1,
+                      // Arrow points toward where the wind blows (FROM + 180°)
+                      transform: `rotate(${hoverDirection + 180}deg)`,
+                      color: accentColor,
+                    }}
+                  >
+                    ↑
+                  </span>
+                  <span>{degreesToCompass(hoverDirection)}</span>
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      color: isDarkMode
+                        ? "rgba(255,255,255,0.50)"
+                        : "rgba(15,23,42,0.50)",
+                    }}
+                  >
+                    {Math.round(hoverDirection)}°
                   </span>
                 </div>
               )}
