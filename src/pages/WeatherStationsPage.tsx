@@ -1104,7 +1104,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
         {/* Footer */}
         <footer className={`mt-6 pt-4 border-t ${borderColor}`}>
           <div className={`flex flex-col md:flex-row items-center justify-between text-xs ${textMuted} gap-1`}>
-            <p>© 2025 FAO Uganda. All Rights Reserved.</p>
+            <p>© 2026 FAO Uganda. All Rights Reserved.</p>
             <span className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: FAO_BLUE }} />
               System Operational
