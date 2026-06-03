@@ -5,7 +5,8 @@ import type {
   BasinStatus,
   BasinTrend,
   District,
-  FloodForecast
+  FloodForecast,
+  FloodForecastFull,
 } from '../services/api';
 
 interface FloodDataCache {
@@ -14,6 +15,7 @@ interface FloodDataCache {
   basinTrend?: BasinTrend;
   districts?: District[];
   forecasts?: FloodForecast[];
+  forecastsFull?: FloodForecastFull[];
   lastFetch?: Record<string, number>;
 }
 
@@ -34,11 +36,11 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
   const [basinTrend, setBasinTrend] = useState<BasinTrend | null>(null);
   const [districts, setDistricts] = useState<District[]>([]);
   const [forecasts, setForecasts] = useState<FloodForecast[]>([]);
+  const [forecastsFull, setForecastsFull] = useState<FloodForecastFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [partialErrors, setPartialErrors] = useState<FloodDataError>({});
 
-  const query = { date, leadtimeHours };
   const cachePrefix = `${date ?? "latest"}:${leadtimeHours ?? "all"}`;
   const cacheKey = useCallback((key: string) => `${cachePrefix}:${key}`, [cachePrefix]);
 
@@ -57,20 +59,19 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       const useCache = !date && leadtimeHours === undefined;
       const results = await Promise.allSettled([
         !useCache || !isCacheValid(cacheKey('dashboard'))
-          ? floodAPI.getDashboard(query)
+          ? floodAPI.getDashboard({ date, leadtimeHours })
           : Promise.resolve(floodDataCache.dashboard),
         !useCache || !isCacheValid(cacheKey('basinStatus'))
-          ? floodAPI.getBasinStatus(query)
+          ? floodAPI.getBasinStatus({ date, leadtimeHours })
           : Promise.resolve(floodDataCache.basinStatus),
         !useCache || !isCacheValid(cacheKey('basinTrend'))
-          ? floodAPI.getBasinTrend(undefined, query)
+          ? floodAPI.getBasinTrend(undefined, { date, leadtimeHours })
           : Promise.resolve(floodDataCache.basinTrend),
         !useCache || !isCacheValid(cacheKey('districts'))
-          ? floodAPI.getDistricts(query).then(res => res?.districts || [])
+          ? floodAPI.getDistricts({ date, leadtimeHours }).then(res => res?.districts || [])
           : Promise.resolve(floodDataCache.districts),
-        !useCache || !isCacheValid(cacheKey('forecasts'))
-          ? floodAPI.getForecasts(date, leadtimeHours)
-          : Promise.resolve(floodDataCache.forecasts),
+        // Always fetch full forecasts (not cached differently)
+        floodAPI.getForecasts(date, leadtimeHours),
       ]);
 
       floodDataCache.lastFetch = floodDataCache.lastFetch || {};
@@ -79,27 +80,27 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       // Dashboard
       const dashboardResult = results[0];
       if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
-        floodDataCache.dashboard = dashboardResult.value;
+        floodDataCache.dashboard = dashboardResult.value as FloodDashboard;
         floodDataCache.lastFetch[cacheKey('dashboard')] = Date.now();
-        setDashboard(dashboardResult.value);
+        setDashboard(dashboardResult.value as FloodDashboard);
       } else {
         errors.dashboard = true;
         setDashboard(null);
       }
 
       // Basin Status
-      const basinStatusResult:any = results[1];
+      const basinStatusResult: any = results[1];
       if (basinStatusResult.status === 'fulfilled' && basinStatusResult.value?.length > 0) {
         floodDataCache.basinStatus = basinStatusResult.value;
         floodDataCache.lastFetch[cacheKey('basinStatus')] = Date.now();
-        setBasinStatus(basinStatusResult?.value);
+        setBasinStatus(basinStatusResult.value);
       } else {
         errors.basinStatus = true;
         setBasinStatus([]);
       }
 
       // Basin Trend
-      const basinTrendResult:any = results[2];
+      const basinTrendResult: any = results[2];
       if (basinTrendResult.status === 'fulfilled' && basinTrendResult.value) {
         floodDataCache.basinTrend = basinTrendResult.value;
         floodDataCache.lastFetch[cacheKey('basinTrend')] = Date.now();
@@ -110,7 +111,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       }
 
       // Districts
-      const districtsResult:any = results[3];
+      const districtsResult: any = results[3];
       if (districtsResult.status === 'fulfilled' && districtsResult.value?.length > 0) {
         floodDataCache.districts = districtsResult.value;
         floodDataCache.lastFetch[cacheKey('districts')] = Date.now();
@@ -120,14 +121,18 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
         setDistricts([]);
       }
 
-      // Forecasts
-      const forecastsResult:any = results[4];
-      if (forecastsResult.status === 'fulfilled' && forecastsResult.value?.length > 0) {
-        floodDataCache.forecasts = forecastsResult.value;
+      // Full Forecasts (from /floods/forecasts/)
+      const forecastsResult: any = results[4];
+      if (forecastsResult.status === 'fulfilled' && forecastsResult.value) {
+        const full: FloodForecastFull[] = forecastsResult.value;
+        floodDataCache.forecastsFull = full;
         floodDataCache.lastFetch[cacheKey('forecasts')] = Date.now();
-        setForecasts(forecastsResult.value);
+        setForecastsFull(full);
+        // Also populate legacy forecasts for any consumers that use it
+        setForecasts(full as any);
       } else {
         errors.forecasts = true;
+        setForecastsFull([]);
         setForecasts([]);
       }
 
@@ -147,6 +152,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
       setBasinTrend(null);
       setDistricts([]);
       setForecasts([]);
+      setForecastsFull([]);
       setPartialErrors({
         dashboard: true,
         basinStatus: true,
@@ -174,6 +180,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
     basinTrend,
     districts,
     forecasts,
+    forecastsFull,
     loading,
     error,
     partialErrors,
@@ -209,10 +216,10 @@ export function useBasinTrend(basin?: string) {
 }
 
 /**
- * Hook for fetching flood forecasts
+ * Hook for fetching flood forecasts (full shape)
  */
 export function useFloodForecasts(date?: string) {
-  const [data, setData] = useState<FloodForecast[]>([]);
+  const [data, setData] = useState<FloodForecastFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
