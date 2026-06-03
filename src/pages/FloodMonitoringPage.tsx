@@ -357,7 +357,7 @@ const FilterContent = ({
       </div>
     </div>
 
-    {/* Quick Stats from live APIS */}
+    {/* Quick Stats from live API */}
     <div className={`pt-3 border-t ${borderColor}`}>
       <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>Quick Stats</h4>
       <div className="space-y-1.5">
