@@ -237,8 +237,8 @@ const FloodMap = ({
 const FilterContent = ({
   selectedBasin,
   setSelectedBasin,
-  selectedLeadtime,
-  setSelectedLeadtime,
+  // selectedLeadtime,
+  // setSelectedLeadtime,
   selectedDate,
   setSelectedDate,
   availableDates,
@@ -248,7 +248,7 @@ const FilterContent = ({
   textSecondary,
   borderColor,
   headerText,
-  riverBasins,
+  // riverBasins,
   // derived quick stats from live forecasts
   totalPopulation,
   criticalCount,
