@@ -242,9 +242,9 @@ const FilterContent = ({
   setSelectedBasin,
   // selectedLeadtime,
   // setSelectedLeadtime,
-  selectedDate,
-  setSelectedDate,
-  availableDates,
+  // selectedDate,
+  // setSelectedDate,
+  // availableDates,
   availableBasinNames,
   isDarkMode,
   textMuted,
@@ -310,7 +310,7 @@ const FilterContent = ({
     </div> */}
 
     {/* Forecast date */}
-    {availableDates.length > 0 && (
+    {/* {availableDates.length > 0 && (
       <div>
         <label className={`text-xs ${textMuted} mb-1 block`}>Forecast Date</label>
         <select
@@ -323,7 +323,7 @@ const FilterContent = ({
           ))}
         </select>
       </div>
-    )}
+    )} */}
 
     {/* River Basin */}
     <div>
