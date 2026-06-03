@@ -242,6 +242,7 @@ const FilterContent = ({
   selectedDate,
   setSelectedDate,
   availableDates,
+  availableBasinNames,
   isDarkMode,
   textMuted,
   textSecondary,
@@ -262,6 +263,7 @@ const FilterContent = ({
   selectedDate: string;
   setSelectedDate: (val: string) => void;
   availableDates: string[];
+  availableBasinNames: string[];
   dateRange: string;
   setDateRange: (val: string) => void;
   isDarkMode: boolean;
@@ -284,7 +286,7 @@ const FilterContent = ({
 }) => (
   <div className="space-y-3">
     {/* Leadtime filter */}
-    <div>
+    {/* <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Forecast Leadtime</label>
       <div className="flex gap-1">
         {[24, 48, 72].map((h) => (
@@ -302,7 +304,7 @@ const FilterContent = ({
           </button>
         ))}
       </div>
-    </div>
+    </div> */}
 
     {/* Forecast date */}
     {availableDates.length > 0 && (
@@ -329,8 +331,8 @@ const FilterContent = ({
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
         <option value="All Basins">All Basins</option>
-        {riverBasins.map((b, index) => (
-          <option key={`${b.name}-${index}`} value={b.name}>{b.name}</option>
+        {availableBasinNames.map((name) => (
+          <option key={name} value={name}>{name}</option>
         ))}
       </select>
     </div>
@@ -447,8 +449,18 @@ export default function FloodMonitoringPage({
       (!selectedDate || f.forecast_date === selectedDate),
   ) ?? forecastsFull[0];
 
-  // All impacts from the active forecast
-  const allImpacts: FloodImpact[] = activeForecast?.impacts ?? [];
+  // All impacts from the active forecast, filtered by selected basin
+  const rawImpacts: FloodImpact[] = activeForecast?.impacts ?? [];
+  const allImpacts: FloodImpact[] = selectedBasin === "All Basins"
+    ? rawImpacts
+    : rawImpacts.filter((i) => {
+        // Match district impacts whose district name contains the basin selection,
+        // OR basin impacts whose river_basin_name contains the selection
+        const basinKeyword = selectedBasin.toLowerCase().replace(" basin", "").trim();
+        const districtMatch = i.district_name?.toLowerCase().includes(basinKeyword) ?? false;
+        const basinMatch = i.river_basin_name?.toLowerCase().includes(basinKeyword) ?? false;
+        return districtMatch || basinMatch;
+      });
 
   // District impacts (have district_name)
   const districtImpacts = allImpacts.filter((i) => i.district_name !== null);
@@ -461,10 +473,11 @@ export default function FloodMonitoringPage({
     .slice(0, 4);
 
   // ── Human Impact KPIs ──────────────────────────────────────────────────────
-  const totalAffectedPopulation = activeForecast?.total_affected_population
-    ?? districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0);
-  const totalFloodExtentKm2 = activeForecast?.total_flood_extent_km2
-    ?? allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0);
+  // Always aggregate from filtered impacts so basin/date/leadtime filters apply
+  const totalAffectedPopulation = districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0)
+    || (selectedBasin === "All Basins" ? (activeForecast?.total_affected_population ?? 0) : 0);
+  const totalFloodExtentKm2 = allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0)
+    || (selectedBasin === "All Basins" ? (activeForecast?.total_flood_extent_km2 ?? 0) : 0);
   const populationDensityAvg = totalFloodExtentKm2 > 0
     ? Math.round(totalAffectedPopulation / totalFloodExtentKm2)
     : 0;
@@ -491,6 +504,15 @@ export default function FloodMonitoringPage({
   const availableDates = Array.from(
     new Set(forecastsFull.map((f) => f.forecast_date))
   ).sort().reverse();
+
+  // Available basins from actual river_basin_name values in the active forecast
+  const availableBasinNames: string[] = Array.from(
+    new Set(
+      (activeForecast?.impacts ?? [])
+        .filter((i) => i.river_basin_name !== null)
+        .map((i) => i.river_basin_name!)
+    )
+  ).sort();
 
   // Map API data to component format for legacy river-basin rendering
   const riverBasins =
@@ -733,6 +755,7 @@ export default function FloodMonitoringPage({
                   selectedDate={selectedDate}
                   setSelectedDate={setSelectedDate}
                   availableDates={availableDates}
+                  availableBasinNames={availableBasinNames}
                   dateRange={dateRange}
                   setDateRange={setDateRange}
                   isDarkMode={isDarkMode}
@@ -1346,6 +1369,7 @@ export default function FloodMonitoringPage({
                     selectedDate={selectedDate}
                     setSelectedDate={setSelectedDate}
                     availableDates={availableDates}
+                    availableBasinNames={availableBasinNames}
                     dateRange={dateRange}
                     setDateRange={setDateRange}
                     isDarkMode={isDarkMode}
