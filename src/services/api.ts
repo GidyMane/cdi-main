@@ -258,6 +258,37 @@ export interface FloodForecast {
   impact_assessment?: string;
 }
 
+// ── Full typed shape returned by /api/v1/floods/forecasts/ ────────────────────
+export interface FloodImpact {
+  id: number;
+  district_name: string | null;
+  river_basin_name: string | null;
+  affected_population: number;
+  affected_roads_km: number;
+  affected_buildings_count: number;
+  affected_pois_count: number;
+  affected_landuse_area_km2: number;
+  max_discharge: number;
+  avg_discharge: number;
+  flood_extent_km2: number;
+}
+
+export interface FloodForecastFull {
+  id: number;
+  forecast_date: string;
+  valid_date: string;
+  leadtime_hours: number;
+  downloaded: boolean;
+  processed: boolean;
+  uploaded_to_geoserver: boolean;
+  alert_level: "none" | "low" | "medium" | "high" | "extreme";
+  total_affected_population: number;
+  total_flood_extent_km2: number;
+  wms_url: string | null;
+  layer_name: string | null;
+  impacts: FloodImpact[];
+}
+
 export interface FloodRasterLayer {
   id: number;
   forecast_id: number;
@@ -351,14 +382,19 @@ export const floodAPI = {
   },
 
   /**
-   * Get flood forecasts, optionally filtered by date
+   * Get flood forecasts, optionally filtered by date.
+   * Returns the full forecast shape including per-district and per-basin impacts.
    */
   getForecasts: async (date?: string, leadtimeHours?: number) => {
     const endpoint = `floods/forecasts/${floodQueryString({
       date,
       leadtimeHours,
     })}`;
-    return fetchData<FloodForecast[]>(endpoint);
+    // The API returns a paginated object { count, results: FloodForecastFull[] }
+    const raw = await fetchData<{ count: number; results: FloodForecastFull[] } | FloodForecastFull[]>(endpoint);
+    // Handle both paginated and plain-array responses
+    if (Array.isArray(raw)) return raw;
+    return (raw as any).results ?? [];
   },
 
   /**

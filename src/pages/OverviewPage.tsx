@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import type { PageType } from "../App";
-import { overviewAPI, weatherAPI } from "../services/api";
+import { overviewAPI, weatherAPI, floodAPI, stationsAPI } from "../services/api";
+import type { FloodForecastFull, BasinStatus } from "../services/api";
 import { useAppStore } from "@/store/useAppStore";
 
 interface OverviewPageProps { onNavigate: (page: PageType) => void; isDarkMode?: boolean }
@@ -130,63 +131,144 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
   useEffect(() => {
     const load = async () => {
       try {
-        const [ms, qs, wd] = await Promise.all([
-          overviewAPI.getModuleStats() as Promise<any>,
-          overviewAPI.getQuickStats() as Promise<any>,
-          weatherAPI.getDashboard() as Promise<any>,
-        ]);
+        // Fetch from ALL module APIs in parallel — each one independently so a
+        // failure in one doesn't block the others.
+        const [msResult, qsResult, wdResult, floodDashResult, basinStatusResult, forecastsResult, stationsResult, networkResult] =
+          await Promise.allSettled([
+            overviewAPI.getModuleStats() as Promise<any>,
+            overviewAPI.getQuickStats() as Promise<any>,
+            weatherAPI.getDashboard() as Promise<any>,
+            floodAPI.getDashboard(),
+            floodAPI.getBasinStatus(),
+            floodAPI.getForecasts(),
+            stationsAPI.getAll(),
+            stationsAPI.getNetworkSummary(),
+          ]);
+
+        const ms  = msResult.status  === "fulfilled" ? msResult.value  : null;
+        const qs  = qsResult.status  === "fulfilled" ? qsResult.value  : null;
+        const wd  = wdResult.status  === "fulfilled" ? wdResult.value  : null;
+        const fd  = floodDashResult.status  === "fulfilled" ? floodDashResult.value  : null;
+        const bs  = basinStatusResult.status === "fulfilled" ? (basinStatusResult.value as BasinStatus[] | null) : null;
+        const fcs = forecastsResult.status   === "fulfilled" ? (forecastsResult.value as FloodForecastFull[]) : [];
+        const allStations = stationsResult.status === "fulfilled" ? (stationsResult.value ?? []) as any[] : [];
+        const net = networkResult.status === "fulfilled" ? networkResult.value as any : null;
+
+        // ── Quick stats (header) ─────────────────────────────────
+        const stationsOnline  = net?.online_count  ?? allStations.filter((s: any) => s.status === "online").length  ?? ms?.weather_stations?.online  ?? qs?.stations_online  ?? 0;
+        const stationsTotal   = net?.total_stations ?? allStations.length                                             ?? ms?.weather_stations?.total   ?? qs?.stations_total   ?? 0;
+        const lastUpdated     = net?.last_updated   ?? wd?.fetched_at ?? qs?.last_updated ?? "";
         setQuickStats({
-          lastUpdated: qs?.last_updated ? formatTimeAgo(qs.last_updated) : "",
-          alerts: qs?.active_alerts ?? 0,
-          online: qs?.stations_online ?? 0,
-          total: qs?.stations_total ?? 0,
+          lastUpdated: lastUpdated ? formatTimeAgo(lastUpdated) : "",
+          alerts: fd?.summary?.active_alerts ?? qs?.active_alerts ?? 0,
+          online: stationsOnline,
+          total:  stationsTotal,
         });
+
         if (wd) setWeather(wd);
-        if (ms) {
-          type StatPatch = { value: string; sub?: string };
-          const statUpdates: StatPatch[][] = [
-            /* weather */
-            [
-              { value: wd?.rainfall_24h != null ? `${wd.rainfall_24h} mm` : "--", sub: wd?.highest_rainfall_district ?? wd?.district ?? undefined },
-              { value: wd?.temperature != null ? `${wd.temperature}°C` : "--", sub: wd?.highest_temp_district ?? wd?.district ?? undefined },
-              { value: wd?.wind_speed != null ? `${wd.wind_speed} km/h` : "--", sub: wd?.highest_wind_district ?? wd?.district ?? undefined },
-              { value: wd?.humidity != null ? `${wd.humidity}%` : "--", sub: wd?.highest_humidity_district ?? wd?.district ?? undefined },
-            ],
-            /* drought */
-            [
-              { value: ms.drought_monitor?.extreme_severity != null ? String(ms.drought_monitor.extreme_severity) : "--" },
-              { value: ms.drought_monitor?.trending != null ? String(ms.drought_monitor.trending) : "--" },
-              { value: ms.drought_monitor?.improving != null ? String(ms.drought_monitor.improving) : "--" },
-              { value: ms.drought_monitor?.districts_at_risk != null ? String(ms.drought_monitor.districts_at_risk) : "--" },
-            ],
-            /* flood */
-            [
-              { value: ms.flood_monitor?.people_at_risk != null ? String(ms.flood_monitor.people_at_risk) : "--" },
-              { value: ms.flood_monitor?.highest_discharge != null ? `${ms.flood_monitor.highest_discharge} m³/s` : "--", sub: ms.flood_monitor?.highest_discharge_basin ?? undefined },
-              { value: ms.flood_monitor?.rising_rivers != null ? `${ms.flood_monitor.rising_rivers} river${ms.flood_monitor.rising_rivers !== 1 ? "s" : ""}` : "--", sub: ms.flood_monitor?.primary_rising_river ?? undefined },
-              { value: ms.flood_monitor?.alert_areas != null ? String(ms.flood_monitor.alert_areas) : "--" },
-            ],
-            /* stations */
-            [
-              { value: ms.weather_stations?.online != null ? `${ms.weather_stations.online}/${ms.weather_stations.total}` : "--" },
-              { value: "15 min" },
-              { value: "0" },
-              { value: qs?.last_updated ? formatTimeAgo(qs.last_updated) : "--" },
-            ],
-          ];
-          setModules(prev => prev.map((m, i) => ({
-            ...m,
-            stats: m.stats.map((s, j) => ({
-              ...s,
-              value: statUpdates[i][j]?.value ?? s.value,
-              sub: statUpdates[i][j]?.sub !== undefined ? statUpdates[i][j].sub : s.sub,
-            })),
-          })));
-        }
+
+        type StatPatch = { value: string; sub?: string };
+
+        // ── Weather Forecast stats ────────────────────────────────
+        const weatherStats: StatPatch[] = [
+          { value: wd?.rainfall_24h  != null ? `${wd.rainfall_24h} mm`   : "--", sub: wd?.district ?? undefined },
+          { value: wd?.temperature   != null ? `${wd.temperature}°C`     : "--", sub: wd?.district ?? undefined },
+          { value: wd?.wind_speed    != null ? `${wd.wind_speed} km/h`   : "--", sub: wd?.district ?? undefined },
+          { value: wd?.humidity      != null ? `${wd.humidity}%`         : "--", sub: wd?.district ?? undefined },
+        ];
+
+        // ── Drought Monitor stats ─────────────────────────────────
+        // droughtAPI.getData() schema varies; fall back to ms if no data
+        const droughtStats: StatPatch[] = [
+          { value: ms?.drought_monitor?.extreme_severity != null ? String(ms.drought_monitor.extreme_severity) : "--" },
+          { value: ms?.drought_monitor?.trending         != null ? String(ms.drought_monitor.trending)         : "--" },
+          { value: ms?.drought_monitor?.improving        != null ? String(ms.drought_monitor.improving)        : "--" },
+          { value: ms?.drought_monitor?.districts_at_risk != null ? String(ms.drought_monitor.districts_at_risk) : "--" },
+        ];
+
+        // ── Flood Monitor stats ───────────────────────────────────
+        // Prefer direct API data over the overview module stats
+        // 1. People at Risk: from latest 24h forecast total_affected_population
+        const latestForecast = fcs.find(f => f.leadtime_hours === 24) ?? fcs[0];
+        const peopleAtRisk   = latestForecast?.total_affected_population
+          ?? fd?.summary?.at_risk_population
+          ?? ms?.flood_monitor?.people_at_risk;
+        const peopleStr = peopleAtRisk != null
+          ? peopleAtRisk >= 1_000_000 ? `${(peopleAtRisk / 1_000_000).toFixed(1)}M`
+          : peopleAtRisk >= 1_000     ? `${Math.round(peopleAtRisk / 1_000)}K`
+          : String(peopleAtRisk)
+          : "--";
+
+        // 2. Highest Discharge: from basin status or forecast impacts
+        const allDischarges = bs?.map(b => b.discharge_rate ?? 0) ?? [];
+        const impactDischarges = (latestForecast?.impacts ?? []).map(i => i.max_discharge ?? 0);
+        const maxDischarge = allDischarges.length > 0
+          ? Math.max(...allDischarges)
+          : impactDischarges.length > 0
+            ? Math.max(...impactDischarges)
+            : ms?.flood_monitor?.highest_discharge ?? null;
+        const maxDischargeSrc = bs?.find(b => b.discharge_rate === maxDischarge);
+        const dischargeStr = maxDischarge != null
+          ? `${(Math.round(maxDischarge * 10) / 10).toLocaleString()} m³/s`
+          : "--";
+
+        // 3. Rising Levels: count of basins with rising trend from basin status
+        const risingBasins = bs?.filter(b =>
+          b.status === "severe" || b.status === "extreme" || b.status === "moderate"
+        ) ?? [];
+        const risingStr = bs != null
+          ? risingBasins.length > 0 ? `${risingBasins.length} basin${risingBasins.length !== 1 ? "s" : ""}` : "None"
+          : ms?.flood_monitor?.rising_rivers != null
+            ? `${ms.flood_monitor.rising_rivers} river${ms.flood_monitor.rising_rivers !== 1 ? "s" : ""}`
+            : "--";
+
+        // 4. Active Alerts
+        const activeAlerts = fd?.summary?.active_alerts
+          ?? fd?.summary?.critical_basins
+          ?? ms?.flood_monitor?.alert_areas
+          ?? qs?.active_alerts;
+        const alertsStr = activeAlerts != null ? String(activeAlerts) : "--";
+
+        const floodStats: StatPatch[] = [
+          { value: peopleStr,    sub: undefined },
+          { value: dischargeStr, sub: maxDischargeSrc?.name ?? ms?.flood_monitor?.highest_discharge_basin ?? undefined },
+          { value: risingStr,    sub: undefined },
+          { value: alertsStr,    sub: undefined },
+        ];
+
+        // ── Weather Stations stats ────────────────────────────────
+        const onlineStr    = stationsTotal > 0 ? `${stationsOnline}/${stationsTotal}` : "--";
+        const lastTxRaw    = net?.last_updated ?? allStations.map((s: any) => s.last_update ?? s.last_updated ?? "").filter(Boolean).sort().reverse()[0] ?? qs?.last_updated ?? "";
+        const lastTxStr    = lastTxRaw ? formatTimeAgo(lastTxRaw) : "just now";
+        const missingReports = net?.offline_count ?? allStations.filter((s: any) => s.status === "offline").length ?? 0;
+
+        const stationStats: StatPatch[] = [
+          { value: onlineStr },
+          { value: "15 min" },
+          { value: String(missingReports) },
+          { value: lastTxStr },
+        ];
+
+        // ── Merge into modules state ──────────────────────────────
+        const allUpdates = [weatherStats, droughtStats, floodStats, stationStats];
+        setModules(prev => prev.map((m, i) => ({
+          ...m,
+          stats: m.stats.map((s, j) => ({
+            ...s,
+            value: allUpdates[i]?.[j]?.value ?? s.value,
+            sub:   allUpdates[i]?.[j]?.sub !== undefined ? allUpdates[i][j].sub : s.sub,
+          })),
+        })));
+
         setApiError(null);
-      } catch { setApiError("Live data unavailable."); }
-      finally { setIsLoading(false); }
+      } catch (err) {
+        console.error("[OverviewPage] load error:", err);
+        setApiError("Some live data unavailable — showing last known values.");
+      } finally {
+        setIsLoading(false);
+      }
     };
+
     load();
     const iv = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(iv);

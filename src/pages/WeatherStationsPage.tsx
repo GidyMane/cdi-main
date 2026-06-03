@@ -659,14 +659,18 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
 
   // ── Auto-select station; sync when filter dropdown changes ────────────────
   useEffect(() => {
-    const filterChanged =
-      prevStationCode.current !== selectedStationCode ||
-      prevStatus.current      !== selectedStatus;
+    const codeChanged   = prevStationCode.current !== selectedStationCode;
+    const statusChanged = prevStatus.current      !== selectedStatus;
     prevStationCode.current = selectedStationCode;
     prevStatus.current      = selectedStatus;
 
     if (displayedStations.length === 0) { setSelectedStation(null); return; }
 
+    // If a specific station code was just selected (via dropdown or map click),
+    // the handler already set selectedStation — don't override it here.
+    if (codeChanged && selectedStationCode) return;
+
+    const filterChanged = codeChanged || statusChanged;
     const currentStillVisible =
       !filterChanged &&
       selectedStation &&
@@ -947,7 +951,10 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
                       stations={displayedStations}
                       onStationClick={(s) => {
                         const found = stations.find((st) => st.id === s.id);
-                        if (found) setSelectedStation(found);
+                        if (found) {
+                          setSelectedStation(found);
+                          if (found.code) setSelectedStationCode(found.code);
+                        }
                       }}
                     />
                   </div>
@@ -1047,7 +1054,10 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
                     stations={displayedStations}
                     onStationClick={(s) => {
                       const found = stations.find((st) => st.id === s.id);
-                      if (found) setSelectedStation(found);
+                      if (found) {
+                        setSelectedStation(found);
+                        if (found.code) setSelectedStationCode(found.code);
+                      }
                     }}
                   />
                 </div>
@@ -1094,7 +1104,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
         {/* Footer */}
         <footer className={`mt-6 pt-4 border-t ${borderColor}`}>
           <div className={`flex flex-col md:flex-row items-center justify-between text-xs ${textMuted} gap-1`}>
-            <p>© 2025 FAO Uganda. All Rights Reserved.</p>
+            <p>© 2026 FAO Uganda. All Rights Reserved.</p>
             <span className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: FAO_BLUE }} />
               System Operational

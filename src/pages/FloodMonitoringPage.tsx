@@ -19,7 +19,7 @@ import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useAppStore } from "@/store/useAppStore";
-import type { FloodRasterLayer } from "@/services/api";
+import type { FloodRasterLayer, FloodForecastFull, FloodImpact } from "@/services/api";
 
 interface FloodMonitoringPageProps {
   isDarkMode?: boolean;
@@ -235,23 +235,35 @@ const FloodMap = ({
 
 // ── FilterContents ─────────────────────────────────────────────────────────────
 const FilterContent = ({
-  // timeRange,
-  // setTimeRange,
   selectedBasin,
   setSelectedBasin,
-  // dateRange,
-  // setDateRange,
+  // selectedLeadtime,
+  // setSelectedLeadtime,
+  selectedDate,
+  setSelectedDate,
+  availableDates,
+  availableBasinNames,
   isDarkMode,
   textMuted,
   textSecondary,
   borderColor,
   headerText,
-  riverBasins,
+  // riverBasins,
+  // derived quick stats from live forecasts
+  totalPopulation,
+  criticalCount,
+  activeAlerts,
 }: {
   timeRange: string;
   setTimeRange: (val: string) => void;
   selectedBasin: string;
   setSelectedBasin: (val: string) => void;
+  selectedLeadtime: number;
+  setSelectedLeadtime: (val: number) => void;
+  selectedDate: string;
+  setSelectedDate: (val: string) => void;
+  availableDates: string[];
+  availableBasinNames: string[];
   dateRange: string;
   setDateRange: (val: string) => void;
   isDarkMode: boolean;
@@ -268,29 +280,49 @@ const FilterContent = ({
     discharge: number;
     status: string;
   }>;
+  totalPopulation: number;
+  criticalCount: number;
+  activeAlerts: number;
 }) => (
   <div className="space-y-3">
+    {/* Leadtime filter */}
     {/* <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Select Date</label>
-      <input
-        type="date"
-        value={dateRange}
-        onChange={(e) => setDateRange(e.target.value)}
-        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
-      />
+      <label className={`text-xs ${textMuted} mb-1 block`}>Forecast Leadtime</label>
+      <div className="flex gap-1">
+        {[24, 48, 72].map((h) => (
+          <button
+            key={h}
+            onClick={() => setSelectedLeadtime(h)}
+            className="flex-1 py-1 text-xs rounded-lg font-semibold transition-all"
+            style={{
+              backgroundColor: selectedLeadtime === h ? FAO_BLUE : isDarkMode ? "#1e293b" : "#f1f5f9",
+              color: selectedLeadtime === h ? "#fff" : isDarkMode ? "#94a3b8" : "#64748b",
+              border: `1px solid ${selectedLeadtime === h ? FAO_BLUE : isDarkMode ? "#334155" : "#e2e8f0"}`,
+            }}
+          >
+            +{h}h
+          </button>
+        ))}
+      </div>
     </div> */}
-    {/* <div>
-      <label className={`text-xs ${textMuted} mb-1 block`}>Time Range</label>
-      <select
-        value={timeRange}
-        onChange={(e) => setTimeRange(e.target.value)}
-        className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
-      >
-        <option value="Last 24 Hours">Last 24 Hours</option>
-        <option value="Last 7 Days">Last 7 Days</option>
-        <option value="Last 30 Days">Last 30 Days</option>
-      </select>
-    </div> */}
+
+    {/* Forecast date */}
+    {availableDates.length > 0 && (
+      <div>
+        <label className={`text-xs ${textMuted} mb-1 block`}>Forecast Date</label>
+        <select
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className={`w-full p-2 rounded-lg text-xs outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
+        >
+          {availableDates.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+      </div>
+    )}
+
+    {/* River Basin */}
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>River Basin</label>
       <select
@@ -298,55 +330,49 @@ const FilterContent = ({
         onChange={(e) => setSelectedBasin(e.target.value)}
         className={`w-full p-2 rounded-lg text-sm outline-none border ${isDarkMode ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`}
       >
-        {riverBasins.map((b, index) => (
-          <option key={`${b.name}-${index}`} value={b.name}>
-            {b.name}
-          </option>
+        <option value="All Basins">All Basins</option>
+        {availableBasinNames.map((name) => (
+          <option key={name} value={name}>{name}</option>
         ))}
       </select>
     </div>
+
+    {/* Alert Level */}
     <div>
       <label className={`text-xs ${textMuted} mb-1 block`}>Alert Level</label>
       <div className="space-y-1.5">
-        {["All Levels", "Critical Only", "Warning Only", "Normal"].map(
-          (level) => (
-            <label
-              key={level}
-              className="flex items-center gap-2 text-sm cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                className={`rounded ${isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-300"}`}
-                defaultChecked={level === "All Levels"}
-              />
-              <span className={textSecondary}>{level}</span>
-            </label>
-          ),
-        )}
+        {["All Levels", "Critical Only", "Warning Only", "Normal"].map((level) => (
+          <label key={level} className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              className={`rounded ${isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-300"}`}
+              defaultChecked={level === "All Levels"}
+            />
+            <span className={textSecondary}>{level}</span>
+          </label>
+        ))}
       </div>
     </div>
+
+    {/* Quick Stats from live API */}
     <div className={`pt-3 border-t ${borderColor}`}>
-      <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>
-        Quick Stats
-      </h4>
+      <h4 className={`text-xs font-semibold mb-2 ${headerText}`}>Quick Stats</h4>
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Critical Basins</span>
-          <span className="text-red-500 font-medium">{riverBasins.filter((b) => b.status === "severe" || b.status === "extreme").length}</span>
+          <span className="text-red-500 font-medium">{criticalCount}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>At Risk Population</span>
-          <span className="text-orange-500 font-medium">{(() => { const pop = riverBasins.reduce((s, b) => s + b.population, 0); return pop >= 1_000_000 ? `${(pop / 1_000_000).toFixed(1)}M` : `${Math.round(pop / 1_000)}K`; })()}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className={textMuted}>Avg Rainfall</span>
-          <span className="font-medium" style={{ color: FAO_BLUE }}>
-            {(() => { const avg = riverBasins.reduce((s, b) => s + b.rainfall, 0) / (riverBasins.length || 1); return `${Math.round(avg)}mm`; })()}
+          <span className="text-orange-500 font-medium">
+            {totalPopulation >= 1_000_000
+              ? `${(totalPopulation / 1_000_000).toFixed(1)}M`
+              : `${Math.round(totalPopulation / 1_000)}K`}
           </span>
         </div>
         <div className="flex justify-between text-xs">
           <span className={textMuted}>Active Alerts</span>
-          <span className="text-red-500 font-medium">{riverBasins.filter((b) => b.status === "severe" || b.status === "extreme" || b.status === "moderate").length}</span>
+          <span className="text-red-500 font-medium">{activeAlerts}</span>
         </div>
       </div>
     </div>
@@ -361,13 +387,17 @@ export default function FloodMonitoringPage({
     (state) => state,
   );
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
-  const [selectedBasin, setSelectedBasin] = useState("Nile Basin");
+  const [selectedBasin, setSelectedBasin] = useState("All Basins");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedFloodLayer, setSelectedFloodLayer] =
     useState<FloodRasterLayer | null>(null);
 
-  const statsDate = selectedFloodLayer?.forecast_date || dateRange || undefined;
-  const statsLeadtime = selectedFloodLayer?.leadtime_hours ?? forecastStep;
+  // ── Filter state: leadtime + date ─────────────────────────────────────────
+  const [selectedLeadtime, setSelectedLeadtime] = useState<number>(24);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+
+  const statsDate = selectedFloodLayer?.forecast_date || selectedDate || dateRange || undefined;
+  const statsLeadtime = selectedFloodLayer?.leadtime_hours ?? selectedLeadtime ?? forecastStep;
 
   // Fetch flood data from API
   const {
@@ -375,6 +405,7 @@ export default function FloodMonitoringPage({
     basinStatus,
     basinTrend,
     districts,
+    forecastsFull,
     loading: dataLoading,
     partialErrors = {},
     refetch,
@@ -390,6 +421,7 @@ export default function FloodMonitoringPage({
     const forecastDate = dashboard?.forecast_date;
     if (forecastDate && !selectedFloodLayer) {
       setDateRange(forecastDate);
+      if (!selectedDate) setSelectedDate(forecastDate);
     }
   }, [dashboard?.forecast_date, selectedFloodLayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -398,6 +430,8 @@ export default function FloodMonitoringPage({
       if (current?.layer_name === layer?.layer_name) return current;
       return layer;
     });
+    if (layer?.leadtime_hours) setSelectedLeadtime(layer.leadtime_hours);
+    if (layer?.forecast_date) setSelectedDate(layer.forecast_date);
   };
 
   // Handle initial loading
@@ -408,7 +442,79 @@ export default function FloodMonitoringPage({
     }
   }, [dataLoading]);
 
-  // Map API data to component format
+  // ── Derive all KPIs from /floods/forecasts/ API ───────────────────────────
+  // Pick the forecast matching the selected leadtime + date
+  const activeForecast: FloodForecastFull | undefined = forecastsFull.find(
+    (f) => f.leadtime_hours === selectedLeadtime &&
+      (!selectedDate || f.forecast_date === selectedDate),
+  ) ?? forecastsFull[0];
+
+  // All impacts from the active forecast, filtered by selected basin
+  const rawImpacts: FloodImpact[] = activeForecast?.impacts ?? [];
+  const allImpacts: FloodImpact[] = selectedBasin === "All Basins"
+    ? rawImpacts
+    : rawImpacts.filter((i) => {
+        // Match district impacts whose district name contains the basin selection,
+        // OR basin impacts whose river_basin_name contains the selection
+        const basinKeyword = selectedBasin.toLowerCase().replace(" basin", "").trim();
+        const districtMatch = i.district_name?.toLowerCase().includes(basinKeyword) ?? false;
+        const basinMatch = i.river_basin_name?.toLowerCase().includes(basinKeyword) ?? false;
+        return districtMatch || basinMatch;
+      });
+
+  // District impacts (have district_name)
+  const districtImpacts = allImpacts.filter((i) => i.district_name !== null);
+  // Basin impacts (have river_basin_name)
+  const basinImpacts = allImpacts.filter((i) => i.river_basin_name !== null);
+
+  // Top districts by population, sorted descending
+  const topDistrictImpacts = [...districtImpacts]
+    .sort((a, b) => b.affected_population - a.affected_population)
+    .slice(0, 4);
+
+  // ── Human Impact KPIs ──────────────────────────────────────────────────────
+  // Always aggregate from filtered impacts so basin/date/leadtime filters apply
+  const totalAffectedPopulation = districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0)
+    || (selectedBasin === "All Basins" ? (activeForecast?.total_affected_population ?? 0) : 0);
+  const totalFloodExtentKm2 = allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0)
+    || (selectedBasin === "All Basins" ? (activeForecast?.total_flood_extent_km2 ?? 0) : 0);
+  const populationDensityAvg = totalFloodExtentKm2 > 0
+    ? Math.round(totalAffectedPopulation / totalFloodExtentKm2)
+    : 0;
+
+  // ── Infrastructure KPIs (aggregate across all impacts for selected forecast) ─
+  const totalRoadsKm = allImpacts.reduce((s, i) => s + (i.affected_roads_km ?? 0), 0);
+  const totalBuildings = allImpacts.reduce((s, i) => s + (i.affected_buildings_count ?? 0), 0);
+  const totalPois = allImpacts.reduce((s, i) => s + (i.affected_pois_count ?? 0), 0);
+
+  // ── Flood Metrics KPIs (from basin impacts) ───────────────────────────────
+  const allMaxDischarges = allImpacts.map((i) => i.max_discharge ?? 0);
+  const allAvgDischarges = allImpacts
+    .map((i) => i.avg_discharge ?? 0)
+    .filter((v) => v > 0);
+
+  const maxDischargeApi = allMaxDischarges.length > 0
+    ? Math.max(...allMaxDischarges)
+    : 0;
+  const avgDischargeApi = allAvgDischarges.length > 0
+    ? allAvgDischarges.reduce((s, v) => s + v, 0) / allAvgDischarges.length
+    : 0;
+
+  // Available forecast dates for the date filter dropdown
+  const availableDates = Array.from(
+    new Set(forecastsFull.map((f) => f.forecast_date))
+  ).sort().reverse();
+
+  // Available basins from actual river_basin_name values in the active forecast
+  const availableBasinNames: string[] = Array.from(
+    new Set(
+      (activeForecast?.impacts ?? [])
+        .filter((i) => i.river_basin_name !== null)
+        .map((i) => i.river_basin_name!)
+    )
+  ).sort();
+
+  // Map API data to component format for legacy river-basin rendering
   const riverBasins =
     basinStatus.length > 0
       ? basinStatus.map((basin) => {
@@ -456,29 +562,59 @@ export default function FloodMonitoringPage({
     timeSeriesData[timeSeriesData.length - 1]?.level ??
     0;
 
-  // ── KPI document fields ─────────────────────────────────────────────────────
-  const maxDischarge =
-    riverBasins.length > 0
-      ? Math.max(...riverBasins.map((b) => b.discharge))
-      : 0;
-  const avgDischarge =
-    riverBasins.length > 0
-      ? Math.round(
-        riverBasins.reduce((sum, b) => sum + b.discharge, 0) /
-        riverBasins.length,
-      )
-      : 0;
-  // Infrastructure KPIs (from live API dashboard summary)
-  const affectedRoadsKm = dashboard?.summary?.affected_roads_km ?? 0;
-  const affectedBuildings = dashboard?.summary?.affected_buildings ?? 0;
-  const affectedPois = dashboard?.summary?.affected_pois ?? 0;
-  const populationDensityAvg = atRiskPopulation > 0 ? Math.round(atRiskPopulation / (dashboard?.summary?.total_flood_extent_km2 || 4500)) : 0;
+  // ── KPI: prefer live API values, fall back to basin-status aggregate ──────
+  const displayPopulation = totalAffectedPopulation > 0
+    ? totalAffectedPopulation
+    : atRiskPopulation;
+  const displayDensity = totalFloodExtentKm2 > 0
+    ? populationDensityAvg
+    : (atRiskPopulation > 0 ? Math.round(atRiskPopulation / (dashboard?.summary?.total_flood_extent_km2 || 4500)) : 0);
+  const affectedRoadsKm = totalRoadsKm > 0
+    ? Math.round(totalRoadsKm * 10) / 10
+    : (dashboard?.summary?.affected_roads_km ?? 0);
+  const affectedBuildings = totalBuildings > 0
+    ? totalBuildings
+    : (dashboard?.summary?.affected_buildings ?? 0);
+  const affectedPois = totalPois > 0
+    ? totalPois
+    : (dashboard?.summary?.affected_pois ?? 0);
+  const maxDischarge = maxDischargeApi > 0
+    ? maxDischargeApi
+    : (riverBasins.length > 0 ? Math.max(...riverBasins.map((b) => b.discharge)) : 0);
+  const avgDischarge = avgDischargeApi > 0
+    ? Math.round(avgDischargeApi)
+    : (riverBasins.length > 0 ? Math.round(riverBasins.reduce((s, b) => s + b.discharge, 0) / riverBasins.length) : 0);
+
+  // Critical basin count from alert_level
+  const criticalBasinCount = activeForecast?.alert_level === "extreme" || activeForecast?.alert_level === "high"
+    ? basinImpacts.filter((i) => (i.max_discharge ?? 0) > 3000).length
+    : criticalBasins;
+
   const thresholdMode =
-    criticalBasins > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
+    criticalBasinCount > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
+
+  // Districts at risk from live forecast impacts (prefer API, fall back to legacy)
+  const liveDistrictsAtRisk = topDistrictImpacts.length > 0
+    ? topDistrictImpacts.map((i) => ({
+      id: 0,
+      name: i.district_name!,
+      population_affected: i.affected_population,
+      flood_risk_level: (i.max_discharge ?? 0) > 3000
+        ? "critical" as const
+        : (i.max_discharge ?? 0) > 1000
+          ? "high" as const
+          : "medium" as const,
+    }))
+    : districts;
+
+  // Infrastructure proportion bar widths
+  const infraTotal = (affectedRoadsKm > 0 ? affectedRoadsKm : 1) + (affectedBuildings / 100);
+  const roadsBarPct = Math.round((affectedRoadsKm / infraTotal) * 100);
+  const buildingsBarPct = 100 - roadsBarPct;
 
   const isUsingFallback =
-    basinStatus.length === 0 ||
-    Object.values(partialErrors).some((v) => v === true);
+    forecastsFull.length === 0 &&
+    (basinStatus.length === 0 || Object.values(partialErrors).some((v) => v === true));
 
   const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";
@@ -614,6 +750,12 @@ export default function FloodMonitoringPage({
                   setTimeRange={setTimeRange}
                   selectedBasin={selectedBasin}
                   setSelectedBasin={setSelectedBasin}
+                  selectedLeadtime={selectedLeadtime}
+                  setSelectedLeadtime={setSelectedLeadtime}
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  availableDates={availableDates}
+                  availableBasinNames={availableBasinNames}
                   dateRange={dateRange}
                   setDateRange={setDateRange}
                   isDarkMode={isDarkMode}
@@ -622,6 +764,9 @@ export default function FloodMonitoringPage({
                   borderColor={borderColor}
                   headerText={headerText}
                   riverBasins={riverBasins}
+                  totalPopulation={displayPopulation}
+                  criticalCount={criticalBasinCount}
+                  activeAlerts={criticalBasins + severeCount + moderateCount}
                 />
               </div>
               {/* Illustration */}
@@ -706,9 +851,9 @@ export default function FloodMonitoringPage({
                         Affected Population
                       </p>
                       <p className="text-xl font-black text-orange-400 leading-none">
-                        {atRiskPopulation >= 1_000_000
-                          ? `${(atRiskPopulation / 1_000_000).toFixed(1)}M`
-                          : `${Math.round(atRiskPopulation / 1_000)}K`}
+                        {displayPopulation >= 1_000_000
+                          ? `${(displayPopulation / 1_000_000).toFixed(1)}M`
+                          : `${Math.round(displayPopulation / 1_000)}K`}
                       </p>
                       <p className={`text-[9px] ${textMuted} mt-0.5`}>
                         people at risk
@@ -724,7 +869,7 @@ export default function FloodMonitoringPage({
                         className="text-xl font-black leading-none"
                         style={{ color: FAO_BLUE }}
                       >
-                        {populationDensityAvg}
+                        {displayDensity}
                       </p>
                       <p className={`text-[9px] ${textMuted} mt-0.5`}>
                         avg/km² in flood zone
@@ -732,17 +877,17 @@ export default function FloodMonitoringPage({
                     </div>
                   </div>
 
-                  {/* District population bars */}
+                  {/* District population bars — from live forecast impacts */}
                   <div className="space-y-1 mb-2">
                     <p
                       className={`text-[9px] uppercase tracking-wide font-semibold ${textMuted}`}
                     >
                       Districts at Risk
                     </p>
-                    {districts.slice(0, 4).map((d, index) => {
+                    {liveDistrictsAtRisk.slice(0, 4).map((d, index) => {
                       const pop = d.population_affected ?? 0;
                       const maxPop = Math.max(
-                        ...districts.map((x) => x.population_affected ?? 0),
+                        ...liveDistrictsAtRisk.map((x) => x.population_affected ?? 0),
                         1,
                       );
                       const barPct = (pop / maxPop) * 100;
@@ -753,7 +898,7 @@ export default function FloodMonitoringPage({
                             ? "#f97316"
                             : "#eab308";
                       return (
-                        <div key={`${d.id}-${d.name}-${index}`} className="flex items-center gap-1.5">
+                        <div key={`${d.name}-${index}`} className="flex items-center gap-1.5">
                           <span
                             className={`text-[9px] w-[72px] truncate flex-shrink-0 ${textMuted}`}
                           >
@@ -819,7 +964,7 @@ export default function FloodMonitoringPage({
                         Roads
                       </p>
                       <p className="text-lg font-black text-blue-400 leading-none">
-                        {affectedRoadsKm}
+                        {affectedRoadsKm.toLocaleString()}
                       </p>
                       <p className={`text-[9px] ${textMuted}`}>km at risk</p>
                     </div>
@@ -830,7 +975,9 @@ export default function FloodMonitoringPage({
                         Buildings
                       </p>
                       <p className="text-lg font-black text-purple-400 leading-none">
-                        {(affectedBuildings / 1000).toFixed(1)}K
+                        {affectedBuildings >= 1000
+                          ? `${(affectedBuildings / 1000).toFixed(1)}K`
+                          : affectedBuildings.toLocaleString()}
                       </p>
                       <p className={`text-[9px] ${textMuted}`}>at risk</p>
                     </div>
@@ -842,7 +989,7 @@ export default function FloodMonitoringPage({
                       </p>
                       <Navigation className="w-3 h-3 text-amber-400 mb-0.5" />
                       <p className="text-lg font-black text-amber-400 leading-none">
-                        {affectedPois}
+                        {affectedPois.toLocaleString()}
                       </p>
                       <p className={`text-[9px] ${textMuted}`}>at risk</p>
                     </div>
@@ -852,7 +999,7 @@ export default function FloodMonitoringPage({
                   <div>
                     <div className="flex justify-between mb-0.5">
                       <span className="text-[9px] text-blue-400 font-semibold">
-                        Roads {affectedRoadsKm} km
+                        Roads {affectedRoadsKm.toLocaleString()} km
                       </span>
                       <span className="text-[9px] text-purple-400 font-semibold">
                         Buildings {affectedBuildings.toLocaleString()}
@@ -861,11 +1008,11 @@ export default function FloodMonitoringPage({
                     <div className="h-2 rounded-full flex overflow-hidden gap-px">
                       <div
                         className="h-full rounded-l-full bg-blue-500/70"
-                        style={{ width: "40%" }}
+                        style={{ width: `${roadsBarPct}%` }}
                       />
                       <div
                         className="h-full rounded-r-full bg-purple-500/70"
-                        style={{ width: "60%" }}
+                        style={{ width: `${buildingsBarPct}%` }}
                       />
                     </div>
                     <p className={`text-[8px] mt-0.5 ${textMuted}`}>
@@ -916,7 +1063,7 @@ export default function FloodMonitoringPage({
                       className={`ml-auto text-[9px] font-medium ${textMuted}`}
                     >
                       {thresholdMode === "EXCEEDED"
-                        ? `${criticalBasins} basin${criticalBasins !== 1 ? "s" : ""} critical`
+                        ? `${criticalBasinCount} basin${criticalBasinCount !== 1 ? "s" : ""} critical`
                         : thresholdMode === "WARNING"
                           ? `${severeCount} severe · ${moderateCount} moderate`
                           : "All within safe range"}
@@ -965,7 +1112,7 @@ export default function FloodMonitoringPage({
                     />
                   </div>
 
-                  {/* Flood extent by basin (scrollable) */}
+                  {/* Flood extent by basin (scrollable) — from live API basin impacts */}
                   <div className="flex-1 overflow-y-auto min-h-0">
                     <p
                       className={`text-[9px] uppercase tracking-wide font-semibold ${textMuted} mb-1.5`}
@@ -973,34 +1120,34 @@ export default function FloodMonitoringPage({
                       Flood Extent by Basin
                     </p>
                     <div className="space-y-1.5">
-                      {riverBasins.map((b, index) => {
-                        const extent = Math.round(
-                          b.level * 200 + b.discharge / 20,
-                        );
+                      {(basinImpacts.length > 0 ? basinImpacts : riverBasins.map((b) => ({
+                        river_basin_name: b.name,
+                        flood_extent_km2: Math.round(b.level * 200 + b.discharge / 20),
+                        max_discharge: b.discharge,
+                        avg_discharge: b.discharge * 0.8,
+                        status: b.status,
+                      } as any))).map((b: any, index: number) => {
+                        const extent = Math.round(b.flood_extent_km2 ?? 0);
                         const maxExtent = Math.max(
-                          ...riverBasins.map((x) =>
-                            Math.round(x.level * 200 + x.discharge / 20),
-                          ),
+                          ...(basinImpacts.length > 0 ? basinImpacts : riverBasins.map((x) => ({ flood_extent_km2: x.level * 200 + x.discharge / 20 }))).map((x: any) => Math.round(x.flood_extent_km2 ?? 0)),
                           1,
                         );
                         const extPct = (extent / maxExtent) * 100;
+                        const discharge = b.max_discharge ?? 0;
                         const sc =
-                          b.status === "severe" || b.status === "extreme"
-                            ? "#ef4444"
-                            : b.status === "moderate"
-                              ? "#f97316"
-                              : b.status === "minor"
-                                ? "#eab308"
+                          discharge > 3000 ? "#ef4444"
+                            : discharge > 1000 ? "#f97316"
+                              : discharge > 300 ? "#eab308"
                                 : "#22c55e";
                         return (
                           <div
-                            key={`${b.name}-${index}`}
+                            key={`${b.river_basin_name ?? b.name}-${index}`}
                             className="flex items-center gap-1.5"
                           >
                             <span
-                              className={`text-[9px] w-[72px] truncate flex-shrink-0 ${textMuted}`}
+                              className={`text-[9px] w-[90px] truncate flex-shrink-0 ${textMuted}`}
                             >
-                              {b.name}
+                              {(b.river_basin_name ?? b.name ?? "").replace(" Basin", "")}
                             </span>
                             <div
                               className="flex-1 h-1.5 rounded-full overflow-hidden"
@@ -1077,7 +1224,6 @@ export default function FloodMonitoringPage({
 
         {/* Mobile layout */}
         <div className="block lg:hidden space-y-3">
-          {/* Human Impact (mobile) */}
           <div
             className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg p-3 shadow-sm`}
           >
@@ -1086,6 +1232,9 @@ export default function FloodMonitoringPage({
               <h3 className={`text-sm font-semibold ${headerText}`}>
                 Human Impact
               </h3>
+              <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 font-semibold">
+                {criticalBasinCount > 0 ? "HIGH RISK" : severeCount > 0 ? "ELEVATED" : "MONITORED"}
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div className={`${rowBg} rounded-lg p-2`}>
@@ -1093,10 +1242,11 @@ export default function FloodMonitoringPage({
                   Affected Population
                 </p>
                 <p className="text-xl font-black text-orange-400 leading-none">
-                  {atRiskPopulation >= 1_000_000
-                    ? `${(atRiskPopulation / 1_000_000).toFixed(1)}M`
-                    : `${Math.round(atRiskPopulation / 1_000)}K`}
+                  {displayPopulation >= 1_000_000
+                    ? `${(displayPopulation / 1_000_000).toFixed(1)}M`
+                    : `${Math.round(displayPopulation / 1_000)}K`}
                 </p>
+                <p className={`text-[9px] ${textMuted} mt-0.5`}>people at risk</p>
               </div>
               <div className={`${rowBg} rounded-lg p-2`}>
                 <p className={`text-[9px] ${textMuted} mb-0.5`}>Pop. Density</p>
@@ -1104,15 +1254,16 @@ export default function FloodMonitoringPage({
                   className="text-xl font-black leading-none"
                   style={{ color: FAO_BLUE }}
                 >
-                  {populationDensityAvg}/km²
+                  {displayDensity}/km²
                 </p>
+                <p className={`text-[9px] ${textMuted} mt-0.5`}>avg in flood zone</p>
               </div>
             </div>
             <div className="space-y-1">
-              {districts.slice(0, 3).map((d, index) => {
+              {liveDistrictsAtRisk.slice(0, 3).map((d, index) => {
                 const pop = d.population_affected ?? 0;
                 const maxPop = Math.max(
-                  ...districts.map((x) => x.population_affected ?? 0),
+                  ...liveDistrictsAtRisk.map((x) => x.population_affected ?? 0),
                   1,
                 );
                 const riskColor =
@@ -1122,7 +1273,7 @@ export default function FloodMonitoringPage({
                       ? "#f97316"
                       : "#eab308";
                 return (
-                  <div key={`${d.id}-${d.name}-${index}`} className="flex items-center gap-2">
+                  <div key={`${d.name}-${index}`} className="flex items-center gap-2">
                     <span className={`text-[9px] w-20 truncate ${textMuted}`}>
                       {d.name}
                     </span>
@@ -1138,6 +1289,9 @@ export default function FloodMonitoringPage({
                         }}
                       />
                     </div>
+                    <span className="text-[9px] w-10 text-right font-semibold flex-shrink-0" style={{ color: riskColor }}>
+                      {pop >= 1000 ? `${Math.round(pop / 1000)}K` : pop}
+                    </span>
                   </div>
                 );
               })}
@@ -1210,6 +1364,12 @@ export default function FloodMonitoringPage({
                     setTimeRange={setTimeRange}
                     selectedBasin={selectedBasin}
                     setSelectedBasin={setSelectedBasin}
+                    selectedLeadtime={selectedLeadtime}
+                    setSelectedLeadtime={setSelectedLeadtime}
+                    selectedDate={selectedDate}
+                    setSelectedDate={setSelectedDate}
+                    availableDates={availableDates}
+                    availableBasinNames={availableBasinNames}
                     dateRange={dateRange}
                     setDateRange={setDateRange}
                     isDarkMode={isDarkMode}
@@ -1218,6 +1378,9 @@ export default function FloodMonitoringPage({
                     borderColor={borderColor}
                     headerText={headerText}
                     riverBasins={riverBasins}
+                    totalPopulation={displayPopulation}
+                    criticalCount={criticalBasinCount}
+                    activeAlerts={criticalBasins + severeCount + moderateCount}
                   />
                 </div>
               </>
@@ -1234,21 +1397,23 @@ export default function FloodMonitoringPage({
                 Infrastructure
               </h3>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2 mb-2">
               {[
                 {
                   label: "Roads",
-                  value: `${affectedRoadsKm} km`,
+                  value: `${affectedRoadsKm.toLocaleString()} km`,
                   color: "text-blue-400",
                 },
                 {
                   label: "Buildings",
-                  value: `${(affectedBuildings / 1000).toFixed(1)}K`,
+                  value: affectedBuildings >= 1000
+                    ? `${(affectedBuildings / 1000).toFixed(1)}K`
+                    : String(affectedBuildings),
                   color: "text-purple-400",
                 },
                 {
                   label: "POIs",
-                  value: String(affectedPois),
+                  value: affectedPois.toLocaleString(),
                   color: "text-amber-400",
                 },
               ].map((s) => (
@@ -1263,6 +1428,11 @@ export default function FloodMonitoringPage({
                 </div>
               ))}
             </div>
+            <div className="h-2 rounded-full flex overflow-hidden gap-px">
+              <div className="h-full rounded-l-full bg-blue-500/70" style={{ width: `${roadsBarPct}%` }} />
+              <div className="h-full rounded-r-full bg-purple-500/70" style={{ width: `${buildingsBarPct}%` }} />
+            </div>
+            <p className={`text-[8px] mt-0.5 ${textMuted}`}>Relative infrastructure exposure</p>
           </div>
 
           {/* Flood Metrics (mobile) */}
@@ -1345,7 +1515,7 @@ export default function FloodMonitoringPage({
           <div
             className={`flex flex-col md:flex-row items-center justify-between text-xs ${textMuted} gap-1`}
           >
-            <p>© 2025 FAO Uganda. All Rights Reserved.</p>
+            <p>© 2026 FAO Uganda. All Rights Reserved.</p>
             <span className="flex items-center gap-1.5">
               <div
                 className="w-1.5 h-1.5 rounded-full animate-pulse"
