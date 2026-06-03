@@ -206,11 +206,13 @@ const FloodMap = ({
   className = "",
   badgeText = "Forecast",
   onLayerResolved,
+  onBasinSelect,
 }: {
   isDarkMode: boolean;
   className?: string;
   badgeText?: string;
   onLayerResolved?: (layer: FloodRasterLayer | null) => void;
+  onBasinSelect?: (basinName: string) => void;
 }) => (
   <FloodMonitorMap
     isDarkMode={isDarkMode}
@@ -230,6 +232,7 @@ const FloodMap = ({
       { label: "< 1", color: "#ffffcc" },
     ]}
     onLayerResolved={onLayerResolved}
+    onBasinSelect={onBasinSelect}
   />
 );
 
@@ -811,6 +814,7 @@ export default function FloodMonitoringPage({
                         className="absolute inset-0 w-full h-full"
                         badgeText={`+${forecastStep}h Forecast`}
                         onLayerResolved={handleLayerResolved}
+                        onBasinSelect={(name) => setSelectedBasin(name)}
                       />
                     </div>
                     <FloodHourSlider
@@ -1323,6 +1327,7 @@ export default function FloodMonitoringPage({
                     className="absolute inset-0 w-full h-full"
                     badgeText={`+${forecastStep}h`}
                     onLayerResolved={handleLayerResolved}
+                    onBasinSelect={(name) => setSelectedBasin(name)}
                   />
                 </div>
                 <button

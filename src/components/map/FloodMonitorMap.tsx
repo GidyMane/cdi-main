@@ -40,6 +40,7 @@ const WMS_BASE_OPTIONS = {
 
 interface FloodMonitorMapProps extends UgandaBoundaryMapProps {
   onLayerResolved?: (layer: FloodRasterLayer | null) => void;
+  onBasinSelect?: (basinName: string) => void;
 }
 
 function clearLayer<T extends L.Layer>(
@@ -66,6 +67,7 @@ export default function FloodMonitorMap({
   zoom = 6.8,
   minZoom = 6.8,
   onLayerResolved,
+  onBasinSelect,
 }: FloodMonitorMapProps) {
   const {
     selectedParameter,
@@ -91,6 +93,9 @@ export default function FloodMonitorMap({
   const FloodMonitortileLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorrasterLayerRef = useRef<L.TileLayer | null>(null);
   const FloodMonitorwmsLayersRef = useRef<Record<string, L.TileLayer.WMS>>({});
+  // Basin GeoJSON for click detection — fetched once from GeoServer WFS
+  const basinGeoJsonRef = useRef<any>(null);
+  const basinLayerRef = useRef<L.GeoJSON | null>(null);
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [showLayerPanel, setShowLayerPanel] = useState(false);
@@ -108,6 +113,20 @@ export default function FloodMonitorMap({
 
   useEffect(() => {
     let cancelled = false;
+
+    // Fetch river basin polygons from GeoServer WFS for client-side click detection
+    const wfsBase = GEO_SERVER_URL.replace("/wms", "/ows");
+    fetch(
+      `${wfsBase}?service=WFS&version=1.0.0&request=GetFeature` +
+      `&typeName=wfews:river_basins&outputFormat=application/json`
+    )
+      .then((r) => r.json())
+      .then((geojson) => {
+        if (!cancelled) basinGeoJsonRef.current = geojson;
+      })
+      .catch(() => {
+        // WFS not available — click will fall back to district selection
+      });
 
     floodAPI
       .getRasterLayers()
@@ -308,35 +327,62 @@ export default function FloodMonitorMap({
     FloodMonitormapRef.current.on("zoomend", updateLabelVisibility);
     updateLabelVisibility();
 
-    // ── Click → highlight clicked district (ray-casting, not bounding box) ─
-    // Reference uses getBounds().contains() which gives rectangles.
-    // We use isPointInPolygon() so the highlight matches the actual shape.
+    // ── Click → detect basin polygon, highlight it, call onBasinSelect ────
     FloodMonitormapRef.current.on("click", (ev: L.LeafletMouseEvent) => {
-      let clickedFeature: any = null;
+      const map = FloodMonitormapRef.current;
+      if (!map) return;
 
-      FloodMonitordistrictLayerRef.current?.eachLayer((layer: any) => {
-        if (clickedFeature) return; // stop after first match
+      const basins = basinGeoJsonRef.current;
 
-        if (layer instanceof L.Polygon || (layer as any)) {
-          if (isPointInPolygon(ev.latlng, layer.getLatLngs())) {
-            clickedFeature = layer.feature;
+      if (basins?.features?.length) {
+        // Ray-cast against basin polygons
+        let clickedBasin: any = null;
+        for (const feature of basins.features) {
+          if (isPointInPolygon(
+            ev.latlng,
+            L.geoJSON(feature).getLayers().flatMap((l: any) => l.getLatLngs?.() ?? [])
+          )) {
+            clickedBasin = feature;
+            break;
           }
         }
-      });
 
-      if (!clickedFeature) return;
+        if (clickedBasin) {
+          const basinName: string =
+            clickedBasin.properties?.basin_name ??
+            clickedBasin.properties?.name ??
+            clickedBasin.properties?.BASIN_NAME ??
+            clickedBasin.properties?.NAME ??
+            "";
 
-      if (setDistrict) {
-        setDistrict(clickedFeature.properties.name?.toUpperCase());
+          if (basinName && onBasinSelect) onBasinSelect(basinName);
+
+          // Highlight the basin polygon
+          clearLayer(map, FloodMonitorboundaryLayerRef);
+          if (basinLayerRef.current) {
+            map.removeLayer(basinLayerRef.current);
+            basinLayerRef.current = null;
+          }
+          basinLayerRef.current = L.geoJSON(clickedBasin, {
+            style: { color: "#f97316", weight: 3, fill: true, fillColor: "#f97316", fillOpacity: 0.08 },
+          }).addTo(map).bringToFront();
+          return;
+        }
       }
 
-      // Highlight only the clicked feature
-      clearLayer(FloodMonitormapRef.current!, FloodMonitorboundaryLayerRef);
+      // No basin GeoJSON or no basin hit — fall back to district highlight
+      let clickedFeature: any = null;
+      FloodMonitordistrictLayerRef.current?.eachLayer((layer: any) => {
+        if (clickedFeature) return;
+        if (isPointInPolygon(ev.latlng, layer.getLatLngs()))
+          clickedFeature = layer.feature;
+      });
+      if (!clickedFeature) return;
+      if (setDistrict) setDistrict(clickedFeature.properties.name?.toUpperCase());
+      clearLayer(map, FloodMonitorboundaryLayerRef);
       FloodMonitorboundaryLayerRef.current = L.geoJSON(clickedFeature, {
         style: { color: "#308DE0", weight: 4, fill: false },
-      })
-        .addTo(FloodMonitormapRef.current!)
-        .bringToFront();
+      }).addTo(map).bringToFront();
     });
 
     // ── Water / lake overlay ──────────────────────────────────────────────
@@ -389,6 +435,7 @@ export default function FloodMonitorMap({
         opacity: 0.75,
       })
       .addTo(FloodMonitormapRef.current);
+    riverBasinsWms.bringToBack();
     FloodMonitorwmsLayersRef.current["rivers"] = riverBasinsWms;
 
     // ── ResizeObserver ────────────────────────────────────────────────────
