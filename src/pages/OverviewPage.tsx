@@ -99,21 +99,35 @@ const IntroOverlay = ({ isDarkMode }: { isDarkMode: boolean }) => {
         </div>
       </div>
 
-      {/* title text */}
+      {/* logos + title text */}
       <div style={{
-        position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)",
+        position: "absolute", bottom: "14%", left: "50%", transform: "translateX(-50%)",
         textAlign: "center", whiteSpace: "nowrap",
         animation: "textReveal 2.6s ease forwards",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
       }}>
+        {/* logo row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <img
+            src={isDarkMode ? "/fao-white.png" : "/fao_logo_3lines_en1.png"}
+            alt="FAO"
+            style={{ height: 44, width: "auto", objectFit: "contain" }}
+          />
+          <div style={{
+            width: 1, height: 40,
+            background: isDarkMode ? "rgba(148,163,184,0.35)" : "rgba(51,85,120,0.25)",
+          }}/>
+          <img
+            src="/uganda-coat-of-arms.svg"
+            alt="Uganda Coat of Arms"
+            style={{ height: 48, width: "auto", objectFit: "contain" }}
+          />
+        </div>
+        {/* title */}
         <p style={{
-          fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.25em",
-          textTransform: "uppercase",
-          color: isDarkMode ? "rgba(148,163,184,0.75)" : "rgba(51,85,120,0.65)",
-          marginBottom: "6px",
-        }}>Republic of Uganda · FAO</p>
-        <p style={{
-          fontSize: "clamp(1rem, 2.5vw, 1.5rem)", fontWeight: 900, letterSpacing: "0.05em",
+          fontSize: "clamp(0.85rem, 2vw, 1.25rem)", fontWeight: 900, letterSpacing: "0.05em",
           color: isDarkMode ? "rgba(241,245,249,0.92)" : "rgba(15,23,42,0.88)",
+          marginTop: "2px",
         }}>Uganda Multi Hazard Observatory System</p>
       </div>
     </div>
