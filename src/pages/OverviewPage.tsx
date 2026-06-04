@@ -63,6 +63,71 @@ const ThresholdBar = ({ value, min, max, segments, isDarkMode }: {
   );
 };
 
+/* ── Intro animation overlay ────────────────────────────────────── */
+const IntroOverlay = ({ isDarkMode }: { isDarkMode: boolean }) => {
+  const bg    = isDarkMode ? "#080f1e" : "#b8d4ee";
+  const cA    = isDarkMode ? "rgba(180,210,255,0.90)" : "rgba(255,255,255,0.94)";
+  const cB    = isDarkMode ? "rgba(130,170,230,0.80)" : "rgba(220,238,255,0.88)";
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999, overflow: "hidden",
+      background: bg, animation: "introFade 2.6s ease forwards",
+    }}>
+      {/* glow behind bolt */}
+      <div style={{
+        position: "absolute", top: "38%", left: "50%", transform: "translateX(-50%)",
+        width: 340, height: 340, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(251,191,36,0.50) 0%, transparent 65%)",
+        animation: "glowPulse 2.6s ease forwards",
+      }}/>
+
+      {/* left cloud */}
+      <div style={{ position: "absolute", left: 0, top: "28%", animation: "cloudLeft 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+        <svg viewBox="0 0 280 130" fill="none" style={{ width: 340, display: "block" }}>
+          <ellipse cx="140" cy="90"  rx="118" ry="40"  fill={cA}/>
+          <ellipse cx="85"  cy="75"  rx="62"  ry="48"  fill={cA}/>
+          <ellipse cx="175" cy="68"  rx="72"  ry="52"  fill={cA}/>
+          <ellipse cx="135" cy="56"  rx="55"  ry="46"  fill={cA}/>
+        </svg>
+      </div>
+
+      {/* right cloud */}
+      <div style={{ position: "absolute", right: 0, top: "22%", animation: "cloudRight 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+        <svg viewBox="0 0 260 120" fill="none" style={{ width: 310, display: "block" }}>
+          <ellipse cx="130" cy="82"  rx="108" ry="37"  fill={cB}/>
+          <ellipse cx="78"  cy="68"  rx="58"  ry="44"  fill={cB}/>
+          <ellipse cx="168" cy="62"  rx="66"  ry="48"  fill={cB}/>
+          <ellipse cx="126" cy="52"  rx="50"  ry="42"  fill={cB}/>
+        </svg>
+      </div>
+
+      {/* center cloud — drops from above */}
+      <div style={{ position: "absolute", top: "4%", left: "50%", transform: "translateX(-50%)" }}>
+        <div style={{ animation: "cloudTop 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+          <svg viewBox="0 0 380 165" fill="none" style={{ width: 420, display: "block" }}>
+            <ellipse cx="190" cy="110" rx="155" ry="54"  fill={cA}/>
+            <ellipse cx="112" cy="90"  rx="85"  ry="65"  fill={cA}/>
+            <ellipse cx="258" cy="84"  rx="92"  ry="68"  fill={cA}/>
+            <ellipse cx="186" cy="68"  rx="74"  ry="60"  fill={cA}/>
+          </svg>
+        </div>
+      </div>
+
+      {/* lightning bolt */}
+      <div style={{ position: "absolute", top: "44%", left: "50%", transform: "translateX(-50%)" }}>
+        <div style={{
+          animation: "boltFlash 2.6s ease forwards",
+          filter: "drop-shadow(0 0 16px rgba(251,191,36,1)) drop-shadow(0 0 40px rgba(251,191,36,0.65))",
+        }}>
+          <svg viewBox="0 0 64 148" fill="none" style={{ width: 64, display: "block" }}>
+            <polygon points="42,0 8,82 30,82 14,148 58,60 34,60 50,0" fill="#FCD34D"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type StatIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
 type ModuleStat = { label: string; value: string; sub?: string; Icon?: StatIcon };
 
@@ -122,11 +187,17 @@ const MODULES: {
 export default function OverviewPage({ onNavigate, isDarkMode = true }: OverviewPageProps) {
   const { selectedDistrictId } = useAppStore((s) => s);
 
+  const [showIntro,  setShowIntro]  = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [weather, setWeather] = useState<any>(null);
   const [quickStats, setQuickStats] = useState({ lastUpdated: "", alerts: 0, online: 0, total: 0 });
   const [modules, setModules] = useState(MODULES);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowIntro(false), 2700);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -303,6 +374,7 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: bg }}>
+      {showIntro && <IntroOverlay isDarkMode={isDarkMode}/>}
       {/* Background Climate Illustration Watermark */}
       <img
         src="/climate_illustration.jpg"
@@ -496,6 +568,52 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
 
       <style>{`
         .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        @keyframes introFade {
+          0%   { opacity: 1; }
+          73%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes cloudLeft {
+          0%   { transform: translateX(-110%); opacity: 0; }
+          10%  { opacity: 1; }
+          40%  { transform: translateX(0);     opacity: 1; }
+          73%  { transform: translateX(0);     opacity: 1; }
+          100% { transform: translateX(0);     opacity: 0; }
+        }
+        @keyframes cloudRight {
+          0%   { transform: translateX(110%); opacity: 0; }
+          10%  { opacity: 1; }
+          40%  { transform: translateX(0);    opacity: 1; }
+          73%  { transform: translateX(0);    opacity: 1; }
+          100% { transform: translateX(0);    opacity: 0; }
+        }
+        @keyframes cloudTop {
+          0%   { transform: translateY(-100px); opacity: 0; }
+          18%  { opacity: 1; }
+          42%  { transform: translateY(0);      opacity: 1; }
+          73%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes boltFlash {
+          0%,  28% { opacity: 0; }
+          31%, 34%  { opacity: 1; }
+          36%       { opacity: 0; }
+          44%, 47%  { opacity: 0.85; }
+          49%       { opacity: 0; }
+          56%, 59%  { opacity: 1; }
+          61%       { opacity: 0; }
+          100%      { opacity: 0; }
+        }
+        @keyframes glowPulse {
+          0%,  28% { opacity: 0; }
+          31%, 34%  { opacity: 1; }
+          36%       { opacity: 0.1; }
+          44%, 47%  { opacity: 0.75; }
+          49%       { opacity: 0; }
+          56%, 59%  { opacity: 1; }
+          61%       { opacity: 0; }
+          100%      { opacity: 0; }
+        }
       `}</style>
     </div>
   );
