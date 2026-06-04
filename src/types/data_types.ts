@@ -154,6 +154,9 @@ export interface UgandaBoundaryMapProps {
   district_list?: any;
   floodHoverData?: FloodHoverData;
   districtWeatherMap?: Record<string, DistrictWeatherEntry>;
+  /** Fires when the user hovers a district — passes the district name and
+   *  the live Open-Meteo sampled value (null when leaving the map). */
+  onHoverChange?: (district: string | null, value: number | null, unit: string) => void;
 }
 
 export interface LayerDef {

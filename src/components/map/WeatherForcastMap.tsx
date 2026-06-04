@@ -44,6 +44,54 @@ const OM_TILES_BASE = "https://map-tiles.open-meteo.com/data_spatial";
 const DOMAIN_NOWCAST = "dwd_icon"; // ICON
 const DOMAIN_FORECAST = "ncep_gfs013"; // GFS
 
+// ── Module-level caches — survive re-mounts, shared across all instances ──────
+// Metadata: keyed by domain so ICON and GFS are cached independently
+const _metadataCache = new Map<string, any>();
+const _metadataPromise = new Map<string, Promise<any>>();
+const _metadataCacheTime = new Map<string, number>();
+const METADATA_TTL_MS = 10 * 60 * 1000; // 10 minutes — matches model update cadence
+
+// Uganda GeoJSON: fetched once for the lifetime of the page
+let _ugandaGeoJsonCache: any = null;
+let _ugandaGeoJsonPromise: Promise<any> | null = null;
+
+function prefetchMetadata(domain: string): Promise<any> {
+  const age = Date.now() - (_metadataCacheTime.get(domain) ?? 0);
+  if (_metadataCache.has(domain) && age < METADATA_TTL_MS) {
+    return Promise.resolve(_metadataCache.get(domain));
+  }
+  // Stale or missing — evict and re-fetch
+  _metadataCache.delete(domain);
+  _metadataPromise.delete(domain);
+  if (_metadataPromise.has(domain)) return _metadataPromise.get(domain)!;
+  const p = fetch(`${OM_TILES_BASE}/${domain}/latest.json`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((data) => {
+      _metadataCache.set(domain, data);
+      _metadataCacheTime.set(domain, Date.now());
+      return data;
+    })
+    .catch((err) => { _metadataPromise.delete(domain); throw err; });
+  _metadataPromise.set(domain, p);
+  return p;
+}
+
+function prefetchUgandaGeoJson(): Promise<any> {
+  if (_ugandaGeoJsonCache) return Promise.resolve(_ugandaGeoJsonCache);
+  if (_ugandaGeoJsonPromise) return _ugandaGeoJsonPromise;
+  _ugandaGeoJsonPromise = fetch(UGANDA_GEOJSON_URL)
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((data) => { _ugandaGeoJsonCache = data; return data; })
+    .catch((err) => { _ugandaGeoJsonPromise = null; throw err; });
+  return _ugandaGeoJsonPromise;
+}
+
+// Kick off both fetches immediately at module load — they'll be ready
+// by the time the map initialises, eliminating the sequential waterfall.
+prefetchMetadata(DOMAIN_NOWCAST);
+prefetchMetadata(DOMAIN_FORECAST);
+prefetchUgandaGeoJson();
+
 /** Map the app's `selectedParameter` to an Open-Meteo variable name */
 const VARIABLE_MAP: Record<string, string> = {
   temperature: "temperature_2m",
@@ -207,20 +255,33 @@ function degreesToCompass(deg: number): string {
   return dirs[idx];
 }
 
-/** Resolve a slider date + hour to the nearest Open-Meteo valid_times index */
+/** Resolve a slider date + hour to the nearest Open-Meteo valid_times index.
+ *
+ * If the requested time is within 30 minutes of the current wall-clock time,
+ * we return `current_time_1H` instead of a hardcoded `valid_times_N` index.
+ * The Capture API then automatically snaps to the nearest hourly step in the
+ * latest available model run — no stale indices, no manual refresh needed.
+ */
 function resolveTimeStep(metadata: any, dateRange: string, hour: number) {
   const validTimes: string[] = metadata?.valid_times ?? [];
-  if (!validTimes.length) return "current_time_1H";
 
   const targetDate = dateRange || new Date().toISOString().slice(0, 10);
-  const target = new Date(
-    `${targetDate}T${pad(hour)}:00:00Z`,
-  ).getTime();
+  const targetMs = new Date(`${targetDate}T${pad(hour)}:00:00Z`).getTime();
+  const nowMs = Date.now();
 
+  // Within ±30 min of now → let the Capture API track current time
+  if (Math.abs(targetMs - nowMs) <= 30 * 60 * 1000) {
+    return "current_time_1H";
+  }
+
+  // No metadata yet → also fall back to current_time_1H
+  if (!validTimes.length) return "current_time_1H";
+
+  // Otherwise find the closest valid_times index
   let bestIdx = 0;
   let bestDiff = Infinity;
   validTimes.forEach((vt, i) => {
-    const diff = Math.abs(new Date(vt).getTime() - target);
+    const diff = Math.abs(new Date(vt).getTime() - targetMs);
     if (diff < bestDiff) {
       bestDiff = diff;
       bestIdx = i;
@@ -273,6 +334,7 @@ export default function WeatherForcastMap({
   zoom = 6.8,
   minZoom = 6.8,
   district_list,
+  onHoverChange,
 }: UgandaBoundaryMapProps) {
   const {
     selectedParameter,
@@ -652,24 +714,26 @@ export default function WeatherForcastMap({
   }, [getTheBounds, geoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fetch Open-Meteo metadata when the model (domain) changes ────────────────
+  // Uses the module-level cache — if prefetchMetadata already resolved at
+  // module load the Promise settles synchronously on the next microtask,
+  // skipping the network round-trip entirely.
   useEffect(() => {
-    if (!mapReady) return;
     let cancelled = false;
+    // Serve from cache immediately if available
+    if (_metadataCache.has(domain)) {
+      setMetadata(_metadataCache.get(domain));
+      return;
+    }
     setRasterIsLoading(true);
-    fetch(`${OM_TILES_BASE}/${domain}/latest.json`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data) => {
-        if (!cancelled) setMetadata(data);
-      })
-      .catch(() => {
-        if (!cancelled) setMetadata(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [domain, mapReady]);
+    prefetchMetadata(domain)
+      .then((data) => { if (!cancelled) setMetadata(data); })
+      .catch(() => { if (!cancelled) setMetadata(null); });
+    return () => { cancelled = true; };
+  }, [domain]);
 
   // ── Load / remove the Uganda clip outline ────────────────────────────────────
+  // Uses the module-level cache — if prefetchUgandaGeoJson already resolved
+  // (kicked off at module load) this completes without a network request.
   useEffect(() => {
     if (!mapReady) return;
     const map = weatherforcastMapRef.current;
@@ -685,37 +749,35 @@ export default function WeatherForcastMap({
       return;
     }
 
-    fetch(UGANDA_GEOJSON_URL)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((geojson) => {
-        if (cancelled) return;
-        protocolSettingsRef.current.clippingOptions = {
-          geojson,
-          bounds: UGANDA_OM_BOUNDS,
-          fillRule: "evenodd",
-        };
-        ugandaGeoJsonRef.current = geojson;
-        clearLayer(map, ugandaLayerRef);
-        ugandaLayerRef.current = L.geoJSON(geojson, {
-          interactive: false,
-          style: {
-            color: FAO_BLUE,
-            weight: 1.5,
-            opacity: 0.9,
-            fillOpacity: 0,
-          },
-        }).addTo(map);
-        const bounds = ugandaLayerRef.current.getBounds();
-        if (bounds.isValid()) ugandaBoundsRef.current = bounds;
-        setClipRevision((c) => c + 1);
-      })
-      .catch(() => {
-        if (!cancelled) setClipRevision((c) => c + 1);
-      });
-
-    return () => {
-      cancelled = true;
+    // Serve from cache immediately if available
+    const applyGeoJson = (geojson: any) => {
+      if (cancelled) return;
+      protocolSettingsRef.current.clippingOptions = {
+        geojson,
+        bounds: UGANDA_OM_BOUNDS,
+        fillRule: "evenodd",
+      };
+      ugandaGeoJsonRef.current = geojson;
+      clearLayer(map, ugandaLayerRef);
+      ugandaLayerRef.current = L.geoJSON(geojson, {
+        interactive: false,
+        style: { color: FAO_BLUE, weight: 1.5, opacity: 0.9, fillOpacity: 0 },
+      }).addTo(map);
+      const bounds = ugandaLayerRef.current.getBounds();
+      if (bounds.isValid()) ugandaBoundsRef.current = bounds;
+      setClipRevision((c) => c + 1);
     };
+
+    if (_ugandaGeoJsonCache) {
+      applyGeoJson(_ugandaGeoJsonCache);
+      return;
+    }
+
+    prefetchUgandaGeoJson()
+      .then(applyGeoJson)
+      .catch(() => { if (!cancelled) setClipRevision((c) => c + 1); });
+
+    return () => { cancelled = true; };
   }, [clipUganda, mapReady]);
 
   // ── Build & swap the Open-Meteo raster layer ─────────────────────────────────
@@ -741,6 +803,17 @@ export default function WeatherForcastMap({
       clipHash,
       metadata,
     });
+
+    // Skip rebuild if only the URL's dark param changed — just update opacity
+    // as a proxy; the dark param only affects tile colours, not data.
+    if (
+      rasterLayerRef.current &&
+      currentOmUrlRef.current &&
+      currentOmUrlRef.current.replace(/&?dark=true/, "") ===
+        `om://${omUrl}`.replace(/&?dark=true/, "")
+    ) {
+      return;
+    }
 
     const layerBounds =
       clipUganda && ugandaBoundsRef.current
@@ -789,6 +862,16 @@ export default function WeatherForcastMap({
   useEffect(() => {
     (rasterLayerRef.current as any)?.setOpacity?.(opacity / 100);
   }, [opacity]);
+
+  // ── Bubble hover state up to the parent page ─────────────────────────────────
+  useEffect(() => {
+    if (!onHoverChange) return;
+    onHoverChange(
+      hoveredDistrictName,
+      hoverValue != null ? Math.round(hoverValue * 10) / 10 : null,
+      legendUnit,
+    );
+  }, [hoveredDistrictName, hoverValue, legendUnit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Rainfall / wind particle animation (ported from the standalone map) ──────
   useEffect(() => {

@@ -449,6 +449,7 @@ export default function WeatherForecastPage({
     selectedDistrictId,
     setLayerMode,
     mapInteractionMetric,
+    setSliderhourIndexValue,
   } = useAppStore((state) => state);
 
   const [activeTab, setActiveTabState] = useState<"nowcast" | "forecast">("nowcast");
@@ -477,7 +478,38 @@ export default function WeatherForecastPage({
     setLayerMode(tab);
   };
 
-  // Sync chart metric with map interaction (hover)
+  // ── Live map hover state — district name + sampled value from Open-Meteo ─────
+  const [mapHoverDistrict, setMapHoverDistrict] = useState<string | null>(null);
+  const [mapHoverValue, setMapHoverValue] = useState<number | null>(null);
+  const [mapHoverUnit, setMapHoverUnit] = useState<string>("");
+
+  const handleMapHoverChange = (
+    district: string | null,
+    value: number | null,
+    unit: string,
+  ) => {
+    setMapHoverDistrict(district);
+    setMapHoverValue(value);
+    setMapHoverUnit(unit);
+  };
+
+  // ── Sync activeTab ↔ layerMode ────────────────────────────────────────────────
+  // Tab → map: "nowcast" = ICON, "forecast" = GFS
+  useEffect(() => {
+    setLayerMode(activeTab === "forecast" ? "forecast" : "nowcast");
+  }, [activeTab, setLayerMode]);
+
+  // ── Sync selectedCardIndex → slider hour ──────────────────────────────────────
+  // When the user clicks an hourly forecast card, move the map to that hour.
+  useEffect(() => {
+    if (activeTab !== "nowcast" || selectedCardIndex === null) return;
+    const now = new Date();
+    const currentHour = now.getHours();
+    const targetHour = (currentHour + selectedCardIndex) % 24;
+    setSliderhourIndexValue(targetHour);
+  }, [selectedCardIndex, activeTab, setSliderhourIndexValue]);
+
+  // Sync chart metric with map interaction (parameter click on map toolbar) (hover)
   useEffect(() => {
     if (mapInteractionMetric) {
       setChartMetric(mapInteractionMetric);
@@ -545,8 +577,11 @@ export default function WeatherForecastPage({
     };
   }, [activeTab, selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch dashboard + forecasts whenever the stats district changes
+  // Fetch dashboard + forecasts whenever the stats district changes.
+  // Guard against undefined statsId (districts query still loading) so we
+  // don't fire a no-district request that returns zeros before Kampala resolves.
   useEffect(() => {
+    if (statsId === undefined) return;
     (async () => {
       try {
         const [dashboard, hourlyForecast, dailyForecast] = await Promise.all([
@@ -709,9 +744,28 @@ export default function WeatherForecastPage({
     wind: "#3b82f6", // blue (20 km/h stop — moderate)
   };
 
+  // Determine if a given stat card is the currently active map parameter
+  const activeParam = selectedParameter?.toLowerCase() ?? "temperature";
+  const paramToStatKey: Record<string, keyof typeof STAT_COLOR> = {
+    temperature: "temperature",
+    rainfall: "rainfall",
+    precipitation: "rainfall",
+    humidity: "humidity",
+    wind: "wind",
+  };
+
+  // Live value override from map hover — shown in place of the API value
+  // when the user hovers a district on the map with the matching parameter active.
+  const liveHoverOverride = (statParam: keyof typeof STAT_COLOR): string | null => {
+    if (!mapHoverDistrict || mapHoverValue == null) return null;
+    if (paramToStatKey[activeParam] !== statParam) return null;
+    return `${mapHoverValue}${mapHoverUnit}`;
+  };
+
   const statCards = [
     {
       label: "Temperature",
+      statKey: "temperature" as keyof typeof STAT_COLOR,
       icon: Thermometer,
       color: STAT_COLOR.temperature,
       min: 15,
@@ -733,6 +787,7 @@ export default function WeatherForecastPage({
     },
     {
       label: "Rainfall (Hourly)",
+      statKey: "rainfall" as keyof typeof STAT_COLOR,
       icon: CloudRain,
       color: STAT_COLOR.rainfall,
       min: 0,
@@ -754,6 +809,7 @@ export default function WeatherForecastPage({
     },
     {
       label: "Humidity",
+      statKey: "humidity" as keyof typeof STAT_COLOR,
       icon: Droplets,
       color: STAT_COLOR.humidity,
       min: 0,
@@ -775,6 +831,7 @@ export default function WeatherForecastPage({
     },
     {
       label: "Wind Speed",
+      statKey: "wind" as keyof typeof STAT_COLOR,
       icon: Wind,
       color: STAT_COLOR.wind,
       min: 0,
@@ -880,23 +937,40 @@ export default function WeatherForecastPage({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
           {statCards.map((card, index) => {
             const Icon = card.icon;
+            const liveVal = liveHoverOverride(card.statKey);
+            const displayValue = liveVal ?? card.value;
             const numericValue =
-              parseFloat(card.value.replace(/[^0-9.]/g, "")) || 0;
+              parseFloat(displayValue.replace(/[^0-9.]/g, "")) || 0;
+            const isActiveParam = paramToStatKey[activeParam] === card.statKey;
             return (
               <div
                 key={index}
-                className={`${cardBg} backdrop-blur-sm border ${borderColor} rounded-lg md:rounded-xl p-2.5 md:p-3 shadow-sm animate-fade-in-up transition-all hover:shadow-md`}
-                style={{ animationDelay: `${index * 0.1}s` }}
+                onClick={() => setSelectedParameter(card.statKey)}
+                className={`${cardBg} backdrop-blur-sm border rounded-lg md:rounded-xl p-2.5 md:p-3 shadow-sm animate-fade-in-up transition-all hover:shadow-md cursor-pointer`}
+                style={{
+                  animationDelay: `${index * 0.1}s`,
+                  borderColor: isActiveParam ? card.color : undefined,
+                  borderWidth: isActiveParam ? 2 : undefined,
+                }}
               >
                 <div className="flex items-start justify-between mb-1.5">
                   <div>
                     <p className={`text-[10px] md:text-xs ${textMuted} mb-0.5`}>
                       {card.label}
+                      {liveVal && mapHoverDistrict && (
+                        <span
+                          className="ml-1 font-semibold"
+                          style={{ color: card.color }}
+                        >
+                          · {mapHoverDistrict}
+                        </span>
+                      )}
                     </p>
                     <p
                       className={`text-base md:text-lg font-bold ${headerText}`}
+                      style={liveVal ? { color: card.color } : undefined}
                     >
-                      {card.value}
+                      {displayValue}
                     </p>
                   </div>
                   <div
@@ -1042,6 +1116,7 @@ export default function WeatherForecastPage({
                       badgeText={selectedDistrictId?.name ?? "Uganda"}
                       getTheBounds={selectedDistrictId?.name ?? ""}
                       district_list={district_list}
+                      onHoverChange={handleMapHoverChange}
                     />
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[500]">
                       <FloodHourSlider
@@ -1282,6 +1357,7 @@ export default function WeatherForecastPage({
                   badgeText={selectedDistrictId?.name ?? "Uganda"}
                   getTheBounds={selectedDistrictId?.name ?? ""}
                   district_list={district_list}
+                  onHoverChange={handleMapHoverChange}
                 />
                 <button
                   onClick={() => setShowMobileFilters(!showMobileFilters)}

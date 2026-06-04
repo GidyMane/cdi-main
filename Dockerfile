@@ -63,6 +63,19 @@ RUN echo 'server { \
     proxy_read_timeout 300; \
   } \
   \
+  location /data/ { \
+    proxy_pass http://192.168.100.104:8070/; \
+    proxy_http_version 1.1; \
+    proxy_set_header Host $host; \
+    proxy_set_header X-Real-IP $remote_addr; \
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+    proxy_set_header X-Forwarded-Proto $scheme; \
+    proxy_set_header Connection ""; \
+    proxy_connect_timeout 300; \
+    proxy_send_timeout 300; \
+    proxy_read_timeout 300; \
+  } \
+  \
   location /minio/ { \
     proxy_pass http://192.168.100.104:9000/; \
     proxy_http_version 1.1; \
