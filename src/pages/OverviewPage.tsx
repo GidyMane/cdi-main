@@ -4,6 +4,7 @@ import {
   Cloud, Sun, Radio, BarChart2,
   Activity, AlertCircle, Signal, Timer, Users,
 } from "lucide-react";
+import { ThresholdScale } from "../components/shared/ThresholdScale";
 import React, { useState, useEffect } from "react";
 import type { PageType } from "../App";
 import { overviewAPI, weatherAPI, floodAPI, stationsAPI } from "../services/api";
@@ -36,28 +37,98 @@ const Sparkline = ({ type, color }: { type: keyof typeof PATHS; color: string })
   </svg>
 );
 
-/* ── Threshold bar ─────────────────────────────────────────────── */
-const ThresholdBar = ({ value, min, max, segments, isDarkMode }: {
-  value: number; min: number; max: number;
-  segments: { label: string; color: string; end: number }[];
-  isDarkMode: boolean;
-}) => {
-  const pct = Math.min(97, Math.max(3, ((value - min) / (max - min)) * 100));
-  let prev = min;
-  const widths = segments.map(s => { const w = ((s.end - prev) / (max - min)) * 100; prev = s.end; return w; });
+/* ── Intro animation overlay ────────────────────────────────────── */
+const IntroOverlay = ({ isDarkMode }: { isDarkMode: boolean }) => {
+  const bg    = isDarkMode ? "#080f1e" : "#b8d4ee";
+  const cA    = isDarkMode ? "rgba(180,210,255,0.90)" : "rgba(255,255,255,0.94)";
+  const cB    = isDarkMode ? "rgba(130,170,230,0.80)" : "rgba(220,238,255,0.88)";
   return (
-    <div className="mt-3">
-      <div className="relative h-1.5 flex gap-px rounded-full overflow-visible">
-        {segments.map((s, i) => (
-          <div key={i} className="h-full rounded-full" style={{ width: `${widths[i]}%`, backgroundColor: s.color }} />
-        ))}
-        <div className="absolute -top-0.5 w-2.5 h-2.5 rounded-full border-2 shadow-md z-10"
-          style={{ left: `calc(${pct}% - 5px)`, backgroundColor: isDarkMode ? "#1e293b" : "#fff", borderColor: isDarkMode ? "#94a3b8" : "#64748b" }} />
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9999, overflow: "hidden",
+      background: bg, animation: "introFade 2.6s ease forwards",
+    }}>
+      {/* glow behind bolt */}
+      <div style={{
+        position: "absolute", top: "38%", left: "50%", transform: "translateX(-50%)",
+        width: 340, height: 340, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(251,191,36,0.50) 0%, transparent 65%)",
+        animation: "glowPulse 2.6s ease forwards",
+      }}/>
+
+      {/* left cloud */}
+      <div style={{ position: "absolute", left: 0, top: "28%", animation: "cloudLeft 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+        <svg viewBox="0 0 280 130" fill="none" style={{ width: 340, display: "block" }}>
+          <ellipse cx="140" cy="90"  rx="118" ry="40"  fill={cA}/>
+          <ellipse cx="85"  cy="75"  rx="62"  ry="48"  fill={cA}/>
+          <ellipse cx="175" cy="68"  rx="72"  ry="52"  fill={cA}/>
+          <ellipse cx="135" cy="56"  rx="55"  ry="46"  fill={cA}/>
+        </svg>
       </div>
-      <div className="flex justify-between mt-1.5">
-        {segments.map(s => (
-          <span key={s.label} className="text-[9px]" style={{ color: isDarkMode ? "#475569" : "#94a3b8" }}>{s.label}</span>
-        ))}
+
+      {/* right cloud */}
+      <div style={{ position: "absolute", right: 0, top: "22%", animation: "cloudRight 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+        <svg viewBox="0 0 260 120" fill="none" style={{ width: 310, display: "block" }}>
+          <ellipse cx="130" cy="82"  rx="108" ry="37"  fill={cB}/>
+          <ellipse cx="78"  cy="68"  rx="58"  ry="44"  fill={cB}/>
+          <ellipse cx="168" cy="62"  rx="66"  ry="48"  fill={cB}/>
+          <ellipse cx="126" cy="52"  rx="50"  ry="42"  fill={cB}/>
+        </svg>
+      </div>
+
+      {/* center cloud — drops from above */}
+      <div style={{ position: "absolute", top: "4%", left: "50%", transform: "translateX(-50%)" }}>
+        <div style={{ animation: "cloudTop 2.6s cubic-bezier(0.22,0.61,0.36,1) forwards" }}>
+          <svg viewBox="0 0 380 165" fill="none" style={{ width: 420, display: "block" }}>
+            <ellipse cx="190" cy="110" rx="155" ry="54"  fill={cA}/>
+            <ellipse cx="112" cy="90"  rx="85"  ry="65"  fill={cA}/>
+            <ellipse cx="258" cy="84"  rx="92"  ry="68"  fill={cA}/>
+            <ellipse cx="186" cy="68"  rx="74"  ry="60"  fill={cA}/>
+          </svg>
+        </div>
+      </div>
+
+      {/* lightning bolt */}
+      <div style={{ position: "absolute", top: "44%", left: "50%", transform: "translateX(-50%)" }}>
+        <div style={{
+          animation: "boltFlash 2.6s ease forwards",
+          filter: "drop-shadow(0 0 16px rgba(251,191,36,1)) drop-shadow(0 0 40px rgba(251,191,36,0.65))",
+        }}>
+          <svg viewBox="0 0 64 148" fill="none" style={{ width: 64, display: "block" }}>
+            <polygon points="42,0 8,82 30,82 14,148 58,60 34,60 50,0" fill="#FCD34D"/>
+          </svg>
+        </div>
+      </div>
+
+      {/* logos + title text */}
+      <div style={{
+        position: "absolute", bottom: "14%", left: "50%", transform: "translateX(-50%)",
+        textAlign: "center", whiteSpace: "nowrap",
+        animation: "textReveal 2.6s ease forwards",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+      }}>
+        {/* logo row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <img
+            src={isDarkMode ? "/fao-white.png" : "/fao_logo_3lines_en1.png"}
+            alt="FAO"
+            style={{ height: 44, width: "auto", objectFit: "contain" }}
+          />
+          <div style={{
+            width: 1, height: 40,
+            background: isDarkMode ? "rgba(148,163,184,0.35)" : "rgba(51,85,120,0.25)",
+          }}/>
+          <img
+            src="/uganda-coat-of-arms.svg"
+            alt="Uganda Coat of Arms"
+            style={{ height: 48, width: "auto", objectFit: "contain" }}
+          />
+        </div>
+        {/* title */}
+        <p style={{
+          fontSize: "clamp(0.85rem, 2vw, 1.25rem)", fontWeight: 900, letterSpacing: "0.05em",
+          color: isDarkMode ? "rgba(241,245,249,0.92)" : "rgba(15,23,42,0.88)",
+          marginTop: "2px",
+        }}>Uganda Multi Hazard Observatory System</p>
       </div>
     </div>
   );
@@ -122,11 +193,17 @@ const MODULES: {
 export default function OverviewPage({ onNavigate, isDarkMode = true }: OverviewPageProps) {
   const { selectedDistrictId } = useAppStore((s) => s);
 
+  const [showIntro,  setShowIntro]  = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [weather, setWeather] = useState<any>(null);
   const [quickStats, setQuickStats] = useState({ lastUpdated: "", alerts: 0, online: 0, total: 0 });
   const [modules, setModules] = useState(MODULES);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowIntro(false), 2700);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -291,18 +368,9 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
   const bd = isDarkMode ? "#cbd5e1" : "#475569";
   const mt = isDarkMode ? "#94a3b8" : "#64748b";
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: bg }}>
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-4"
-          style={{ borderColor: `${FAO_BLUE}30`, borderTopColor: FAO_BLUE }} />
-        <p className="text-sm" style={{ color: mt }}>Loading Dashboard…</p>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: bg }}>
+      {(showIntro || isLoading) && <IntroOverlay isDarkMode={isDarkMode}/>}
       {/* Background Climate Illustration Watermark */}
       <img
         src="/climate_illustration.jpg"
@@ -351,19 +419,19 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
           {[
             {
               label: "Temperature", Icon: Thermometer, color: "#f97316", val: temp, Δ: tΔ, unit: "°C", valStr: `${temp}°C`, spark: (tΔ >= 0 ? "up" : "down") as keyof typeof PATHS, min: 15, max: 40,
-              segs: [{ label: "Cool", color: "#93c5fd", end: 20 }, { label: "Normal", color: "#86efac", end: 28 }, { label: "Warm", color: "#fdba74", end: 35 }, { label: "Hot", color: "#f87171", end: 40 }]
+              thresholds: [{ value: 20, color: "#3b82f6", label: "Cool" }, { value: 28, color: "#22c55e", label: "Mild" }, { value: 35, color: "#f97316", label: "Warm" }, { value: 40, color: "#ef4444", label: "Hot" }]
             },
             {
               label: "Rainfall", Icon: CloudRain, color: "#0284c7", val: rain, Δ: rΔ, unit: " mm", valStr: `${rain} mm`, spark: "flat" as keyof typeof PATHS, min: 0, max: 100,
-              segs: [{ label: "Dry", color: "#bfdbfe", end: 5 }, { label: "Light", color: "#7dd3fc", end: 25 }, { label: "Moderate", color: "#0284c7", end: 50 }, { label: "Heavy", color: "#1e3a8a", end: 100 }]
+              thresholds: [{ value: 5, color: "#e0f2fe", label: "Dry" }, { value: 25, color: "#38bdf8", label: "Light" }, { value: 50, color: "#0284c7", label: "Moderate" }, { value: 100, color: "#1e3a8a", label: "Heavy" }]
             },
             {
               label: "Humidity", Icon: Droplets, color: FAO_BLUE, val: humid, Δ: hΔ, unit: "%", valStr: `${humid}%`, spark: (hΔ >= 0 ? "up" : "down") as keyof typeof PATHS, min: 0, max: 100,
-              segs: [{ label: "Dry", color: "#fca5a5", end: 30 }, { label: "Low", color: "#fde68a", end: 50 }, { label: "Normal", color: "#86efac", end: 70 }, { label: "High", color: "#f87171", end: 100 }]
+              thresholds: [{ value: 30, color: "#dc2626", label: "Dry" }, { value: 50, color: "#fbbf24", label: "Low" }, { value: 70, color: "#22c55e", label: "Normal" }, { value: 100, color: "#3b82f6", label: "High" }]
             },
             {
               label: "Wind Speed", Icon: Wind, color: "#64748b", val: wind, Δ: wΔ, unit: " km/h", valStr: `${wind} km/h`, spark: "volatile" as keyof typeof PATHS, min: 0, max: 60,
-              segs: [{ label: "Calm", color: "#86efac", end: 10 }, { label: "Breezy", color: "#93c5fd", end: 25 }, { label: "Windy", color: "#fdba74", end: 40 }, { label: "Strong", color: "#f87171", end: 60 }]
+              thresholds: [{ value: 10, color: "#22c55e", label: "Calm" }, { value: 25, color: "#3b82f6", label: "Breezy" }, { value: 40, color: "#f97316", label: "Windy" }, { value: 60, color: "#dc2626", label: "Strong" }]
             },
           ].map((m) => {
             const Icon = m.Icon;
@@ -390,7 +458,7 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
                   <DeltaIcon className="w-3 h-3" />
                   <span>{up ? "+" : ""}{m.Δ}{m.unit} (24h)</span>
                 </div>
-                <ThresholdBar value={m.val} min={m.min} max={m.max} segments={m.segs} isDarkMode={isDarkMode} />
+                <ThresholdScale value={m.val} min={m.min} max={m.max} thresholds={m.thresholds} isDarkMode={isDarkMode} />
               </div>
             );
           })}
@@ -496,6 +564,59 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
 
       <style>{`
         .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        @keyframes introFade {
+          0%   { opacity: 1; }
+          73%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes cloudLeft {
+          0%   { transform: translateX(-110%); opacity: 0; }
+          10%  { opacity: 1; }
+          40%  { transform: translateX(0);     opacity: 1; }
+          73%  { transform: translateX(0);     opacity: 1; }
+          100% { transform: translateX(0);     opacity: 0; }
+        }
+        @keyframes cloudRight {
+          0%   { transform: translateX(110%); opacity: 0; }
+          10%  { opacity: 1; }
+          40%  { transform: translateX(0);    opacity: 1; }
+          73%  { transform: translateX(0);    opacity: 1; }
+          100% { transform: translateX(0);    opacity: 0; }
+        }
+        @keyframes cloudTop {
+          0%   { transform: translateY(-100px); opacity: 0; }
+          18%  { opacity: 1; }
+          42%  { transform: translateY(0);      opacity: 1; }
+          73%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes boltFlash {
+          0%,  28% { opacity: 0; }
+          31%, 34%  { opacity: 1; }
+          36%       { opacity: 0; }
+          44%, 47%  { opacity: 0.85; }
+          49%       { opacity: 0; }
+          56%, 59%  { opacity: 1; }
+          61%       { opacity: 0; }
+          100%      { opacity: 0; }
+        }
+        @keyframes glowPulse {
+          0%,  28% { opacity: 0; }
+          31%, 34%  { opacity: 1; }
+          36%       { opacity: 0.1; }
+          44%, 47%  { opacity: 0.75; }
+          49%       { opacity: 0; }
+          56%, 59%  { opacity: 1; }
+          61%       { opacity: 0; }
+          100%      { opacity: 0; }
+        }
+        @keyframes textReveal {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+          22%  { opacity: 0; transform: translateX(-50%) translateY(12px); }
+          42%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          73%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+        }
       `}</style>
     </div>
   );

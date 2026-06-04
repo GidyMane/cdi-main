@@ -1125,7 +1125,7 @@ export default function WeatherForecastPage({
                       Weather Trend
                     </h3>
                     <div className="flex gap-1">
-                      {(["temp", "rain", "wind", "humidity"] as const).map((m) => (
+                      {(["temp", "rain", "humidity", "wind"] as const).map((m) => (
                         <button
                           key={m}
                           onClick={() => setChartMetric(m)}
@@ -1352,7 +1352,7 @@ export default function WeatherForecastPage({
                 Weather Trend
               </h3>
               <div className="flex gap-1">
-                {(["temp", "rain", "wind", "humidity"] as const).map((m) => (
+                {(["temp", "rain", "humidity", "wind"] as const).map((m) => (
                   <button
                     key={m}
                     onClick={() => setChartMetric(m)}
