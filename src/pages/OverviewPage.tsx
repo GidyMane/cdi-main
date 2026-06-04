@@ -124,6 +124,24 @@ const IntroOverlay = ({ isDarkMode }: { isDarkMode: boolean }) => {
           </svg>
         </div>
       </div>
+
+      {/* title text */}
+      <div style={{
+        position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)",
+        textAlign: "center", whiteSpace: "nowrap",
+        animation: "textReveal 2.6s ease forwards",
+      }}>
+        <p style={{
+          fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.25em",
+          textTransform: "uppercase",
+          color: isDarkMode ? "rgba(148,163,184,0.75)" : "rgba(51,85,120,0.65)",
+          marginBottom: "6px",
+        }}>Republic of Uganda · FAO</p>
+        <p style={{
+          fontSize: "clamp(1rem, 2.5vw, 1.5rem)", fontWeight: 900, letterSpacing: "0.05em",
+          color: isDarkMode ? "rgba(241,245,249,0.92)" : "rgba(15,23,42,0.88)",
+        }}>Uganda Multi Hazard Observatory System</p>
+      </div>
     </div>
   );
 };
@@ -613,6 +631,13 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
           56%, 59%  { opacity: 1; }
           61%       { opacity: 0; }
           100%      { opacity: 0; }
+        }
+        @keyframes textReveal {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+          22%  { opacity: 0; transform: translateX(-50%) translateY(12px); }
+          42%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          73%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
     </div>
