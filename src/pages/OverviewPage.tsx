@@ -4,6 +4,7 @@ import {
   Cloud, Sun, Radio, BarChart2,
   Activity, AlertCircle, Signal, Timer, Users,
 } from "lucide-react";
+import { ThresholdScale } from "../components/shared/ThresholdScale";
 import React, { useState, useEffect } from "react";
 import type { PageType } from "../App";
 import { overviewAPI, weatherAPI, floodAPI, stationsAPI } from "../services/api";
@@ -35,33 +36,6 @@ const Sparkline = ({ type, color }: { type: keyof typeof PATHS; color: string })
     <path d={PATHS[type]} stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
-/* ── Threshold bar ─────────────────────────────────────────────── */
-const ThresholdBar = ({ value, min, max, segments, isDarkMode }: {
-  value: number; min: number; max: number;
-  segments: { label: string; color: string; end: number }[];
-  isDarkMode: boolean;
-}) => {
-  const pct = Math.min(97, Math.max(3, ((value - min) / (max - min)) * 100));
-  let prev = min;
-  const widths = segments.map(s => { const w = ((s.end - prev) / (max - min)) * 100; prev = s.end; return w; });
-  return (
-    <div className="mt-3">
-      <div className="relative h-1.5 flex gap-px rounded-full overflow-visible">
-        {segments.map((s, i) => (
-          <div key={i} className="h-full rounded-full" style={{ width: `${widths[i]}%`, backgroundColor: s.color }} />
-        ))}
-        <div className="absolute -top-0.5 w-2.5 h-2.5 rounded-full border-2 shadow-md z-10"
-          style={{ left: `calc(${pct}% - 5px)`, backgroundColor: isDarkMode ? "#1e293b" : "#fff", borderColor: isDarkMode ? "#94a3b8" : "#64748b" }} />
-      </div>
-      <div className="flex justify-between mt-1.5">
-        {segments.map(s => (
-          <span key={s.label} className="text-[9px]" style={{ color: isDarkMode ? "#475569" : "#94a3b8" }}>{s.label}</span>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 /* ── Intro animation overlay ────────────────────────────────────── */
 const IntroOverlay = ({ isDarkMode }: { isDarkMode: boolean }) => {
@@ -380,19 +354,9 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
   const bd = isDarkMode ? "#cbd5e1" : "#475569";
   const mt = isDarkMode ? "#94a3b8" : "#64748b";
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: bg }}>
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-4"
-          style={{ borderColor: `${FAO_BLUE}30`, borderTopColor: FAO_BLUE }} />
-        <p className="text-sm" style={{ color: mt }}>Loading Dashboard…</p>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: bg }}>
-      {showIntro && <IntroOverlay isDarkMode={isDarkMode}/>}
+      {(showIntro || isLoading) && <IntroOverlay isDarkMode={isDarkMode}/>}
       {/* Background Climate Illustration Watermark */}
       <img
         src="/climate_illustration.jpg"
@@ -441,19 +405,19 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
           {[
             {
               label: "Temperature", Icon: Thermometer, color: "#f97316", val: temp, Δ: tΔ, unit: "°C", valStr: `${temp}°C`, spark: (tΔ >= 0 ? "up" : "down") as keyof typeof PATHS, min: 15, max: 40,
-              segs: [{ label: "Cool", color: "#93c5fd", end: 20 }, { label: "Normal", color: "#86efac", end: 28 }, { label: "Warm", color: "#fdba74", end: 35 }, { label: "Hot", color: "#f87171", end: 40 }]
+              thresholds: [{ value: 20, color: "#3b82f6", label: "Cool" }, { value: 28, color: "#22c55e", label: "Mild" }, { value: 35, color: "#f97316", label: "Warm" }, { value: 40, color: "#ef4444", label: "Hot" }]
             },
             {
               label: "Rainfall", Icon: CloudRain, color: "#0284c7", val: rain, Δ: rΔ, unit: " mm", valStr: `${rain} mm`, spark: "flat" as keyof typeof PATHS, min: 0, max: 100,
-              segs: [{ label: "Dry", color: "#bfdbfe", end: 5 }, { label: "Light", color: "#7dd3fc", end: 25 }, { label: "Moderate", color: "#0284c7", end: 50 }, { label: "Heavy", color: "#1e3a8a", end: 100 }]
+              thresholds: [{ value: 5, color: "#e0f2fe", label: "Dry" }, { value: 25, color: "#38bdf8", label: "Light" }, { value: 50, color: "#0284c7", label: "Moderate" }, { value: 100, color: "#1e3a8a", label: "Heavy" }]
             },
             {
               label: "Humidity", Icon: Droplets, color: FAO_BLUE, val: humid, Δ: hΔ, unit: "%", valStr: `${humid}%`, spark: (hΔ >= 0 ? "up" : "down") as keyof typeof PATHS, min: 0, max: 100,
-              segs: [{ label: "Dry", color: "#fca5a5", end: 30 }, { label: "Low", color: "#fde68a", end: 50 }, { label: "Normal", color: "#86efac", end: 70 }, { label: "High", color: "#f87171", end: 100 }]
+              thresholds: [{ value: 30, color: "#dc2626", label: "Dry" }, { value: 50, color: "#fbbf24", label: "Low" }, { value: 70, color: "#22c55e", label: "Normal" }, { value: 100, color: "#3b82f6", label: "High" }]
             },
             {
               label: "Wind Speed", Icon: Wind, color: "#64748b", val: wind, Δ: wΔ, unit: " km/h", valStr: `${wind} km/h`, spark: "volatile" as keyof typeof PATHS, min: 0, max: 60,
-              segs: [{ label: "Calm", color: "#86efac", end: 10 }, { label: "Breezy", color: "#93c5fd", end: 25 }, { label: "Windy", color: "#fdba74", end: 40 }, { label: "Strong", color: "#f87171", end: 60 }]
+              thresholds: [{ value: 10, color: "#22c55e", label: "Calm" }, { value: 25, color: "#3b82f6", label: "Breezy" }, { value: 40, color: "#f97316", label: "Windy" }, { value: 60, color: "#dc2626", label: "Strong" }]
             },
           ].map((m) => {
             const Icon = m.Icon;
@@ -480,7 +444,7 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
                   <DeltaIcon className="w-3 h-3" />
                   <span>{up ? "+" : ""}{m.Δ}{m.unit} (24h)</span>
                 </div>
-                <ThresholdBar value={m.val} min={m.min} max={m.max} segments={m.segs} isDarkMode={isDarkMode} />
+                <ThresholdScale value={m.val} min={m.min} max={m.max} thresholds={m.thresholds} isDarkMode={isDarkMode} />
               </div>
             );
           })}
