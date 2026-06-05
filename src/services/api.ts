@@ -30,7 +30,7 @@ interface FetchOptions {
 async function fetchData<T>(
   endpoint: string,
   options?: FetchOptions,
-): Promise<T> {
+): Promise<T | null> {
   try {
     const url = endpoint.startsWith("http")
       ? endpoint
@@ -45,6 +45,13 @@ async function fetchData<T>(
       body: options?.body ? JSON.stringify(options.body) : undefined,
     });
 
+    // 404 = no data for this query (normal), 204 = empty response (normal)
+    // These are not errors — return null so callers can treat them as empty.
+    if (response.status === 404 || response.status === 204) {
+      return null;
+    }
+
+    // 5xx or other unexpected codes = real server error → throw so partialErrors fires
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
     }
@@ -323,6 +330,45 @@ function floodQueryString(query?: FloodQuery): string {
 /**
  * Flood API
  */
+// ── New flood API types ───────────────────────────────────────────────────────
+
+export interface FloodActualEvent {
+  id: number;
+  basin_name: string | null;
+  district_name: string | null;
+  event_date: string;
+  severity: "minor" | "moderate" | "severe" | "extreme";
+  area_affected_km2?: number;
+  affected_population?: number;
+  description?: string;
+}
+
+export interface FloodBasin {
+  id: number;
+  name: string;
+  area_km2?: number;
+  flood_threshold?: number;       // m³/s bank-full discharge threshold
+  warning_threshold?: number;     // m³/s
+  alert_level?: "none" | "low" | "medium" | "high" | "extreme";
+}
+
+export interface FloodSeason {
+  id: number;
+  name: string;
+  start_month: number;
+  end_month: number;
+  season_type: "long_rains" | "short_rains" | "dry";
+  is_current: boolean;
+}
+
+export interface FloodPipelineStatus {
+  status: "idle" | "running" | "success" | "failed";
+  last_run?: string;       // ISO datetime
+  next_run?: string;       // ISO datetime
+  forecast_date?: string;
+  message?: string;
+}
+
 export const floodAPI = {
   /**
    * Get flood dashboard with overall status and recent forecasts
@@ -431,10 +477,44 @@ export const floodAPI = {
   },
 
   /**
-   * Export flood data
+   * Get confirmed actual flood events (not forecasts)
    */
-  exportData: async (format: "csv" | "pdf" | "json" = "csv") => {
-    return fetchData(`floods/export/?format=${format}`);
+  getActualEvents: async (limit = 10) => {
+    return fetchData<{ count: number; results: FloodActualEvent[] }>(
+      `floods/actual-events/?limit=${limit}`
+    );
+  },
+
+  /**
+   * Get all monitored river basins with thresholds
+   */
+  getBasins: async () => {
+    return fetchData<FloodBasin[]>("floods/basins/");
+  },
+
+  /**
+   * Get flood seasons (current + upcoming)
+   */
+  getSeasons: async () => {
+    return fetchData<FloodSeason[]>("floods/seasons/");
+  },
+
+  /**
+   * Get forecast pipeline status (last run, next run, running state)
+   */
+  getForecastPipeline: async () => {
+    return fetchData<FloodPipelineStatus>("floods/forecast-pipeline/");
+  },
+
+  /**
+   * Export flood data — pass current date + basin for contextual export
+   */
+  exportData: async (format: "csv" | "pdf" | "json" = "csv", date?: string, basin?: string) => {
+    const params = new URLSearchParams();
+    params.set("format", format);
+    if (date) params.set("date", date);
+    if (basin && basin !== "All Basins") params.set("basin", basin);
+    return fetchData(`floods/export/?${params.toString()}`);
   },
 
   /**

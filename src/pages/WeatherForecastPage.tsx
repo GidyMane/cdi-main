@@ -12,7 +12,7 @@ import {
   Navigation,
   Filter,
   X,
-  
+  MapPin,
   Map as MapIcon,
   TrendingUp,
 } from "lucide-react";
@@ -564,7 +564,7 @@ export default function WeatherForecastPage({
   useEffect(() => {
     const model = activeTab === "forecast" ? "gfs" : "icon";
     weatherAPI.getRasterFrames(model).then((data) => {
-      if (!data.frames.length) return;
+      if (!data || !data.frames.length) return;
       // Find the last frame's effective time
       const lastFrame = data.frames[data.frames.length - 1];
       const runDate = new Date(lastFrame.run);
@@ -642,9 +642,9 @@ export default function WeatherForecastPage({
           weatherAPI.getForecastHourly(statsId),
           weatherAPI.getForecastDaily(statsId),
         ]);
-        setWeatherData(dashboard as WeatherData);
-        setForecastData(hourlyForecast as ForecastPerHour);
-        setDailyForecast(dailyForecast as DailyForecastResponse);
+        setWeatherData((dashboard ?? null) as WeatherData | null);
+        setForecastData((hourlyForecast ?? null) as ForecastPerHour | null);
+        setDailyForecast((dailyForecast ?? null) as DailyForecastResponse | null);
       } catch (err) {
         console.error("Failed to fetch weather data:", err);
       }
@@ -977,7 +977,7 @@ export default function WeatherForecastPage({
         </div>
 
         {/* Stat cards */}
-        {/* <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3">
           <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
           <span
             className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
@@ -993,7 +993,7 @@ export default function WeatherForecastPage({
           >
             Live
           </span>
-        </div> */}
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
           {statCards.map((card, index) => {
             const Icon = card.icon;

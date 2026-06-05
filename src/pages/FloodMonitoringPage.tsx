@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Waves,
   MapPin,
@@ -14,12 +14,25 @@ import {
   Building2,
   Shield,
   Navigation,
+  ChevronDown,
+  Activity,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
 import FloodHourSlider from "@/components/shared/FloodHourSlider";
 import { useAppStore } from "@/store/useAppStore";
-import type { FloodRasterLayer, FloodForecastFull, FloodImpact } from "@/services/api";
+import type {
+  FloodRasterLayer,
+  FloodForecastFull,
+  FloodImpact,
+  FloodActualEvent,
+  FloodBasin,
+  FloodSeason,
+  FloodPipelineStatus,
+} from "@/services/api";
+import { floodAPI } from "@/services/api";
 
 interface FloodMonitoringPageProps {
   isDarkMode?: boolean;
@@ -310,6 +323,54 @@ export default function FloodMonitoringPage({
   const [selectedFloodLayer, setSelectedFloodLayer] =
     useState<FloodRasterLayer | null>(null);
 
+  // ── New endpoint state ────────────────────────────────────────────────────
+  const [actualEvents, setActualEvents] = useState<FloodActualEvent[]>([]);
+  const [allBasins, setAllBasins] = useState<FloodBasin[]>([]);
+  const [currentSeason, setCurrentSeason] = useState<FloodSeason | null>(null);
+  const [pipeline, setPipeline] = useState<FloodPipelineStatus | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const alertsRef = useRef<HTMLDivElement>(null);
+
+  // Fetch the four new endpoints once on mount
+  useEffect(() => {
+    floodAPI.getActualEvents(8).then((res) => {
+      if (res?.results) setActualEvents(res.results);
+    }).catch(() => {});
+
+    floodAPI.getBasins().then((res) => {
+      if (Array.isArray(res)) setAllBasins(res);
+    }).catch(() => {});
+
+    floodAPI.getSeasons().then((res) => {
+      if (Array.isArray(res)) {
+        const current = res.find((s) => s.is_current) ?? null;
+        setCurrentSeason(current);
+      }
+    }).catch(() => {});
+
+    floodAPI.getForecastPipeline().then((res) => {
+      if (res) setPipeline(res);
+    }).catch(() => {});
+  }, []);
+
+  // Re-fetch pipeline status on manual refresh
+  const refreshPipeline = () => {
+    floodAPI.getForecastPipeline().then((res) => {
+      if (res) setPipeline(res);
+    }).catch(() => {});
+  };
+
+  // Close alerts dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) {
+        setAlertsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   // ── Filter state: leadtime + date ─────────────────────────────────────────
   const [selectedLeadtime, setSelectedLeadtime] = useState<number>(24);
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -420,14 +481,24 @@ export default function FloodMonitoringPage({
     new Set(forecastsFull.map((f) => f.forecast_date))
   ).sort().reverse();
 
-  // Available basins from actual river_basin_name values in the active forecast
-  const availableBasinNames: string[] = Array.from(
-    new Set(
-      (activeForecast?.impacts ?? [])
-        .filter((i) => i.river_basin_name !== null)
-        .map((i) => i.river_basin_name!)
-    )
-  ).sort();
+  // Available basins: prefer allBasins from /floods/basins/, fall back to impact names
+  const availableBasinNames: string[] = allBasins.length > 0
+    ? allBasins.map((b) => b.name).sort()
+    : Array.from(
+        new Set(
+          (activeForecast?.impacts ?? [])
+            .filter((i) => i.river_basin_name !== null)
+            .map((i) => i.river_basin_name!)
+        )
+      ).sort();
+
+  // Per-basin discharge threshold from allBasins (falls back to global 3000 m³/s)
+  const getBasinThreshold = (basinName: string): number => {
+    const match = allBasins.find((b) =>
+      b.name.toLowerCase() === basinName.toLowerCase()
+    );
+    return match?.flood_threshold ?? 3000;
+  };
 
   // ── Basin status list — scoped to selected basin when one is chosen ─────────
   // Each basin entry gets its own trend direction from basinTrend (which now
@@ -485,7 +556,8 @@ export default function FloodMonitoringPage({
   const namedCriticalBasins: Array<{ name: string; discharge: number; status: string; population: number }> = [];
 
   basinImpacts.forEach((i) => {
-    if ((i.max_discharge ?? 0) > 3000 && i.river_basin_name) {
+    const threshold = getBasinThreshold(i.river_basin_name ?? "");
+    if ((i.max_discharge ?? 0) > threshold && i.river_basin_name) {
       if (!namedCriticalBasins.find((n) => n.name === i.river_basin_name)) {
         namedCriticalBasins.push({
           name: i.river_basin_name,
@@ -514,16 +586,19 @@ export default function FloodMonitoringPage({
     criticalBasinCount > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
 
   // ── Districts at risk — from forecast impacts, scoped to selected basin ───
-  const liveDistrictsAtRisk = topDistrictImpacts.map((i) => ({
-    id: 0,
-    name: i.district_name!,
-    population_affected: i.affected_population,
-    flood_risk_level: (i.max_discharge ?? 0) > 3000
-      ? "critical" as const
-      : (i.max_discharge ?? 0) > 1000
-        ? "high" as const
-        : "medium" as const,
-  }));
+  const liveDistrictsAtRisk = topDistrictImpacts.map((i) => {
+    const threshold = getBasinThreshold(i.river_basin_name ?? "");
+    return {
+      id: 0,
+      name: i.district_name!,
+      population_affected: i.affected_population,
+      flood_risk_level: (i.max_discharge ?? 0) > threshold
+        ? "critical" as const
+        : (i.max_discharge ?? 0) > threshold * 0.33
+          ? "high" as const
+          : "medium" as const,
+    };
+  });
 
   // ── All display KPIs — direct from API, zero if no data ──────────────────
   const displayPopulation  = totalAffectedPopulation;
@@ -597,8 +672,8 @@ export default function FloodMonitoringPage({
       )}
 
       <div className="relative z-10 w-full">
-        {/* API error banner — only shown when there's a real network error */}
-        {!dataLoading && Object.values(partialErrors).some(Boolean) && (
+        {/* Error banner — only when a primary endpoint had a real network/server failure */}
+        {!dataLoading && (partialErrors.dashboard || partialErrors.forecasts) && (
           <div
             className="mb-3 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2"
             style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
@@ -625,22 +700,92 @@ export default function FloodMonitoringPage({
                   Real-time rainfall data and flood risk assessment
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  {namedCriticalBasins.map((b) => (
-                    <span
-                      key={b.name}
-                      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
-                      style={{ backgroundColor: "rgba(239, 68, 68, 0.4)" }}
-                    >
-                      <AlertTriangle className="w-3 h-3" />
-                      {b.name} — {b.status}
-                    </span>
-                  ))}
-                  {namedCriticalBasins.length === 0 && severeCount === 0 && moderateCount === 0 && !dataLoading && (
+                  {/* Alert summary badge — shows count, click to expand list */}
+                  {(namedCriticalBasins.length > 0 || severeCount > 0 || moderateCount > 0) && !dataLoading ? (
+                    <div className="relative" ref={alertsRef}>
+                      <button
+                        onClick={() => setAlertsOpen((o) => !o)}
+                        className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white cursor-pointer select-none"
+                        style={{ backgroundColor: namedCriticalBasins.length > 0 ? "rgba(239,68,68,0.4)" : "rgba(249,115,22,0.4)" }}
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        {namedCriticalBasins.length > 0
+                          ? `${namedCriticalBasins.length} critical`
+                          : `${severeCount + moderateCount} elevated`}
+                        {(severeCount > 0 || moderateCount > 0) && namedCriticalBasins.length === 0 &&
+                          ` · ${severeCount} severe, ${moderateCount} moderate`}
+                        <ChevronDown className={`w-2.5 h-2.5 transition-transform ${alertsOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {alertsOpen && (
+                        <div
+                          className="absolute left-0 top-full mt-1 z-50 rounded-lg shadow-xl border min-w-[220px] py-1"
+                          style={{
+                            background: isDarkMode ? "#1e293b" : "#fff",
+                            borderColor: isDarkMode ? "rgba(71,85,105,0.5)" : "#e2e8f0",
+                          }}
+                        >
+                          <p className="text-[9px] font-semibold uppercase tracking-wide px-2.5 pt-1 pb-1.5"
+                            style={{ color: isDarkMode ? "#64748b" : "#94a3b8" }}>
+                            Basin alerts
+                          </p>
+                          {namedCriticalBasins.map((b) => (
+                            <button
+                              key={b.name}
+                              onClick={() => { setSelectedBasin(b.name); setAlertsOpen(false); }}
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 text-left hover:bg-red-500/10 transition-colors"
+                            >
+                              <span className="text-xs font-medium" style={{ color: isDarkMode ? "#f1f5f9" : "#0f172a" }}>{b.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                                style={{ backgroundColor: "rgba(239,68,68,0.15)", color: "#ef4444" }}>
+                                {b.status} · {b.discharge.toLocaleString()} m³/s
+                              </span>
+                            </button>
+                          ))}
+                          {scopedBasins.filter((b) => b.status === "severe" && !namedCriticalBasins.find((n) => n.name === b.name)).map((b) => (
+                            <button
+                              key={b.name}
+                              onClick={() => { setSelectedBasin(b.name); setAlertsOpen(false); }}
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 text-left hover:bg-orange-500/10 transition-colors"
+                            >
+                              <span className="text-xs font-medium" style={{ color: isDarkMode ? "#f1f5f9" : "#0f172a" }}>{b.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                                style={{ backgroundColor: "rgba(249,115,22,0.15)", color: "#f97316" }}>
+                                severe
+                              </span>
+                            </button>
+                          ))}
+                          {scopedBasins.filter((b) => b.status === "moderate" && !namedCriticalBasins.find((n) => n.name === b.name)).map((b) => (
+                            <button
+                              key={b.name}
+                              onClick={() => { setSelectedBasin(b.name); setAlertsOpen(false); }}
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 text-left hover:bg-yellow-500/10 transition-colors"
+                            >
+                              <span className="text-xs font-medium" style={{ color: isDarkMode ? "#f1f5f9" : "#0f172a" }}>{b.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
+                                style={{ backgroundColor: "rgba(234,179,8,0.15)", color: "#eab308" }}>
+                                moderate
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : !dataLoading && (
                     <span
                       className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
                       style={{ backgroundColor: "rgba(34,197,94,0.3)" }}
                     >
-                      All basins within normal range
+                      All basins normal
+                    </span>
+                  )}
+                  {/* Current season badge */}
+                  {currentSeason && (
+                    <span
+                      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
+                      style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+                    >
+                      <Calendar className="w-2.5 h-2.5" />
+                      {currentSeason.name}
                     </span>
                   )}
                   {basinTrend?.trend === "rising" && (
@@ -648,23 +793,33 @@ export default function FloodMonitoringPage({
                       className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
                       style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
                     >
-                      <Droplets className="w-3 h-3" /> Rising Levels
+                      <Droplets className="w-3 h-3" /> Rising levels
                     </span>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => refetch()}
-                  disabled={dataLoading}
+                  onClick={() => { refetch(); refreshPipeline(); }}
+                  disabled={dataLoading || pipeline?.status === "running"}
                   className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 rounded-lg text-xs font-medium text-white transition-colors"
+                  title={pipeline?.last_run ? `Last run: ${new Date(pipeline.last_run).toLocaleString()}` : "Refresh data"}
                 >
                   <RefreshCw
-                    className={`w-3 h-3 ${dataLoading ? "animate-spin" : ""}`}
+                    className={`w-3 h-3 ${(dataLoading || pipeline?.status === "running") ? "animate-spin" : ""}`}
                   />
-                  <span className="hidden sm:inline">Refresh</span>
+                  <span className="hidden sm:inline">
+                    {pipeline?.status === "running" ? "Running…" : pipeline?.last_run
+                      ? `${Math.round((Date.now() - new Date(pipeline.last_run).getTime()) / 60000)}m ago`
+                      : "Refresh"}
+                  </span>
                 </button>
-                <button className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
+                <button
+                  onClick={() => {
+                    floodAPI.exportData("csv", statsDate, selectedBasin).then(() => {}).catch(() => {});
+                  }}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors"
+                >
                   <Download className="w-3 h-3" />
                   <span className="hidden sm:inline">Export</span>
                 </button>
@@ -713,16 +868,51 @@ export default function FloodMonitoringPage({
                   activeAlerts={criticalBasins + severeCount + moderateCount}
                 />
               </div>
-              {/* Illustration */}
-              <div className="mt-3 flex-1 flex relative min-h-[140px]">
-                <div
-                  className="absolute inset-0 rounded-xl overflow-hidden"
-                  style={{
-                    backgroundImage: "url(/flood-illustration.png)",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
+              {/* Recent Events — from actual-events API */}
+              <div className="mt-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className={`flex-1 rounded-xl p-3 flex flex-col min-h-0 ${isDarkMode ? "bg-slate-800/60" : "bg-white/80"} border ${borderColor}`}>
+                  <div className="flex items-center gap-1.5 mb-2 flex-shrink-0">
+                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                    <h4 className={`text-xs font-semibold ${headerText}`}>Recent Events</h4>
+                  </div>
+                  {actualEvents.length === 0 ? (
+                    <p className={`text-[10px] ${textMuted}`}>No recent events recorded</p>
+                  ) : (
+                    <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+                      {actualEvents.slice(0, 6).map((ev) => {
+                        const severityColor =
+                          ev.severity === "extreme" ? "#ef4444"
+                          : ev.severity === "severe" ? "#f97316"
+                          : ev.severity === "moderate" ? "#eab308"
+                          : "#22c55e";
+                        const dateStr = ev.event_date
+                          ? new Date(ev.event_date).toLocaleDateString([], { month: "short", day: "numeric" })
+                          : "";
+                        return (
+                          <div key={ev.id} className="flex items-start gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: severityColor }} />
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[10px] font-medium leading-tight truncate ${headerText}`}>
+                                {ev.basin_name ?? ev.district_name ?? "Unknown location"}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[9px] font-semibold" style={{ color: severityColor }}>{ev.severity}</span>
+                                {dateStr && <span className={`text-[9px] ${textMuted}`}>· {dateStr}</span>}
+                                {ev.affected_population != null && ev.affected_population > 0 && (
+                                  <span className={`text-[9px] ${textMuted}`}>
+                                    · {ev.affected_population >= 1000
+                                      ? `${Math.round(ev.affected_population / 1000)}K`
+                                      : ev.affected_population} affected
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -744,10 +934,12 @@ export default function FloodMonitoringPage({
                         River Basin Map
                       </h3>
                     </div>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : "bg-green-500/20 text-green-500"}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : severeCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-green-500/20 text-green-500"}`}>
                       {criticalBasinCount > 0
-                        ? `${namedCriticalBasins.map((b) => b.name).join(", ")} — critical`
-                        : "All normal"}
+                        ? `${criticalBasinCount} critical`
+                        : severeCount > 0
+                          ? `${severeCount} severe`
+                          : "All normal"}
                     </span>
                   </div>
                   <div className="relative flex-1 flex flex-col min-h-0">
@@ -1010,7 +1202,7 @@ export default function FloodMonitoringPage({
                       className={`ml-auto text-[9px] font-medium ${textMuted}`}
                     >
                       {thresholdMode === "EXCEEDED"
-                        ? namedCriticalBasins.map((b) => b.name).join(", ")
+                        ? `${criticalBasinCount} basin${criticalBasinCount !== 1 ? "s" : ""} exceeded`
                         : thresholdMode === "WARNING"
                           ? `${severeCount} severe · ${moderateCount} moderate`
                           : "All within safe range"}
@@ -1255,10 +1447,12 @@ export default function FloodMonitoringPage({
                     River Basin Map
                   </h3>
                 </div>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : "bg-green-500/20 text-green-500"}`}>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : severeCount > 0 ? "bg-orange-500/20 text-orange-400" : "bg-green-500/20 text-green-500"}`}>
                   {criticalBasinCount > 0
-                    ? `${namedCriticalBasins.map((b) => b.name).join(", ")} — critical`
-                    : "All normal"}
+                    ? `${criticalBasinCount} critical`
+                    : severeCount > 0
+                      ? `${severeCount} severe`
+                      : "All normal"}
                 </span>
               </div>
               <div className="relative aspect-video flex flex-col">
