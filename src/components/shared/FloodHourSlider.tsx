@@ -108,9 +108,13 @@ export function FloodHourSlider({
 
   // ── Today's date — captured once, never changes ───────────────────────────
   const todayRef = useRef(new Date());
-  const todayDay = todayRef.current.getDate();
-  const todayMonth = todayRef.current.getMonth();
-  const todayYear = todayRef.current.getFullYear();
+
+  // ── Max allowed date: today + 1 day (nowcast covers into tomorrow) ────────
+  const maxDate = new Date(todayRef.current);
+  maxDate.setDate(maxDate.getDate() + 1);
+  const maxDay = maxDate.getDate();
+  const maxMonth = maxDate.getMonth();
+  const maxYear = maxDate.getFullYear();
 
   // ── 10-day lookback lower bound ───────────────────────────────────────────
   const minDate = new Date(todayRef.current);
@@ -228,15 +232,15 @@ export function FloodHourSlider({
               setDay((d) => {
                 const daysThisMonth = new Date(year, month + 1, 0).getDate();
                 if (d < daysThisMonth) return d + 1;
-                // Roll into next month, but not past today
+                // Roll into next month, but not past max date
                 const newMonth = (month + 1) % 12;
                 const newYear = month === 11 ? year + 1 : year;
                 if (
-                  newYear > todayYear ||
-                  (newYear === todayYear && newMonth > todayMonth)
+                  newYear > maxYear ||
+                  (newYear === maxYear && newMonth > maxMonth)
                 ) {
                   setPlaying(false);
-                  return d; // already at today's month boundary
+                  return d; // already at max month boundary
                 }
                 setMonth(newMonth);
                 setYear(newYear);
@@ -259,15 +263,15 @@ export function FloodHourSlider({
     month,
     year,
     setForecastStep,
-    todayYear,
-    todayMonth,
+    maxYear,
+    maxMonth,
   ]);
 
   const clamp = (v: number, min: number, max: number) =>
     Math.min(max, Math.max(min, v));
 
   // ── Day navigation with automatic month/year rollover ────────────────────
-  const isAtMax = year === todayYear && month === todayMonth && day >= todayDay;
+  const isAtMax = year === maxYear && month === maxMonth && day >= maxDay;
   const isAtMin = year === minYear && month === minMonth && day <= minDay;
 
   const dayUp = () => {
@@ -304,10 +308,10 @@ export function FloodHourSlider({
     if (isForecast) {
       setForecastStep(FORECAST_STEPS[FORECAST_STEPS.length - 1]);
     } else {
-      // Skip to today at current hour
-      setDay(todayDay);
-      setMonth(todayMonth);
-      setYear(todayYear);
+      // Skip to tomorrow at 23:00 (end of nowcast range)
+      setDay(maxDay);
+      setMonth(maxMonth);
+      setYear(maxYear);
       setHour(23);
     }
     setPlaying(false);

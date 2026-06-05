@@ -126,6 +126,37 @@ async function fetchOmDailyForecast(lat: number, lng: number): Promise<OmDailyPo
   });
 }
 
+// ── Open-Meteo 48-hour hourly forecast (nowcast wind + humidity) ──────────────
+
+interface OmHourlyPoint {
+  time: string; // ISO datetime string
+  wind: number;
+  humidity: number;
+}
+
+async function fetchOmHourlyForecast(lat: number, lng: number): Promise<OmHourlyPoint[]> {
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", String(lat));
+  url.searchParams.set("longitude", String(lng));
+  url.searchParams.set("hourly", "wind_speed_10m,relative_humidity_2m");
+  url.searchParams.set("timezone", "Africa/Kampala");
+  url.searchParams.set("forecast_days", "2");
+
+  const res = await fetch(url.href);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const json = await res.json();
+
+  const times: string[] = json.hourly?.time ?? [];
+  const winds: number[] = json.hourly?.wind_speed_10m ?? [];
+  const humidities: number[] = json.hourly?.relative_humidity_2m ?? [];
+
+  return times.map((t, i) => ({
+    time: t,
+    wind: Math.round((winds[i] ?? 0) * 10) / 10,
+    humidity: Math.round((humidities[i] ?? 0) * 10) / 10,
+  }));
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const getWeatherIcon = (type?: string, className = "w-8 h-8") => {
@@ -471,6 +502,7 @@ export default function WeatherForecastPage({
     undefined,
   );
   const [omDailyForecast, setOmDailyForecast] = useState<OmDailyPoint[]>([]);
+  const [omHourlyForecast, setOmHourlyForecast] = useState<OmHourlyPoint[]>([]);
 
   // Unified tab setter: keeps map layerMode in sync with the forecast tab
   const setActiveTab = (tab: "nowcast" | "forecast") => {
@@ -501,11 +533,11 @@ export default function WeatherForecastPage({
 
   // ── Sync selectedCardIndex → slider hour ──────────────────────────────────────
   // When the user clicks an hourly forecast card, move the map to that hour.
+  // Since the nowcast now spans into the next day, hours > 23 wrap to the next day.
   useEffect(() => {
     if (activeTab !== "nowcast" || selectedCardIndex === null) return;
-    const now = new Date();
-    const currentHour = now.getHours();
-    const targetHour = (currentHour + selectedCardIndex) % 24;
+    const nowHour = new Date().getHours();
+    const targetHour = (nowHour + selectedCardIndex) % 24;
     setSliderhourIndexValue(targetHour);
   }, [selectedCardIndex, activeTab, setSliderhourIndexValue]);
 
@@ -577,6 +609,27 @@ export default function WeatherForecastPage({
     };
   }, [activeTab, selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch Open-Meteo 48-hr hourly forecast for nowcast wind + humidity values
+  useEffect(() => {
+    if (activeTab !== "nowcast") return;
+    let cancelled = false;
+    const districtName = selectedDistrictId?.name ?? kampala?.name ?? "";
+    const centroid =
+      getDistrictCentroid(districtName) ??
+      getDistrictCentroid("Kampala") ??
+      { lat: 1.3733, lng: 32.2903 };
+    fetchOmHourlyForecast(centroid.lat, centroid.lng)
+      .then((data) => {
+        if (!cancelled) setOmHourlyForecast(data);
+      })
+      .catch(() => {
+        if (!cancelled) setOmHourlyForecast([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch dashboard + forecasts whenever the stats district changes.
   // Guard against undefined statsId (districts query still loading) so we
   // don't fire a no-district request that returns zeros before Kampala resolves.
@@ -603,16 +656,15 @@ export default function WeatherForecastPage({
     setSelectedCardIndex(null);
   }, [activeTab]);
 
-  // Safe normalisation — guards against null / undefined / empty arrays
-  // Limit hourly forecast to 24 hours (48hr data cut at 24hr mark)
+  // Safe normalisation — keep up to 48 hours so we always have data into the next day
   const allHourlyForecast = forecastData?.hourly?.length
-    ? normaliseHourly(forecastData.hourly).slice(0, 24)
+    ? normaliseHourly(forecastData.hourly).slice(0, 48)
     : [];
 
-  // Start from current hour
+  // Start from current hour and show the next 24 hours (spanning into tomorrow)
   const now = new Date();
   const currentHour = now.getHours();
-  const hourlyForecast = allHourlyForecast.slice(currentHour);
+  const hourlyForecast = allHourlyForecast.slice(currentHour, currentHour + 24);
 
   const dailyForecast = dailyForecasts?.daily?.length
     ? normaliseDaily(dailyForecasts.daily).slice(0, 20)
@@ -671,11 +723,19 @@ export default function WeatherForecastPage({
               hour12: true,
             })
           : h.time;
+        // Match this hour to an OM hourly entry by ISO time prefix (YYYY-MM-DDTHH)
+        const rawTimePrefix = h.rawTime
+          ? h.rawTime.slice(0, 13)
+          : null;
+        const omMatch = rawTimePrefix
+          ? omHourlyForecast.find((o) => o.time.slice(0, 13) === rawTimePrefix)
+          : null;
         return {
           label: displayTime,
           temp: h.temp,
           rain: h.rain,
-          wind: h.windSpeed || 0,
+          wind: omMatch?.wind ?? h.windSpeed ?? 0,
+          humidity: omMatch?.humidity ?? h.humidity ?? 0,
         };
       });
     } else {
