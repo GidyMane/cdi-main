@@ -586,28 +586,26 @@ export default function WeatherForecastPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch Open-Meteo 7-day forecast to supplement humidity data for forecast tab
+  // Fetch Open-Meteo 7-day forecast for wind + humidity — fetch always (not gated
+  // on forecast tab) so data is ready the moment the user switches to the 7-day view.
   useEffect(() => {
-    if (activeTab !== "forecast") return;
     let cancelled = false;
     const districtName = selectedDistrictId?.name ?? kampala?.name ?? "";
-    // Try exact name, then title-cased, then fall back to Uganda centre
     const centroid =
       getDistrictCentroid(districtName) ??
       getDistrictCentroid("Kampala") ??
-      { lat: 1.3733, lng: 32.2903 }; // Uganda geographic centre as last resort
+      { lat: 1.3733, lng: 32.2903 };
     fetchOmDailyForecast(centroid.lat, centroid.lng)
       .then((data) => {
         if (!cancelled) setOmDailyForecast(data);
       })
       .catch(() => {
-        // Silently ignore — chart will use backend data with humidity: 0
         if (!cancelled) setOmDailyForecast([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [activeTab, selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDistrictId, statsLabel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch Open-Meteo 48-hr hourly forecast for nowcast wind + humidity values
   useEffect(() => {
@@ -739,27 +737,36 @@ export default function WeatherForecastPage({
         };
       });
     } else {
-      // Base forecast data comes from the backend (same source as the DailyCards above).
-      // We merge in humidity from omDailyForecast (Open-Meteo) when available,
-      // since the backend daily API does not always return humidity.
-      const baseSource = dailyForecast.map((d, i) => ({
-        label: d.rawDate
-          ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-          : (d.date ?? ""),
-        temp: d.high ?? 0,
-        rain: d.rain ?? 0,
-        wind: d.windSpeed ?? 0,
-        // Use OM humidity if available for this index, else backend humidity, else 0
-        humidity:
-          omDailyForecast[i]?.humidity ??
-          (d.humidity != null ? d.humidity : 0),
-      }));
+      // Build the 7-day chart source.
+      // Wind and humidity come primarily from omDailyForecast (Open-Meteo) since
+      // the backend daily API frequently returns 0 or null for both.
+      // Temperature and rain come from the backend (more district-accurate).
+      const baseSource = dailyForecast.map((d, i) => {
+        const om = omDailyForecast[i];
+        return {
+          label: d.rawDate
+            ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+            : (d.date ?? ""),
+          temp: d.high ?? 0,
+          rain: d.rain ?? 0,
+          // Prefer OM wind — backend wind_speed_max is often 0
+          wind: (om?.wind != null && om.wind > 0) ? om.wind : (d.windSpeed ?? 0),
+          // Prefer OM humidity — backend rarely returns it
+          humidity: (om?.humidity != null && om.humidity > 0) ? om.humidity : (d.humidity ?? 0),
+        };
+      });
 
       // If backend data is empty but OM data loaded, use OM directly
       const forecastSource =
         baseSource.length > 0
           ? baseSource
-          : omDailyForecast.map((d) => ({ ...d, humidity: d.humidity ?? 0 }));
+          : omDailyForecast.map((d) => ({
+              label: d.label,
+              temp: d.temp,
+              rain: d.rain,
+              wind: d.wind,
+              humidity: d.humidity ?? 0,
+            }));
 
       // Filter by date if dateRange is set
       if (dateRange) {
