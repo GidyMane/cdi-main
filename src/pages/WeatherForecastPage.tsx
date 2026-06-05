@@ -497,9 +497,6 @@ export default function WeatherForecastPage({
   const [chartMetric, setChartMetric] = useState<"temp" | "rain" | "wind" | "humidity">(
     "temp",
   );
-  const [maxForecastTime, setMaxForecastTime] = useState<string | undefined>(
-    undefined,
-  );
   const [omDailyForecast, setOmDailyForecast] = useState<OmDailyPoint[]>([]);
   const [omHourlyForecast, setOmHourlyForecast] = useState<OmHourlyPoint[]>([]);
 
@@ -570,19 +567,6 @@ export default function WeatherForecastPage({
     const mapped = paramToMetric[selectedParameter?.toLowerCase() ?? "temperature"];
     if (mapped) setChartMetric(mapped);
   }, [selectedParameter]);
-
-  // Fetch max forecast time from raster frames API
-  useEffect(() => {
-    const model = activeTab === "forecast" ? "gfs" : "icon";
-    weatherAPI.getRasterFrames(model).then((data) => {
-      if (!data || !data.frames.length) return;
-      // Find the last frame's effective time
-      const lastFrame = data.frames[data.frames.length - 1];
-      const runDate = new Date(lastFrame.run);
-      const endTime = new Date(runDate.getTime() + lastFrame.forecast_hour * 3600000);
-      setMaxForecastTime(endTime.toISOString());
-    }).catch(() => {});
-  }, [activeTab]);
 
   // When no district is selected, default stats to Kampala
   const kampala = district_list.find((d: district) =>
@@ -739,7 +723,7 @@ export default function WeatherForecastPage({
       // omDailyForecast already has label, temp, rain, wind, humidity all populated.
       if (omDailyForecast.length === 0) return [];
 
-      const forecastSource = omDailyForecast.map((d) => ({
+      const source = omDailyForecast.map((d) => ({
         label: d.label,
         temp: d.temp,
         rain: d.rain,
@@ -749,11 +733,11 @@ export default function WeatherForecastPage({
 
       if (selectedCardIndex !== null) {
         const startIdx = Math.max(0, selectedCardIndex - 1);
-        const endIdx = Math.min(baseSource.length, selectedCardIndex + 2);
-        return baseSource.slice(startIdx, endIdx);
+        const endIdx = Math.min(source.length, selectedCardIndex + 2);
+        return source.slice(startIdx, endIdx);
       }
 
-      return baseSource;
+      return source;
     }
   };
 
