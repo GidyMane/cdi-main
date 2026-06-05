@@ -808,7 +808,7 @@ export default function FloodMonitoringPage({
                 />
               </div>
               {/* Recent Events — from actual-events API */}
-              <div className="mt-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+              {/* <div className="mt-3 flex-1 flex flex-col min-h-0 overflow-hidden">
                 <div className={`flex-1 rounded-xl p-3 flex flex-col min-h-0 ${isDarkMode ? "bg-slate-800/60" : "bg-white/80"} border ${borderColor}`}>
                   <div className="flex items-center gap-1.5 mb-2 flex-shrink-0">
                     <Activity className="w-3.5 h-3.5 text-cyan-400" />
@@ -831,9 +831,9 @@ export default function FloodMonitoringPage({
                           <div key={ev.id} className="flex items-start gap-2">
                             <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: severityColor }} />
                             <div className="flex-1 min-w-0">
-                              {/* <p className={`text-[10px] font-medium leading-tight truncate ${headerText}`}>
+                              <p className={`text-[10px] font-medium leading-tight truncate ${headerText}`}>
                                 {ev.basin_name ?? ev.district_name ?? "Unknown location"}
-                              </p> */}
+                              </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-[9px] font-semibold" style={{ color: severityColor }}>{ev.severity}</span>
                                 {dateStr && <span className={`text-[9px] ${textMuted}`}>· {dateStr}</span>}
@@ -852,7 +852,7 @@ export default function FloodMonitoringPage({
                     </div>
                   )}
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 
