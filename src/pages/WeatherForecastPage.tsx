@@ -977,7 +977,7 @@ export default function WeatherForecastPage({
         </div>
 
         {/* Stat cards */}
-        <div className="flex items-center gap-2 mb-3">
+        {/* <div className="flex items-center gap-2 mb-3">
           <MapPin className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
           <span
             className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}
@@ -993,7 +993,7 @@ export default function WeatherForecastPage({
           >
             Live
           </span>
-        </div>
+        </div> */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 mb-3">
           {statCards.map((card, index) => {
             const Icon = card.icon;
