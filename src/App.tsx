@@ -379,35 +379,55 @@ function AppContent() {
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {/* Flood critical basin alerts from live API */}
-                  {floodAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={`p-3 border-b last:border-b-0 transition-colors ${
-                        isDarkMode
-                          ? "border-slate-700/30 hover:bg-slate-700/50"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-500" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {alert.basinName} — {alert.status} flood alert
-                          </p>
-                          <div className={`flex items-center gap-2 text-xs mt-1 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
-                            <MapPin className="w-3 h-3" />
-                            <span>{alert.discharge.toLocaleString()} m³/s</span>
-                            {alert.population > 0 && (
-                              <>
-                                <span>•</span>
-                                <span>{alert.population >= 1000 ? `${Math.round(alert.population / 1000)}K` : alert.population} at risk</span>
-                              </>
-                            )}
-                          </div>
+                  {floodAlerts.length > 0 && (
+                    <div className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide ${isDarkMode ? "text-slate-500 bg-slate-800/50" : "text-slate-400 bg-slate-50"}`}>
+                      Flood Alerts · {floodAlerts.length} basin{floodAlerts.length !== 1 ? "s" : ""}
+                    </div>
+                  )}
+                  {floodAlerts.map((alert) => {
+                    const statusColor =
+                      alert.status === "extreme" ? "#ef4444"
+                      : alert.status === "severe" ? "#f97316"
+                      : "#eab308";
+                    return (
+                      <div
+                        key={alert.id}
+                        className={`px-3 py-2.5 border-b transition-colors ${
+                          isDarkMode
+                            ? "border-slate-700/30 hover:bg-slate-700/50"
+                            : "border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className={`text-sm font-semibold truncate ${isDarkMode ? "text-white" : "text-slate-900"}`}>
+                            {alert.basinName}
+                          </span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold flex-shrink-0"
+                            style={{ backgroundColor: `${statusColor}20`, color: statusColor }}>
+                            {alert.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className={`flex items-center gap-3 text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium" style={{ color: statusColor }}>{alert.discharge.toLocaleString()}</span>
+                            <span>m³/s</span>
+                          </span>
+                          {alert.population > 0 && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-medium" style={{ color: "#f97316" }}>
+                                {alert.population >= 1_000_000
+                                  ? `${(alert.population / 1_000_000).toFixed(1)}M`
+                                  : alert.population >= 1000
+                                    ? `${Math.round(alert.population / 1000)}K`
+                                    : alert.population}
+                              </span>
+                              <span>at risk</span>
+                            </span>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {/* General system alerts */}
                   {alertsData.map((alert) => (
                     <div
