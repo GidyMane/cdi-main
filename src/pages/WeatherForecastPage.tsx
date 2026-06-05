@@ -749,51 +749,18 @@ export default function WeatherForecastPage({
         };
       });
     } else {
-      // Build the 7-day chart source.
-      // Wind and humidity come primarily from omDailyForecast (Open-Meteo).
-      // Match by date label string — not by index — so misaligned arrays don't corrupt the data.
-      const omByLabel = new Map(omDailyForecast.map((d) => [d.label, d]));
+      // 7-day chart uses Open-Meteo directly — all 4 metrics are reliable from OM.
+      // The backend daily API does not return wind or humidity reliably.
+      // omDailyForecast already has label, temp, rain, wind, humidity all populated.
+      if (omDailyForecast.length === 0) return [];
 
-      const baseSource = dailyForecast.map((d) => {
-        const dayLabel = d.rawDate
-          ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-          : (d.date ?? "");
-        const om = omByLabel.get(dayLabel);
-        return {
-          label: dayLabel,
-          temp: d.high ?? 0,
-          rain: d.rain ?? 0,
-          wind: (om?.wind != null && om.wind > 0) ? om.wind : (d.windSpeed ?? 0),
-          humidity: (om?.humidity != null && om.humidity > 0) ? om.humidity : (d.humidity ?? 0),
-        };
-      });
-
-      // If backend data is empty but OM data loaded, use OM directly
-      const forecastSource =
-        baseSource.length > 0
-          ? baseSource
-          : omDailyForecast.map((d) => ({
-              label: d.label,
-              temp: d.temp,
-              rain: d.rain,
-              wind: d.wind,
-              humidity: d.humidity ?? 0,
-            }));
-
-      // Filter by date if dateRange is set
-      if (dateRange) {
-        const selectedDate = new Date(dateRange);
-        const filtered = forecastSource.filter((_, i) => {
-          const d = dailyForecast[i];
-          if (!d?.rawDate) return false;
-          return (
-            d.rawDate.getFullYear() === selectedDate.getFullYear() &&
-            d.rawDate.getMonth() === selectedDate.getMonth() &&
-            d.rawDate.getDate() === selectedDate.getDate()
-          );
-        });
-        return filtered;
-      }
+      const forecastSource = omDailyForecast.map((d) => ({
+        label: d.label,
+        temp: d.temp,
+        rain: d.rain,
+        wind: d.wind,
+        humidity: d.humidity,
+      }));
 
       if (selectedCardIndex !== null) {
         const startIdx = Math.max(0, selectedCardIndex - 1);
