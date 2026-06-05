@@ -638,7 +638,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
     refetch,
   } = useQuery<WeatherStationAPI[]>({
     queryKey:        ["weather-stations"],
-    queryFn:         () => stationsAPI.getAll(),   // API ignores status param — filter client-side
+    queryFn:         () => stationsAPI.getAll().then((r) => r ?? []),   // API ignores status param — filter client-side
     refetchInterval: 60_000,
   });
 

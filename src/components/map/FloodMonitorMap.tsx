@@ -131,7 +131,7 @@ export default function FloodMonitorMap({
     floodAPI
       .getRasterLayers()
       .then((response) => {
-        if (!cancelled) setAvailableFloodLayers(response.layers ?? []);
+        if (!cancelled) setAvailableFloodLayers(response?.layers ?? []);
       })
       .catch((error) => {
         if (!cancelled) {
