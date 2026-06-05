@@ -14,6 +14,10 @@ import {
   MapPin,
   Map as MapIcon,
   TrendingUp,
+  Globe,
+  BarChart2,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import WeatherForcastMap from "../components/map/WeatherForcastMap";
 import { getTrendIcon, getTrendColor } from "../utils/chartHelpers";
@@ -50,6 +54,9 @@ interface WeatherForecastPageProps {
 }
 
 const FAO_BLUE = "#318DDE";
+
+// Persists across component remounts (SPA navigation) — modals show once per browser session
+const _shownModals = new Set<string>();
 
 // ── District centroid from geoData ────────────────────────────────────────────
 
@@ -358,6 +365,180 @@ const WeatherTrendChart = ({
   );
 };
 
+// ── Forecast Model Info Modal ─────────────────────────────────────────────────
+
+const ForecastModelModal = ({
+  model,
+  isDarkMode,
+  onClose,
+}: {
+  model: "icon" | "gfs";
+  isDarkMode: boolean;
+  onClose: () => void;
+}) => {
+  const isIcon = model === "icon";
+  const accentColor = isIcon ? "#3b82f6" : "#22c55e";
+
+  const cardStyle: React.CSSProperties = isDarkMode
+    ? { backgroundColor: isIcon ? "#0d1f3c" : "#0d2218" }
+    : { backgroundColor: "#ffffff", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" };
+
+  const textColor = isDarkMode ? "#ffffff" : "#0f172a";
+  const subtitleColor = isDarkMode ? "#94a3b8" : "#64748b";
+  const rowTextColor = isDarkMode ? "#e2e8f0" : "#334155";
+  const noteBoxBg = isDarkMode ? "rgba(255,255,255,0.07)" : "#fefce8";
+  const noteBoxBorder = isDarkMode ? "rgba(255,255,255,0.1)" : "#fde68a";
+
+  const content = isIcon
+    ? {
+        title: "ICON Forecast Model",
+        subtitle: "Forecast model run by Germany's weather service DWD.",
+        rows: [
+          {
+            icon: Globe,
+            text: (
+              <span>
+                Max resolution:{" "}
+                <strong style={{ color: accentColor }}>13 km (8 miles)</strong>
+              </span>
+            ),
+          },
+          {
+            icon: Clock,
+            text: (
+              <span>
+                Forecast range:{" "}
+                <strong style={{ color: accentColor }}>1 hr to 7.5 days</strong>
+              </span>
+            ),
+          },
+          {
+            icon: BarChart2,
+            text: (
+              <span>
+                Hourly data for: Rainfall, Temperature, Humidity and Wind
+              </span>
+            ),
+          },
+          {
+            icon: RefreshCw,
+            text: (
+              <span>
+                Updates:{" "}
+                <strong style={{ color: accentColor }}>2 times a day</strong>
+              </span>
+            ),
+          },
+        ],
+        note: "ICON accounts for topography and coastlines, delivering high accuracy even in complex terrain and near bodies of water.",
+      }
+    : {
+        title: "GFS Forecast Model",
+        subtitle:
+          "GFS is a global weather forecasting model by the U.S. National Centers for Environmental Prediction (NCEP/NOAA).",
+        rows: [
+          {
+            icon: Globe,
+            text: <span>Global weather coverage</span>,
+          },
+          {
+            icon: MapPin,
+            text: (
+              <span>
+                Resolution:{" "}
+                <strong style={{ color: accentColor }}>27 km (17 miles)</strong>
+              </span>
+            ),
+          },
+          {
+            icon: Clock,
+            text: (
+              <span>
+                Forecast step:{" "}
+                <strong style={{ color: accentColor }}>1 hour</strong>
+              </span>
+            ),
+          },
+          {
+            icon: RefreshCw,
+            text: (
+              <span>
+                Updated{" "}
+                <strong style={{ color: accentColor }}>4 times daily</strong>{" "}
+                (every 6 hours)
+              </span>
+            ),
+          },
+        ],
+        note: "GFS does not resolve topography or coastlines in detail, so accuracy may be lower near coasts and complex terrain.",
+      };
+
+  return (
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.65)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl p-6"
+        style={cardStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          className="text-xl font-bold text-center mb-2"
+          style={{ color: textColor }}
+        >
+          {content.title}
+        </h2>
+        <p
+          className="text-sm text-center mb-5"
+          style={{ color: subtitleColor }}
+        >
+          {content.subtitle}
+        </p>
+
+        <div className="space-y-4 mb-5">
+          {content.rows.map(({ icon: Icon, text }, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Icon
+                className="w-5 h-5 flex-shrink-0"
+                style={{ color: accentColor }}
+              />
+              <span className="text-sm" style={{ color: rowTextColor }}>
+                {text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="flex items-start gap-3 rounded-xl p-3 mb-5"
+          style={{
+            backgroundColor: noteBoxBg,
+            border: `1px solid ${noteBoxBorder}`,
+          }}
+        >
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-yellow-400" />
+          <p className="text-sm" style={{ color: subtitleColor }}>
+            <span className="font-semibold" style={{ color: "#facc15" }}>
+              Note:
+            </span>{" "}
+            {content.note}
+          </p>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80"
+          style={{ backgroundColor: "#3b82f6" }}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── Filter Sidebar ────────────────────────────────────────────────────────────
 
 const FilterContent = ({
@@ -485,6 +666,7 @@ export default function WeatherForecastPage({
   const [activeTab, setActiveTabState] = useState<"nowcast" | "forecast">("nowcast");
   const [selectedRegion, setSelectedRegion] = useState("All Regions");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [modelInfoModal, setModelInfoModal] = useState<null | "icon" | "gfs">(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecastData, setForecastData] = useState<ForecastPerHour | null>(
     null,
@@ -504,7 +686,21 @@ export default function WeatherForecastPage({
   const setActiveTab = (tab: "nowcast" | "forecast") => {
     setActiveTabState(tab);
     setLayerMode(tab);
+    const model = tab === "nowcast" ? "icon" : "gfs";
+    if (!_shownModals.has(model)) {
+      _shownModals.add(model);
+      setModelInfoModal(model);
+    }
   };
+
+  // Show ICON info modal on first load (default tab is nowcast/ICON)
+  useEffect(() => {
+    if (!_shownModals.has("icon")) {
+      _shownModals.add("icon");
+      setModelInfoModal("icon");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Live map hover state — district name + sampled value from Open-Meteo ─────
   const [mapHoverDistrict, setMapHoverDistrict] = useState<string | null>(null);
@@ -1491,6 +1687,14 @@ export default function WeatherForecastPage({
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
       `}</style>
+
+      {modelInfoModal && (
+        <ForecastModelModal
+          model={modelInfoModal}
+          isDarkMode={isDarkMode}
+          onClose={() => setModelInfoModal(null)}
+        />
+      )}
     </div>
   );
 }
