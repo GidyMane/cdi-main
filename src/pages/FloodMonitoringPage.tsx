@@ -17,7 +17,7 @@ import {
   ChevronDown,
   Activity,
   Calendar,
-  
+  Clock,
 } from "lucide-react";
 import FloodMonitorMap from "../components/map/FloodMonitorMap";
 import { useFloodData } from "../hooks/useFloodData";
@@ -330,6 +330,8 @@ export default function FloodMonitoringPage({
   const [pipeline, setPipeline] = useState<FloodPipelineStatus | null>(null);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const alertsRef = useRef<HTMLDivElement>(null);
+  const alertsBtnRef = useRef<HTMLButtonElement>(null);
+  const [alertsPos, setAlertsPos] = useState({ top: 0, left: 0 });
 
   // Fetch the four new endpoints once on mount
   useEffect(() => {
@@ -338,7 +340,16 @@ export default function FloodMonitoringPage({
     }).catch(() => {});
 
     floodAPI.getBasins().then((res) => {
-      if (Array.isArray(res)) setAllBasins(res);
+      if (Array.isArray(res)) {
+        // Deduplicate by name in case the API returns multiple entries per basin
+        const seen = new Set<string>();
+        const unique = res.filter((b) => {
+          if (seen.has(b.name)) return false;
+          seen.add(b.name);
+          return true;
+        });
+        setAllBasins(unique);
+      }
     }).catch(() => {});
 
     floodAPI.getSeasons().then((res) => {
@@ -704,7 +715,14 @@ export default function FloodMonitoringPage({
                   {(namedCriticalBasins.length > 0 || severeCount > 0 || moderateCount > 0) && !dataLoading ? (
                     <div className="relative" ref={alertsRef}>
                       <button
-                        onClick={() => setAlertsOpen((o) => !o)}
+                        ref={alertsBtnRef}
+                        onClick={() => {
+                          if (!alertsOpen && alertsBtnRef.current) {
+                            const r = alertsBtnRef.current.getBoundingClientRect();
+                            setAlertsPos({ top: r.bottom + 6, left: r.left });
+                          }
+                          setAlertsOpen((o) => !o);
+                        }}
                         className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white cursor-pointer select-none"
                         style={{ backgroundColor: namedCriticalBasins.length > 0 ? "rgba(239,68,68,0.4)" : "rgba(249,115,22,0.4)" }}
                       >
@@ -718,11 +736,17 @@ export default function FloodMonitoringPage({
                       </button>
                       {alertsOpen && (
                         <div
-                          className="absolute left-0 top-full mt-1 z-50 rounded-lg shadow-xl border min-w-[220px] py-1"
                           style={{
+                            position: "fixed",
+                            top: alertsPos.top,
+                            left: alertsPos.left,
+                            zIndex: 9999,
                             background: isDarkMode ? "#1e293b" : "#fff",
                             borderColor: isDarkMode ? "rgba(71,85,105,0.5)" : "#e2e8f0",
+                            borderWidth: 1,
+                            borderStyle: "solid",
                           }}
+                          className="rounded-lg shadow-xl min-w-[220px] py-1"
                         >
                           <p className="text-[9px] font-semibold uppercase tracking-wide px-2.5 pt-1 pb-1.5"
                             style={{ color: isDarkMode ? "#64748b" : "#94a3b8" }}>
