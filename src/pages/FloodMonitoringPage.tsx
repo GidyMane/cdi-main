@@ -448,15 +448,17 @@ export default function FloodMonitoringPage({
 
   // ── Human Impact KPIs — direct sums from filtered impacts, zero if no data ──
   const totalAffectedPopulation = districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0);
-  const totalFloodExtentKm2 = allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0);
+  // Use district-level extents only to avoid double-counting with overlapping basin extents
+  const totalFloodExtentKm2 = districtImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0);
   const populationDensityAvg = totalFloodExtentKm2 > 0
     ? Math.round(totalAffectedPopulation / totalFloodExtentKm2)
     : 0;
 
-  // ── Infrastructure KPIs (aggregate across all impacts for selected forecast) ─
-  const totalRoadsKm = allImpacts.reduce((s, i) => s + (i.affected_roads_km ?? 0), 0);
-  const totalBuildings = allImpacts.reduce((s, i) => s + (i.affected_buildings_count ?? 0), 0);
-  const totalPois = allImpacts.reduce((s, i) => s + (i.affected_pois_count ?? 0), 0);
+  // ── Infrastructure KPIs (from district-level impacts only to avoid double-counting
+  //    with basin impacts that overlap the same geography) ────────────────────
+  const totalRoadsKm = districtImpacts.reduce((s, i) => s + (i.affected_roads_km ?? 0), 0);
+  const totalBuildings = districtImpacts.reduce((s, i) => s + (i.affected_buildings_count ?? 0), 0);
+  const totalPois = districtImpacts.reduce((s, i) => s + (i.affected_pois_count ?? 0), 0);
 
   // ── Flood Metrics KPIs (from basin impacts) ───────────────────────────────
   const allMaxDischarges = allImpacts.map((i) => i.max_discharge ?? 0);
@@ -820,28 +822,33 @@ export default function FloodMonitoringPage({
                     <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
                       {actualEvents.slice(0, 6).map((ev) => {
                         const severityColor =
-                          ev.severity === "extreme" ? "#ef4444"
-                          : ev.severity === "severe" ? "#f97316"
-                          : ev.severity === "moderate" ? "#eab308"
+                          ev.alert_level === "extreme" ? "#ef4444"
+                          : ev.alert_level === "high" ? "#f97316"
+                          : ev.alert_level === "moderate" ? "#eab308"
                           : "#22c55e";
-                        const dateStr = ev.event_date
-                          ? new Date(ev.event_date).toLocaleDateString([], { month: "short", day: "numeric" })
+                        const dateStr = ev.start_date
+                          ? new Date(ev.start_date).toLocaleDateString([], { month: "short", day: "numeric" })
                           : "";
+                        // Display: use event name, or first affected area, or fallback
+                        const locationLabel =
+                          ev.affected_areas?.length > 0
+                            ? ev.affected_areas[0]
+                            : ev.name || "Unknown location";
                         return (
                           <div key={ev.id} className="flex items-start gap-2">
                             <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: severityColor }} />
                             <div className="flex-1 min-w-0">
                               <p className={`text-[10px] font-medium leading-tight truncate ${headerText}`}>
-                                {ev.basin_name ?? ev.district_name ?? "Unknown location"}
+                                {locationLabel}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[9px] font-semibold" style={{ color: severityColor }}>{ev.severity}</span>
+                                <span className="text-[9px] font-semibold" style={{ color: severityColor }}>{ev.alert_level}</span>
                                 {dateStr && <span className={`text-[9px] ${textMuted}`}>· {dateStr}</span>}
-                                {ev.affected_population != null && ev.affected_population > 0 && (
+                                {ev.total_affected_population > 0 && (
                                   <span className={`text-[9px] ${textMuted}`}>
-                                    · {ev.affected_population >= 1000
-                                      ? `${Math.round(ev.affected_population / 1000)}K`
-                                      : ev.affected_population} affected
+                                    · {ev.total_affected_population >= 1000
+                                      ? `${Math.round(ev.total_affected_population / 1000)}K`
+                                      : ev.total_affected_population} affected
                                   </span>
                                 )}
                               </div>

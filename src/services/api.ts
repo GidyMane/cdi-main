@@ -308,13 +308,29 @@ function floodQueryString(query?: FloodQuery): string {
 
 export interface FloodActualEvent {
   id: number;
-  basin_name: string | null;
-  district_name: string | null;
-  event_date: string;
-  severity: "minor" | "moderate" | "severe" | "extreme";
-  area_affected_km2?: number;
-  affected_population?: number;
-  description?: string;
+  name: string;
+  event_type: string;
+  event_type_display?: string;
+  status: string;
+  status_display?: string;
+  start_date: string;
+  end_date?: string | null;
+  duration_days?: number | null;
+  affected_areas: string[];
+  associated_season?: number | null;
+  associated_season_name?: string | null;
+  estimated_affected_population?: number | null;
+  estimated_damage_usd?: string | null;
+  data_source?: string;
+  reliability_score?: number;
+  downloaded?: boolean;
+  processed?: boolean;
+  uploaded_to_geoserver?: boolean;
+  alert_level: "none" | "low" | "moderate" | "high" | "extreme";
+  total_affected_population: number;
+  total_flood_extent_km2: number;
+  wms_url?: string | null;
+  layer_name?: string | null;
 }
 
 export interface FloodBasin {
