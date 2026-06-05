@@ -326,7 +326,7 @@ const WeatherTrendChart = ({
           }}
           tickLine={false}
           axisLine={false}
-          interval={Math.max(0, Math.floor(dataToDisplay.length / 6))}
+          interval={0}
           height={36}
         />
         <YAxis
@@ -541,14 +541,26 @@ export default function WeatherForecastPage({
     setSliderhourIndexValue(targetHour);
   }, [selectedCardIndex, activeTab, setSliderhourIndexValue]);
 
-  // Sync chart metric with map interaction (parameter click on map toolbar) (hover)
+  // Sync chart metric with map interaction (parameter click on map toolbar)
   useEffect(() => {
     if (mapInteractionMetric) {
-      setChartMetric(mapInteractionMetric);
+      handleSetChartMetric(mapInteractionMetric);
     }
-  }, [mapInteractionMetric]);
+  }, [mapInteractionMetric]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync chart metric when the parameter filter changes
+  // Two-way sync: changing chartMetric also updates the parameter dropdown, and vice versa.
+  const metricToParam: Record<string, string> = {
+    temp: "temperature",
+    rain: "rainfall",
+    wind: "wind",
+    humidity: "humidity",
+  };
+  const handleSetChartMetric = (m: "temp" | "rain" | "wind" | "humidity") => {
+    setChartMetric(m);
+    setSelectedParameter(metricToParam[m]);
+  };
+
+  // Sync chart metric when the parameter filter changes (one-way: filter → chart)
   useEffect(() => {
     const paramToMetric: Record<string, "temp" | "rain" | "wind" | "humidity"> = {
       temperature: "temp",
@@ -738,20 +750,20 @@ export default function WeatherForecastPage({
       });
     } else {
       // Build the 7-day chart source.
-      // Wind and humidity come primarily from omDailyForecast (Open-Meteo) since
-      // the backend daily API frequently returns 0 or null for both.
-      // Temperature and rain come from the backend (more district-accurate).
-      const baseSource = dailyForecast.map((d, i) => {
-        const om = omDailyForecast[i];
+      // Wind and humidity come primarily from omDailyForecast (Open-Meteo).
+      // Match by date label string — not by index — so misaligned arrays don't corrupt the data.
+      const omByLabel = new Map(omDailyForecast.map((d) => [d.label, d]));
+
+      const baseSource = dailyForecast.map((d) => {
+        const dayLabel = d.rawDate
+          ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
+          : (d.date ?? "");
+        const om = omByLabel.get(dayLabel);
         return {
-          label: d.rawDate
-            ? `${DAYS_SHORT[d.rawDate.getDay()]} ${MONTHS[d.rawDate.getMonth()]} ${d.rawDate.getDate()}`
-            : (d.date ?? ""),
+          label: dayLabel,
           temp: d.high ?? 0,
           rain: d.rain ?? 0,
-          // Prefer OM wind — backend wind_speed_max is often 0
           wind: (om?.wind != null && om.wind > 0) ? om.wind : (d.windSpeed ?? 0),
-          // Prefer OM humidity — backend rarely returns it
           humidity: (om?.humidity != null && om.humidity > 0) ? om.humidity : (d.humidity ?? 0),
         };
       });
@@ -1270,7 +1282,7 @@ export default function WeatherForecastPage({
                       {(["temp", "rain", "humidity", "wind"] as const).map((m) => (
                         <button
                           key={m}
-                          onClick={() => setChartMetric(m)}
+                          onClick={() => handleSetChartMetric(m)}
                           className={`text-xs px-2 py-0.5 rounded transition-all ${
                             chartMetric === m
                               ? "font-semibold text-white"
@@ -1498,7 +1510,7 @@ export default function WeatherForecastPage({
                 {(["temp", "rain", "humidity", "wind"] as const).map((m) => (
                   <button
                     key={m}
-                    onClick={() => setChartMetric(m)}
+                    onClick={() => handleSetChartMetric(m)}
                     className={`text-xs px-1.5 py-0.5 rounded transition-all ${
                       chartMetric === m ? "font-semibold text-white" : textMuted
                     }`}
