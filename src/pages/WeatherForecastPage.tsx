@@ -12,7 +12,7 @@ import {
   Navigation,
   Filter,
   X,
-  MapPin,
+  
   Map as MapIcon,
   TrendingUp,
 } from "lucide-react";
