@@ -35,6 +35,8 @@ export interface HourlyForecast {
   precip: number;
   weather_code: number;
   weather_description: string;
+  humidity?: number | null;
+  wind_speed?: number | null;
 }
 
 export interface DailyEntry {

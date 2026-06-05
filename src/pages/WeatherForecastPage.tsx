@@ -9,7 +9,6 @@ import {
   Thermometer,
   Calendar,
   Clock,
-  Navigation,
   Filter,
   X,
   MapPin,
@@ -750,11 +749,11 @@ export default function WeatherForecastPage({
 
       if (selectedCardIndex !== null) {
         const startIdx = Math.max(0, selectedCardIndex - 1);
-        const endIdx = Math.min(forecastSource.length, selectedCardIndex + 2);
-        return forecastSource.slice(startIdx, endIdx);
+        const endIdx = Math.min(baseSource.length, selectedCardIndex + 2);
+        return baseSource.slice(startIdx, endIdx);
       }
 
-      return forecastSource;
+      return baseSource;
     }
   };
 
@@ -934,13 +933,6 @@ export default function WeatherForecastPage({
                 >
                   <Clock className="w-3 h-3" />
                   Updated 5 min ago
-                </span>
-                <span
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
-                  style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-                >
-                  <Navigation className="w-3 h-3" />
-                  87% Accuracy
                 </span>
               </div>
             </div>
@@ -1156,7 +1148,6 @@ export default function WeatherForecastPage({
                         isDarkMode={isDarkMode}
                         borderColor={borderColor}
                         textMuted={textMuted}
-                        maxForecastTime={maxForecastTime}
                       />
                     </div>
                   </div>
@@ -1404,7 +1395,6 @@ export default function WeatherForecastPage({
                     isDarkMode={isDarkMode}
                     borderColor={borderColor}
                     textMuted={textMuted}
-                    maxForecastTime={maxForecastTime}
                   />
                 </div>
               </div>

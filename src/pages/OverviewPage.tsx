@@ -264,12 +264,11 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
         ];
 
         // ── Flood Monitor stats ───────────────────────────────────
-        // Prefer direct API data over the overview module stats
-        // 1. People at Risk: from latest 24h forecast total_affected_population
+        // Backend now returns complete dynamic data — prefer flood dashboard (fd) directly
+        // 1. People at Risk: from flood dashboard or latest forecast
         const latestForecast = fcs.find(f => f.leadtime_hours === 24) ?? fcs[0];
-        const peopleAtRisk   = latestForecast?.total_affected_population
-          ?? fd?.summary?.at_risk_population
-          ?? ms?.flood_monitor?.people_at_risk;
+        const peopleAtRisk   = fd?.summary?.at_risk_population
+          ?? latestForecast?.total_affected_population;
         const peopleStr = peopleAtRisk != null
           ? peopleAtRisk >= 1_000_000 ? `${(peopleAtRisk / 1_000_000).toFixed(1)}M`
           : peopleAtRisk >= 1_000     ? `${Math.round(peopleAtRisk / 1_000)}K`
@@ -283,7 +282,7 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
           ? Math.max(...allDischarges)
           : impactDischarges.length > 0
             ? Math.max(...impactDischarges)
-            : ms?.flood_monitor?.highest_discharge ?? null;
+            : null;
         const maxDischargeSrc = bs?.find(b => b.discharge_rate === maxDischarge);
         const dischargeStr = maxDischarge != null
           ? `${(Math.round(maxDischarge * 10) / 10).toLocaleString()} m³/s`
@@ -295,20 +294,17 @@ export default function OverviewPage({ onNavigate, isDarkMode = true }: Overview
         ) ?? [];
         const risingStr = bs != null
           ? risingBasins.length > 0 ? `${risingBasins.length} basin${risingBasins.length !== 1 ? "s" : ""}` : "None"
-          : ms?.flood_monitor?.rising_rivers != null
-            ? `${ms.flood_monitor.rising_rivers} river${ms.flood_monitor.rising_rivers !== 1 ? "s" : ""}`
-            : "--";
+          : "--";
 
-        // 4. Active Alerts
+        // 4. Active Alerts: from flood dashboard directly
         const activeAlerts = fd?.summary?.active_alerts
           ?? fd?.summary?.critical_basins
-          ?? ms?.flood_monitor?.alert_areas
           ?? qs?.active_alerts;
         const alertsStr = activeAlerts != null ? String(activeAlerts) : "--";
 
         const floodStats: StatPatch[] = [
           { value: peopleStr,    sub: undefined },
-          { value: dischargeStr, sub: maxDischargeSrc?.name ?? ms?.flood_monitor?.highest_discharge_basin ?? undefined },
+          { value: dischargeStr, sub: maxDischargeSrc?.name ?? undefined },
           { value: risingStr,    sub: undefined },
           { value: alertsStr,    sub: undefined },
         ];

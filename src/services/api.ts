@@ -104,35 +104,6 @@ export const weatherAPI = {
     return fetchData(endpoint);
   },
 
-  /**
-   * Fetch available raster frames from the weather raster API.
-   * Returns frames with wms_layer names and geoserver WMS URL.
-   */
-  getRasterFrames: async (model: string, parameter?: string) => {
-    let endpoint = `weather/raster/frames/${model}/`;
-    if (parameter) endpoint += `?parameter=${parameter}`;
-    return fetchData<{
-      model: string;
-      count: number;
-      frames: Array<{
-        model: string;
-        parameter: string;
-        level: string;
-        run: string;
-        run_epoch: number;
-        forecast_hour: number;
-        file: string;
-        wms_layer: string;
-        future_wms_layer: string;
-        frame_url: string;
-      }>;
-      geoserver: {
-        workspace: string;
-        wms_url: string;
-      };
-    }>(endpoint);
-  },
-
   getForecastHourly: async (districtId?: number) => {
     const endpoint = districtId
       ? `weather/hourly/?district_id=${districtId}`
@@ -147,6 +118,8 @@ export const weatherAPI = {
         precip: number | null;
         weather_code: number | null;
         weather_description: string;
+        humidity: number | null;
+        wind_speed: number | null;
       }>;
     }>(endpoint);
   },
@@ -167,6 +140,7 @@ export const weatherAPI = {
         weather_code: number;
         wind_speed_max: number;
         weather_description: string;
+        humidity: number | null;
       }>;
     }>(endpoint);
   },

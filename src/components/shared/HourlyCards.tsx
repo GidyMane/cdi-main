@@ -1,5 +1,5 @@
 import { EmptyState, getWeatherIcon } from "@/pages/WeatherForecastPage";
-import { Cloud } from "lucide-react";
+import { Cloud, Wind, Droplets } from "lucide-react";
 
 function HourlyCards({
   hourlyForecast,
@@ -50,6 +50,18 @@ function HourlyCards({
           <p className="text-[10px]" style={{ color: FAO_BLUE }}>
             {hour.rain ?? 0}mm
           </p>
+          {selectedIndex === idx && (
+            <div className={`mt-1 pt-1 border-t ${isDarkMode ? "border-slate-600" : "border-slate-200"} space-y-0.5`}>
+              <div className="flex items-center justify-center gap-0.5 text-[9px]">
+                <Wind className="w-2.5 h-2.5" style={{ color: "#f97316" }} />
+                <span style={{ color: "#f97316" }}>{hour.windSpeed ?? 0}</span>
+              </div>
+              <div className="flex items-center justify-center gap-0.5 text-[9px]">
+                <Droplets className="w-2.5 h-2.5" style={{ color: "#06b6d4" }} />
+                <span style={{ color: "#06b6d4" }}>{hour.humidity ?? 0}%</span>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>

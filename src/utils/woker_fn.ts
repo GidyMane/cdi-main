@@ -27,9 +27,9 @@ export const normaliseHourly = (raw: HourlyForecast[]) => {
       rawTime: h.time,
       rawDate: date,
       temp: Math.round(h.temp),
-      humidity: 0,
+      humidity: h.humidity ?? 0,
       rain: h.precip,
-      windSpeed: 0,
+      windSpeed: h.wind_speed ?? 0,
       icon: getIconFromCode(h.weather_code),
     };
   });
