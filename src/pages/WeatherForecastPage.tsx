@@ -680,22 +680,8 @@ export default function WeatherForecastPage({
     ? normaliseDaily(dailyForecasts.daily).slice(0, 20)
     : [];
 
-  const MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
+ 
 
-  const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   // Get chart data based on active tab, selected card, metric, and date filters
   const getChartData = () => {
