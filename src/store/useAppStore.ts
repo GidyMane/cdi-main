@@ -92,6 +92,10 @@ export interface AppStoreState {
   // setForecastStep: (step: number) => void;
   setForecastStep: (value: number | ((prev: number) => number)) => void;
 
+  // Flood critical alerts — populated by FloodMonitoringPage, consumed by the bell
+  floodAlerts: Array<{ id: string; basinName: string; status: string; discharge: number; population: number }>;
+  setFloodAlerts: (alerts: Array<{ id: string; basinName: string; status: string; discharge: number; population: number }>) => void;
+
   // Chart metric from map interaction
   mapInteractionMetric: "temp" | "rain" | "wind" | null;
   setMapInteractionMetric: (metric: "temp" | "rain" | "wind" | null) => void;
@@ -184,6 +188,10 @@ export const useAppStore = create<AppStoreState>()(
           forecastStep:
             typeof value === "function" ? value(state.forecastStep) : value,
         })),
+
+      // Flood critical alerts
+      floodAlerts: [],
+      setFloodAlerts: (alerts) => set({ floodAlerts: alerts }),
 
       // Chart metric from map interaction
       mapInteractionMetric: null,

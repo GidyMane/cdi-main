@@ -301,7 +301,7 @@ const FilterContent = ({
 export default function FloodMonitoringPage({
   isDarkMode = true,
 }: FloodMonitoringPageProps) {
-  const { dateRange, setDateRange, setLayerMode, forecastStep } = useAppStore(
+  const { dateRange, setDateRange, setLayerMode, forecastStep, setFloodAlerts } = useAppStore(
     (state) => state,
   );
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
@@ -390,12 +390,9 @@ export default function FloodMonitoringPage({
     .sort((a, b) => b.affected_population - a.affected_population)
     .slice(0, 4);
 
-  // ── Human Impact KPIs ──────────────────────────────────────────────────────
-  // Always aggregate from filtered impacts so basin/date/leadtime filters apply
-  const totalAffectedPopulation = districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0)
-    || (selectedBasin === "All Basins" ? (activeForecast?.total_affected_population ?? 0) : 0);
-  const totalFloodExtentKm2 = allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0)
-    || (selectedBasin === "All Basins" ? (activeForecast?.total_flood_extent_km2 ?? 0) : 0);
+  // ── Human Impact KPIs — direct sums from filtered impacts, zero if no data ──
+  const totalAffectedPopulation = districtImpacts.reduce((s, i) => s + (i.affected_population ?? 0), 0);
+  const totalFloodExtentKm2 = allImpacts.reduce((s, i) => s + (i.flood_extent_km2 ?? 0), 0);
   const populationDensityAvg = totalFloodExtentKm2 > 0
     ? Math.round(totalAffectedPopulation / totalFloodExtentKm2)
     : 0;
@@ -467,8 +464,8 @@ export default function FloodMonitoringPage({
         }))
       : [];
 
-  // ── Basin-scoped status counts (from the filtered riverBasins list) ────────
-  // When a specific basin is selected, filter down to just that basin.
+
+  // ── Basin-scoped status counts ────────────────────────────────────────────
   const scopedBasins = selectedBasin === "All Basins"
     ? riverBasins
     : riverBasins.filter((b) =>
@@ -482,22 +479,41 @@ export default function FloodMonitoringPage({
   const currentLevel = basinTrend?.current_level_m
     ?? (timeSeriesData.length > 0 ? timeSeriesData[timeSeriesData.length - 1].level : 0);
 
-  // ── All display KPIs come directly from filtered API impacts — zero if no data ─
-  const displayPopulation  = totalAffectedPopulation;
-  const displayDensity     = populationDensityAvg;
-  const affectedRoadsKm    = Math.round(totalRoadsKm * 10) / 10;
-  const affectedBuildings  = totalBuildings;
-  const affectedPois       = totalPois;
-  const maxDischarge       = maxDischargeApi;
-  const avgDischarge       = Math.round(avgDischargeApi);
+  // ── Named critical basins — specific basins that are critical/severe ───────
+  // Built from both forecast impacts (discharge > 3000) AND basinStatus entries.
+  // These are used in the UI badges and pushed to the notification bell.
+  const namedCriticalBasins: Array<{ name: string; discharge: number; status: string; population: number }> = [];
 
-  // ── Critical basin count ───────────────────────────────────────────────────
-  const criticalBasinCount = basinImpacts.filter((i) => (i.max_discharge ?? 0) > 3000).length || criticalBasins;
+  basinImpacts.forEach((i) => {
+    if ((i.max_discharge ?? 0) > 3000 && i.river_basin_name) {
+      if (!namedCriticalBasins.find((n) => n.name === i.river_basin_name)) {
+        namedCriticalBasins.push({
+          name: i.river_basin_name,
+          discharge: Math.round(i.max_discharge ?? 0),
+          status: "extreme",
+          population: i.affected_population ?? 0,
+        });
+      }
+    }
+  });
+
+  scopedBasins.filter((b) => b.status === "severe" || b.status === "extreme").forEach((b) => {
+    if (!namedCriticalBasins.find((n) => n.name === b.name)) {
+      namedCriticalBasins.push({
+        name: b.name,
+        discharge: Math.round(b.discharge),
+        status: b.status,
+        population: b.population,
+      });
+    }
+  });
+
+  const criticalBasinCount = namedCriticalBasins.length;
 
   const thresholdMode =
     criticalBasinCount > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
 
-  // ── Districts at risk — always from forecast impacts, scoped to selected basin ─
+  // ── Districts at risk — from forecast impacts, scoped to selected basin ───
   const liveDistrictsAtRisk = topDistrictImpacts.map((i) => ({
     id: 0,
     name: i.district_name!,
@@ -509,12 +525,33 @@ export default function FloodMonitoringPage({
         : "medium" as const,
   }));
 
-  // ── Infrastructure proportion bar widths ───────────────────────────────────
+  // ── All display KPIs — direct from API, zero if no data ──────────────────
+  const displayPopulation  = totalAffectedPopulation;
+  const displayDensity     = populationDensityAvg;
+  const affectedRoadsKm    = Math.round(totalRoadsKm * 10) / 10;
+  const affectedBuildings  = totalBuildings;
+  const affectedPois       = totalPois;
+  const maxDischarge       = maxDischargeApi;
+  const avgDischarge       = Math.round(avgDischargeApi);
+
+  // ── Infrastructure proportion bar widths ──────────────────────────────────
   const infraTotal = (affectedRoadsKm > 0 ? affectedRoadsKm : 1) + (affectedBuildings / 100);
   const roadsBarPct = Math.round((affectedRoadsKm / infraTotal) * 100);
   const buildingsBarPct = 100 - roadsBarPct;
 
-
+  // ── Push named critical basins to the global store for the notification bell ─
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setFloodAlerts(
+      namedCriticalBasins.map((b) => ({
+        id: `flood-${b.name}`,
+        basinName: b.name,
+        status: b.status,
+        discharge: b.discharge,
+        population: b.population,
+      }))
+    );
+  }, [namedCriticalBasins.length, namedCriticalBasins.map((b) => b.name).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";
@@ -588,14 +625,22 @@ export default function FloodMonitoringPage({
                   Real-time rainfall data and flood risk assessment
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  {criticalBasins > 0 && (
+                  {namedCriticalBasins.map((b) => (
                     <span
+                      key={b.name}
                       className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
                       style={{ backgroundColor: "rgba(239, 68, 68, 0.4)" }}
                     >
                       <AlertTriangle className="w-3 h-3" />
-                      {criticalBasins} Severe Alert
-                      {criticalBasins !== 1 ? "s" : ""}
+                      {b.name} — {b.status}
+                    </span>
+                  ))}
+                  {namedCriticalBasins.length === 0 && severeCount === 0 && moderateCount === 0 && !dataLoading && (
+                    <span
+                      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-white"
+                      style={{ backgroundColor: "rgba(34,197,94,0.3)" }}
+                    >
+                      All basins within normal range
                     </span>
                   )}
                   {basinTrend?.trend === "rising" && (
@@ -699,8 +744,10 @@ export default function FloodMonitoringPage({
                         River Basin Map
                       </h3>
                     </div>
-                    <span className="px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded text-[10px] font-medium">
-                      {criticalBasins} Critical
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : "bg-green-500/20 text-green-500"}`}>
+                      {criticalBasinCount > 0
+                        ? `${namedCriticalBasins.map((b) => b.name).join(", ")} — critical`
+                        : "All normal"}
                     </span>
                   </div>
                   <div className="relative flex-1 flex flex-col min-h-0">
@@ -963,7 +1010,7 @@ export default function FloodMonitoringPage({
                       className={`ml-auto text-[9px] font-medium ${textMuted}`}
                     >
                       {thresholdMode === "EXCEEDED"
-                        ? `${criticalBasinCount} basin${criticalBasinCount !== 1 ? "s" : ""} critical`
+                        ? namedCriticalBasins.map((b) => b.name).join(", ")
                         : thresholdMode === "WARNING"
                           ? `${severeCount} severe · ${moderateCount} moderate`
                           : "All within safe range"}
@@ -1208,8 +1255,10 @@ export default function FloodMonitoringPage({
                     River Basin Map
                   </h3>
                 </div>
-                <span className="px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded text-[10px] font-medium">
-                  {criticalBasins} Critical
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${criticalBasinCount > 0 ? "bg-red-500/20 text-red-500" : "bg-green-500/20 text-green-500"}`}>
+                  {criticalBasinCount > 0
+                    ? `${namedCriticalBasins.map((b) => b.name).join(", ")} — critical`
+                    : "All normal"}
                 </span>
               </div>
               <div className="relative aspect-video flex flex-col">

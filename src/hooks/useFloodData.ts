@@ -77,45 +77,47 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
       floodDataCache.lastFetch = floodDataCache.lastFetch || {};
       const errors: FloodDataError = {};
 
-      // Dashboard
+      // Dashboard — error only on rejection (network/server failure), not on null response
       const dashboardResult = results[0];
-      if (dashboardResult.status === 'fulfilled' && dashboardResult.value) {
-        floodDataCache.dashboard = dashboardResult.value as FloodDashboard;
+      if (dashboardResult.status === 'fulfilled') {
+        floodDataCache.dashboard = (dashboardResult.value ?? null) as FloodDashboard;
         floodDataCache.lastFetch[cacheKey('dashboard')] = Date.now();
-        setDashboard(dashboardResult.value as FloodDashboard);
+        setDashboard(dashboardResult.value as FloodDashboard ?? null);
       } else {
         errors.dashboard = true;
         setDashboard(null);
       }
 
-      // Basin Status
+      // Basin Status — empty array is valid (no basins), only rejected = error
       const basinStatusResult: any = results[1];
-      if (basinStatusResult.status === 'fulfilled' && basinStatusResult.value?.length > 0) {
-        floodDataCache.basinStatus = basinStatusResult.value;
+      if (basinStatusResult.status === 'fulfilled') {
+        const val = Array.isArray(basinStatusResult.value) ? basinStatusResult.value : [];
+        floodDataCache.basinStatus = val;
         floodDataCache.lastFetch[cacheKey('basinStatus')] = Date.now();
-        setBasinStatus(basinStatusResult.value);
+        setBasinStatus(val);
       } else {
         errors.basinStatus = true;
         setBasinStatus([]);
       }
 
-      // Basin Trend
+      // Basin Trend — null is valid when no basin is selected or data not yet available
       const basinTrendResult: any = results[2];
-      if (basinTrendResult.status === 'fulfilled' && basinTrendResult.value) {
-        floodDataCache.basinTrend = basinTrendResult.value;
+      if (basinTrendResult.status === 'fulfilled') {
+        floodDataCache.basinTrend = basinTrendResult.value ?? null;
         floodDataCache.lastFetch[cacheKey('basinTrend')] = Date.now();
-        setBasinTrend(basinTrendResult.value);
+        setBasinTrend(basinTrendResult.value ?? null);
       } else {
         errors.basinTrend = true;
         setBasinTrend(null);
       }
 
-      // Districts
+      // Districts — empty array is valid
       const districtsResult: any = results[3];
-      if (districtsResult.status === 'fulfilled' && districtsResult.value?.length > 0) {
-        floodDataCache.districts = districtsResult.value;
+      if (districtsResult.status === 'fulfilled') {
+        const val = Array.isArray(districtsResult.value) ? districtsResult.value : [];
+        floodDataCache.districts = val;
         floodDataCache.lastFetch[cacheKey('districts')] = Date.now();
-        setDistricts(districtsResult.value);
+        setDistricts(val);
       } else {
         errors.districts = true;
         setDistricts([]);
