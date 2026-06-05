@@ -30,7 +30,7 @@ export interface FloodDataError {
   forecasts?: boolean;
 }
 
-export function useFloodData(date?: string, leadtimeHours?: number) {
+export function useFloodData(date?: string, leadtimeHours?: number, basin?: string) {
   const [dashboard, setDashboard] = useState<FloodDashboard | null>(null);
   const [basinStatus, setBasinStatus] = useState<BasinStatus[]>([]);
   const [basinTrend, setBasinTrend] = useState<BasinTrend | null>(null);
@@ -41,7 +41,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
   const [error, setError] = useState<string | null>(null);
   const [partialErrors, setPartialErrors] = useState<FloodDataError>({});
 
-  const cachePrefix = `${date ?? "latest"}:${leadtimeHours ?? "all"}`;
+  const cachePrefix = `${date ?? "latest"}:${leadtimeHours ?? "all"}:${basin ?? "all"}`;
   const cacheKey = useCallback((key: string) => `${cachePrefix}:${key}`, [cachePrefix]);
 
   const isCacheValid = useCallback((key: string) => {
@@ -65,7 +65,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
           ? floodAPI.getBasinStatus({ date, leadtimeHours })
           : Promise.resolve(floodDataCache.basinStatus),
         !useCache || !isCacheValid(cacheKey('basinTrend'))
-          ? floodAPI.getBasinTrend(undefined, { date, leadtimeHours })
+          ? floodAPI.getBasinTrend(basin, { date, leadtimeHours })
           : Promise.resolve(floodDataCache.basinTrend),
         !useCache || !isCacheValid(cacheKey('districts'))
           ? floodAPI.getDistricts({ date, leadtimeHours }).then(res => res?.districts || [])
@@ -163,7 +163,7 @@ export function useFloodData(date?: string, leadtimeHours?: number) {
     } finally {
       setLoading(false);
     }
-  }, [cacheKey, date, isCacheValid, leadtimeHours]);
+  }, [cacheKey, date, isCacheValid, leadtimeHours, basin]);
 
   useEffect(() => {
     fetchFloodData();

@@ -27,92 +27,7 @@ interface FloodMonitoringPageProps {
 
 const FAO_BLUE = "#318DDE";
 
-// ── Fallback mock data for when API is unavailable ────────────────────────────
-const fallbackRiverBasins = [
-  {
-    name: "Nile Basin",
-    level: 4.2,
-    trend: "up" as const,
-    population: 620000,
-    rainfall: 85,
-    discharge: 3200,
-    status: "severe" as const,
-  },
-  {
-    name: "Victoria Nile",
-    level: 3.8,
-    trend: "up" as const,
-    population: 620000,
-    rainfall: 78,
-    discharge: 2800,
-    status: "severe" as const,
-  },
-  {
-    name: "Albert Nile",
-    level: 2.9,
-    trend: "stable" as const,
-    population: 540000,
-    rainfall: 65,
-    discharge: 1900,
-    status: "moderate" as const,
-  },
-  {
-    name: "Kafu River",
-    level: 2.4,
-    trend: "up" as const,
-    population: 180000,
-    rainfall: 72,
-    discharge: 1200,
-    status: "moderate" as const,
-  },
-  {
-    name: "Mpologoma",
-    level: 1.8,
-    trend: "down" as const,
-    population: 95000,
-    rainfall: 45,
-    discharge: 800,
-    status: "minor" as const,
-  },
-  {
-    name: "Manafwa",
-    level: 1.5,
-    trend: "stable" as const,
-    population: 78000,
-    rainfall: 38,
-    discharge: 650,
-    status: "minor" as const,
-  },
-  {
-    name: "Malaba",
-    level: 0.9,
-    trend: "stable" as const,
-    population: 65000,
-    rainfall: 28,
-    discharge: 420,
-    status: "normal" as const,
-  },
-  {
-    name: "Okot",
-    level: 0.7,
-    trend: "down" as const,
-    population: 32000,
-    rainfall: 22,
-    discharge: 310,
-    status: "normal" as const,
-  },
-];
 
-const fallbackTimeSeriesData = [
-  { time: "00:00", level: 3.8 },
-  { time: "03:00", level: 3.9 },
-  { time: "06:00", level: 4.0 },
-  { time: "09:00", level: 4.1 },
-  { time: "12:00", level: 4.2 },
-  { time: "15:00", level: 4.15 },
-  { time: "18:00", level: 4.2 },
-  { time: "21:00", level: 4.25 },
-];
 
 // ── ArcGauge — SVG semicircular gauge meter ───────────────────────────────────
 function ArcGauge({
@@ -402,17 +317,17 @@ export default function FloodMonitoringPage({
   const statsDate = selectedFloodLayer?.forecast_date || selectedDate || dateRange || undefined;
   const statsLeadtime = selectedFloodLayer?.leadtime_hours ?? selectedLeadtime ?? forecastStep;
 
-  // Fetch flood data from API
+  // Fetch flood data from API — pass selectedBasin so basinTrend refetches when it changes
+  const basinForTrend = selectedBasin === "All Basins" ? undefined : selectedBasin;
   const {
     dashboard,
     basinStatus,
     basinTrend,
-    districts,
     forecastsFull,
     loading: dataLoading,
     partialErrors = {},
     refetch,
-  } = useFloodData(statsDate, statsLeadtime);
+  } = useFloodData(statsDate, statsLeadtime, basinForTrend);
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
@@ -517,107 +432,89 @@ export default function FloodMonitoringPage({
     )
   ).sort();
 
-  // Map API data to component format for legacy river-basin rendering
-  const riverBasins =
-    basinStatus.length > 0
-      ? basinStatus.map((basin) => {
-        const trend: "up" | "stable" | "down" =
-          basinTrend?.trend === "rising"
-            ? "up"
-            : basinTrend?.trend === "falling"
-              ? "down"
-              : "stable";
-        return {
-          name: basin.name,
-          level: basin.level,
-          trend,
-          population: basin.population_at_risk,
-          discharge: basin.discharge_rate,
-          rainfall: 0,
-          status: basin.status,
-        };
-      })
-      : fallbackRiverBasins;
+  // ── Basin status list — scoped to selected basin when one is chosen ─────────
+  // Each basin entry gets its own trend direction from basinTrend (which now
+  // refetches whenever selectedBasin changes via the basinForTrend argument).
+  const riverBasins = basinStatus.map((basin) => {
+    const isSelectedBasin =
+      selectedBasin === "All Basins" ||
+      basin.name.toLowerCase().includes(selectedBasin.toLowerCase().replace(" basin", "").trim());
+    const trend: "up" | "stable" | "down" =
+      isSelectedBasin && basinTrend
+        ? basinTrend.trend === "rising" ? "up"
+          : basinTrend.trend === "falling" ? "down"
+          : "stable"
+        : "stable";
+    return {
+      name: basin.name,
+      level: basin.level,
+      trend,
+      population: basin.population_at_risk,
+      discharge: basin.discharge_rate,
+      rainfall: 0,
+      status: basin.status,
+    };
+  });
 
-  // Generate time series data from trend readings
+  // ── Time-series: readings from basinTrend (refetches per basin) ───────────
   const timeSeriesData =
-    basinTrend && basinTrend.readings && basinTrend.readings.length > 0
+    basinTrend?.readings?.length
       ? basinTrend.readings.map((reading, idx) => ({
-        time: `${String(idx * 3).padStart(2, "0")}:00`,
-        level: reading.level || 0,
-      }))
-      : fallbackTimeSeriesData;
+          time: reading.timestamp
+            ? new Date(reading.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+            : `${String(idx * 3).padStart(2, "0")}:00`,
+          level: reading.level ?? 0,
+        }))
+      : [];
 
-  // Calculate statistics from available data
-  const criticalBasins = riverBasins.filter(
-    (b) => b.status === "severe" || b.status === "extreme",
-  ).length;
-  const atRiskPopulation = riverBasins.reduce(
-    (sum, b) => sum + b.population,
-    0,
-  );
-  const severeCount = riverBasins.filter((b) => b.status === "severe").length;
-  const moderateCount = riverBasins.filter(
-    (b) => b.status === "moderate",
-  ).length;
-  const currentLevel =
-    basinTrend?.current_level_m ??
-    timeSeriesData[timeSeriesData.length - 1]?.level ??
-    0;
+  // ── Basin-scoped status counts (from the filtered riverBasins list) ────────
+  // When a specific basin is selected, filter down to just that basin.
+  const scopedBasins = selectedBasin === "All Basins"
+    ? riverBasins
+    : riverBasins.filter((b) =>
+        b.name.toLowerCase().includes(selectedBasin.toLowerCase().replace(" basin", "").trim())
+      );
 
-  // ── KPI: prefer live API values, fall back to basin-status aggregate ──────
-  const displayPopulation = totalAffectedPopulation > 0
-    ? totalAffectedPopulation
-    : atRiskPopulation;
-  const displayDensity = totalFloodExtentKm2 > 0
-    ? populationDensityAvg
-    : (atRiskPopulation > 0 ? Math.round(atRiskPopulation / (dashboard?.summary?.total_flood_extent_km2 || 4500)) : 0);
-  const affectedRoadsKm = totalRoadsKm > 0
-    ? Math.round(totalRoadsKm * 10) / 10
-    : (dashboard?.summary?.affected_roads_km ?? 0);
-  const affectedBuildings = totalBuildings > 0
-    ? totalBuildings
-    : (dashboard?.summary?.affected_buildings ?? 0);
-  const affectedPois = totalPois > 0
-    ? totalPois
-    : (dashboard?.summary?.affected_pois ?? 0);
-  const maxDischarge = maxDischargeApi > 0
-    ? maxDischargeApi
-    : (riverBasins.length > 0 ? Math.max(...riverBasins.map((b) => b.discharge)) : 0);
-  const avgDischarge = avgDischargeApi > 0
-    ? Math.round(avgDischargeApi)
-    : (riverBasins.length > 0 ? Math.round(riverBasins.reduce((s, b) => s + b.discharge, 0) / riverBasins.length) : 0);
+  const criticalBasins = scopedBasins.filter((b) => b.status === "severe" || b.status === "extreme").length;
+  const severeCount    = scopedBasins.filter((b) => b.status === "severe").length;
+  const moderateCount  = scopedBasins.filter((b) => b.status === "moderate").length;
 
-  // Critical basin count from alert_level
-  const criticalBasinCount = activeForecast?.alert_level === "extreme" || activeForecast?.alert_level === "high"
-    ? basinImpacts.filter((i) => (i.max_discharge ?? 0) > 3000).length
-    : criticalBasins;
+  const currentLevel = basinTrend?.current_level_m
+    ?? (timeSeriesData.length > 0 ? timeSeriesData[timeSeriesData.length - 1].level : 0);
+
+  // ── All display KPIs come directly from filtered API impacts — zero if no data ─
+  const displayPopulation  = totalAffectedPopulation;
+  const displayDensity     = populationDensityAvg;
+  const affectedRoadsKm    = Math.round(totalRoadsKm * 10) / 10;
+  const affectedBuildings  = totalBuildings;
+  const affectedPois       = totalPois;
+  const maxDischarge       = maxDischargeApi;
+  const avgDischarge       = Math.round(avgDischargeApi);
+
+  // ── Critical basin count ───────────────────────────────────────────────────
+  const criticalBasinCount = basinImpacts.filter((i) => (i.max_discharge ?? 0) > 3000).length || criticalBasins;
 
   const thresholdMode =
     criticalBasinCount > 0 ? "EXCEEDED" : severeCount > 0 ? "WARNING" : "NORMAL";
 
-  // Districts at risk from live forecast impacts (prefer API, fall back to legacy)
-  const liveDistrictsAtRisk = topDistrictImpacts.length > 0
-    ? topDistrictImpacts.map((i) => ({
-      id: 0,
-      name: i.district_name!,
-      population_affected: i.affected_population,
-      flood_risk_level: (i.max_discharge ?? 0) > 3000
-        ? "critical" as const
-        : (i.max_discharge ?? 0) > 1000
-          ? "high" as const
-          : "medium" as const,
-    }))
-    : districts;
+  // ── Districts at risk — always from forecast impacts, scoped to selected basin ─
+  const liveDistrictsAtRisk = topDistrictImpacts.map((i) => ({
+    id: 0,
+    name: i.district_name!,
+    population_affected: i.affected_population,
+    flood_risk_level: (i.max_discharge ?? 0) > 3000
+      ? "critical" as const
+      : (i.max_discharge ?? 0) > 1000
+        ? "high" as const
+        : "medium" as const,
+  }));
 
-  // Infrastructure proportion bar widths
+  // ── Infrastructure proportion bar widths ───────────────────────────────────
   const infraTotal = (affectedRoadsKm > 0 ? affectedRoadsKm : 1) + (affectedBuildings / 100);
   const roadsBarPct = Math.round((affectedRoadsKm / infraTotal) * 100);
   const buildingsBarPct = 100 - roadsBarPct;
 
-  const isUsingFallback =
-    forecastsFull.length === 0 &&
-    (basinStatus.length === 0 || Object.values(partialErrors).some((v) => v === true));
+
 
   const cardBg = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted = isDarkMode ? "text-slate-400" : "text-slate-500";
@@ -663,14 +560,14 @@ export default function FloodMonitoringPage({
       )}
 
       <div className="relative z-10 w-full">
-        {/* Fallback data banner (hidden when data loads ok) */}
-        {isUsingFallback && !dataLoading && (
+        {/* API error banner — only shown when there's a real network error */}
+        {!dataLoading && Object.values(partialErrors).some(Boolean) && (
           <div
             className="mb-3 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2"
             style={{ backgroundColor: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}
           >
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-            Flood data unavailable — check API connection or try refreshing.
+            Some flood data could not be loaded — check API connection or try refreshing.
           </div>
         )}
 
@@ -689,7 +586,6 @@ export default function FloodMonitoringPage({
                 </h1>
                 <p className="text-slate-200 text-xs md:text-sm 3xl:text-base 4xl:text-lg">
                   Real-time rainfall data and flood risk assessment
-                  {isUsingFallback && !dataLoading && " · No live data"}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {criticalBasins > 0 && (
@@ -804,7 +700,7 @@ export default function FloodMonitoringPage({
                       </h3>
                     </div>
                     <span className="px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded text-[10px] font-medium">
-                      {criticalBasins || 2} Critical
+                      {criticalBasins} Critical
                     </span>
                   </div>
                   <div className="relative flex-1 flex flex-col min-h-0">
@@ -1124,16 +1020,12 @@ export default function FloodMonitoringPage({
                       Flood Extent by Basin
                     </p>
                     <div className="space-y-1.5">
-                      {(basinImpacts.length > 0 ? basinImpacts : riverBasins.map((b) => ({
-                        river_basin_name: b.name,
-                        flood_extent_km2: Math.round(b.level * 200 + b.discharge / 20),
-                        max_discharge: b.discharge,
-                        avg_discharge: b.discharge * 0.8,
-                        status: b.status,
-                      } as any))).map((b: any, index: number) => {
+                      {basinImpacts.length === 0 ? (
+                        <p className={`text-[10px] ${textMuted}`}>No basin data available</p>
+                      ) : basinImpacts.map((b, index) => {
                         const extent = Math.round(b.flood_extent_km2 ?? 0);
                         const maxExtent = Math.max(
-                          ...(basinImpacts.length > 0 ? basinImpacts : riverBasins.map((x) => ({ flood_extent_km2: x.level * 200 + x.discharge / 20 }))).map((x: any) => Math.round(x.flood_extent_km2 ?? 0)),
+                          ...basinImpacts.map((x) => Math.round(x.flood_extent_km2 ?? 0)),
                           1,
                         );
                         const extPct = (extent / maxExtent) * 100;
@@ -1145,13 +1037,13 @@ export default function FloodMonitoringPage({
                                 : "#22c55e";
                         return (
                           <div
-                            key={`${b.river_basin_name ?? b.name}-${index}`}
+                            key={`${b.river_basin_name}-${index}`}
                             className="flex items-center gap-1.5"
                           >
                             <span
                               className={`text-[9px] w-[90px] truncate flex-shrink-0 ${textMuted}`}
                             >
-                              {(b.river_basin_name ?? b.name ?? "").replace(" Basin", "")}
+                              {(b.river_basin_name ?? "").replace(" Basin", "")}
                             </span>
                             <div
                               className="flex-1 h-1.5 rounded-full overflow-hidden"
@@ -1317,7 +1209,7 @@ export default function FloodMonitoringPage({
                   </h3>
                 </div>
                 <span className="px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded text-[10px] font-medium">
-                  {criticalBasins || 2} Critical
+                  {criticalBasins} Critical
                 </span>
               </div>
               <div className="relative aspect-video flex flex-col">
