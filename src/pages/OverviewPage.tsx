@@ -727,7 +727,7 @@ export default function OverviewPage({
               style={{ background: FAO_BLUE, color: "#ffffff" }}
             >
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Download Bulletin</span>
+              <span className="hidden sm:inline">Download Weekly Report</span>
               <span className="sm:hidden">Export</span>
             </button>
           </div>
