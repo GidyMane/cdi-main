@@ -164,7 +164,7 @@ function LeadtimeTabs({
 
 // ── Basin impact detail card ──────────────────────────────────────────────────
 function BasinImpactCard({
-  impact, isDarkMode, borderColor, rowBg, textMuted, headerText,
+  impact, isDarkMode, borderColor, rowBg, headerText,
 }: {
   impact: FloodImpact; isDarkMode: boolean; borderColor: string;
   rowBg: string; textMuted: string; headerText: string;
