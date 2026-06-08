@@ -581,3 +581,13 @@ export const isValidGeoJSON = (data: any): boolean =>
   data.type === "FeatureCollection" &&
   Array.isArray(data.features) &&
   data.features.length > 0;
+
+
+  export const getMonthAndYear = (dateString: string) => {
+  const date = new Date(dateString);
+
+  const month = date.toLocaleString("default", { month: "long" });
+  const year = date.getFullYear();
+  
+  return { month, year };
+};

@@ -35,6 +35,7 @@ import {
 } from "../services/api";
 import type { FloodForecastFull, BasinStatus } from "../services/api";
 import { useAppStore } from "@/store/useAppStore";
+import { useAssessmentCounts } from "@/hooks/useAssessmentCounts";
 
 interface OverviewPageProps {
   onNavigate: (page: PageType) => void;
@@ -366,6 +367,11 @@ export default function OverviewPage({
   isDarkMode = true,
 }: OverviewPageProps) {
   const { selectedDistrictId } = useAppStore((s) => s);
+  const {
+  extremeCount,
+  trendingCount,
+  improvingCount,
+  } = useAssessmentCounts();
 
   const [showIntro, setShowIntro] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -483,20 +489,20 @@ export default function OverviewPage({
         const droughtStats: StatPatch[] = [
           {
             value:
-              ms?.drought_monitor?.extreme_severity != null
-                ? String(ms.drought_monitor.extreme_severity)
+              extremeCount != null
+                ? extremeCount?.toString()
                 : "--",
           },
           {
             value:
-              ms?.drought_monitor?.trending != null
-                ? String(ms.drought_monitor.trending)
+              trendingCount != null
+                ? trendingCount?.toString()
                 : "--",
           },
           {
             value:
-              ms?.drought_monitor?.improving != null
-                ? String(ms.drought_monitor.improving)
+              improvingCount != null
+                ? improvingCount?.toString()
                 : "--",
           },
           {
@@ -604,6 +610,8 @@ export default function OverviewPage({
           floodStats,
           stationStats,
         ];
+
+        
         setModules((prev) =>
           prev.map((m, i) => ({
             ...m,
@@ -630,7 +638,7 @@ export default function OverviewPage({
     load();
     const iv = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(iv);
-  }, [selectedDistrictId]);
+  }, [selectedDistrictId,extremeCount,trendingCount,improvingCount]);
 
   const temp = weather?.temperature ?? 0;
   const humid = weather?.humidity ?? 0;
