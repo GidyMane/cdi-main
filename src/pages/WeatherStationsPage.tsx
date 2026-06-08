@@ -101,40 +101,6 @@ function normaliseReading(r: any): NormalizedReading {
 }
 
 // ---------------------------------------------------------------------------
-// Deterministic mock readings (fallback when API returns nothing)
-// ---------------------------------------------------------------------------
-function generateMockReadings(station: WeatherStation | null): NormalizedReading[] {
-  if (!station) return [];
-  const list: NormalizedReading[] = [];
-  const now  = new Date();
-  const hash = (str: string) => {
-    let h = 0;
-    for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-    return Math.abs(h);
-  };
-  const seed        = hash(station.name || String(station.id));
-  const baseTemp    = 20 + (seed % 8);
-  const baseHumid   = 60 + (seed % 20);
-  const basePres    = 1008 + (seed % 8);
-  const baseWind    = 4  + (seed % 10);
-
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date(now.getTime() - i * 86_400_000);
-    const ds   = seed + i;
-    list.push({
-      timestamp:     date.toISOString(),
-      temperature:   parseFloat((baseTemp  + Math.sin(i * 0.2) * 3 + ((ds % 5) - 2)).toFixed(1)),
-      humidity:      Math.min(100, Math.max(0, Math.round(baseHumid + Math.cos(i * 0.25) * 10 + ((ds % 8) - 4)))),
-      wind_speed:    parseFloat(Math.max(0, baseWind + Math.cos(i * 0.3) * 4 + ((ds % 6) - 3)).toFixed(1)),
-      wind_direction:Math.round(180 + (ds % 12) * 15) % 360,
-      pressure:      Math.round(basePres + Math.sin(i * 0.15) * 2 + ((ds % 4) - 2)),
-      rainfall:      ds % 8 === 0 ? parseFloat(((ds % 8) * 1.2).toFixed(1)) : 0,
-    });
-  }
-  return list;
-}
-
-// ---------------------------------------------------------------------------
 // FilterContent
 // ---------------------------------------------------------------------------
 const FilterContent = ({
@@ -719,7 +685,7 @@ export default function WeatherStationsPage({ isDarkMode = true }: WeatherStatio
     if (Array.isArray(readingsData))                                        raw = readingsData;
     else if (readingsData && Array.isArray((readingsData as any).readings)) raw = (readingsData as any).readings;
     else if (readingsData && Array.isArray((readingsData as any).results))  raw = (readingsData as any).results;
-    return raw.length ? raw.map(normaliseReading) : generateMockReadings(selectedStation);
+    return raw.length ? raw.map(normaliseReading) : [];
   })();
 
   // ── Styling helpers ───────────────────────────────────────────────────────

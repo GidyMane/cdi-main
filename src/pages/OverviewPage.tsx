@@ -590,7 +590,7 @@ export default function OverviewPage({
             .reverse()[0] ??
           qs?.last_updated ??
           "";
-        const lastTxStr = lastTxRaw ? formatTimeAgo(lastTxRaw) : "just now";
+        const lastTxStr = lastTxRaw ? formatTimeAgo(lastTxRaw) : "--";
         const missingReports =
           net?.offline_count ??
           allStations.filter((s: any) => s.status === "offline").length ??
@@ -692,12 +692,6 @@ export default function OverviewPage({
               <h1 className="text-2xl font-black" style={{ color: hd }}>
                 Dashboard Overview
               </h1>
-              {/* <span
-                className="text-[10px] px-2 py-1 rounded-full font-bold"
-                style={{ background: `${FAO_BLUE}15`, color: FAO_BLUE }}
-              >
-                #{String(Math.floor(Date.now() / 86400000)).slice(-3)}
-              </span> */}
             </div>
             <p className="text-xs mt-0.5" style={{ color: mt }}>
               Uganda Multi Hazard Observatory System
