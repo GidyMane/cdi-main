@@ -458,8 +458,7 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
   const forecastsByLeadtime = forecastsFull.filter((f) => f.forecast_date === activeForecastDate);
 
   // Tabs only show leadtimes available for the active date
-  const availableLeadtimes = Array.from(new Set(forecastsByLeadtime.map((f) => f.leadtime_hours))).sort((a, b) => a - b);
-
+ 
   const activeForecast: FloodForecastFull | undefined =
     forecastsByLeadtime.find((f) => f.leadtime_hours === selectedLeadtime)
     ?? forecastsByLeadtime[0]
