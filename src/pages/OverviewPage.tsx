@@ -692,12 +692,12 @@ export default function OverviewPage({
               <h1 className="text-2xl font-black" style={{ color: hd }}>
                 Dashboard Overview
               </h1>
-              <span
+              {/* <span
                 className="text-[10px] px-2 py-1 rounded-full font-bold"
                 style={{ background: `${FAO_BLUE}15`, color: FAO_BLUE }}
               >
                 #{String(Math.floor(Date.now() / 86400000)).slice(-3)}
-              </span>
+              </span> */}
             </div>
             <p className="text-xs mt-0.5" style={{ color: mt }}>
               Uganda Multi Hazard Observatory System
@@ -705,7 +705,7 @@ export default function OverviewPage({
             <div className="flex items-center gap-1.5 mt-1.5">
               <MapPin className="w-3 h-3" style={{ color: FAO_BLUE }} />
               <span className="text-xs font-medium" style={{ color: bd }}>
-                Kampala, Central Region
+                {selectedDistrictId?.name} , {selectedDistrictId?.region} Region
               </span>
               <span
                 className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"

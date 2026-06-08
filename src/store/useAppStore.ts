@@ -116,7 +116,11 @@ export const useAppStore = create<AppStoreState>()(
       setCurrentPage: (page) => set({ currentPage: page }),
 
       // Filters
-      selectedDistrictId: undefined,
+      selectedDistrictId: {
+    "id": 5,
+    "name": "Abim",
+    "region": "Northern"
+},
       setSelectedDistrictId: (id) => set({ selectedDistrictId: id }),
       selectedRegionId: undefined,
       setSelectedRegionId: (id) => set({ selectedRegionId: id }),
