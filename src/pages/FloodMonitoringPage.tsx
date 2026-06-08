@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Waves,
   MapPin,
@@ -30,7 +30,6 @@ import type {
   FloodForecastFull,
   FloodImpact,
   FloodActualEvent,
-  FloodBasin,
   FloodSeason,
   FloodPipelineStatus,
 } from "@/services/api";
@@ -111,21 +110,33 @@ function LeadtimeTabs({
   selected: number; onChange: (h: number) => void;
   forecasts: FloodForecastFull[]; isDarkMode: boolean;
 }) {
+  // Derive available leadtimes strictly from what the API returned — no hardcoded fallbacks.
+  // If the API only has 24h, only show 24h. If it has 24/48/72, show all three.
   const available = Array.from(new Set(forecasts.map((f) => f.leadtime_hours))).sort((a, b) => a - b);
-  const tabs = available.length > 0 ? available : [24, 48, 72];
-  const alertColor = (h: number): string => {
-    const fc = forecasts.find((f) => f.leadtime_hours === h);
-    if (!fc) return "";
-    return fc.alert_level === "extreme" || fc.alert_level === "high" ? "#ef4444"
-      : fc.alert_level === "medium" ? "#f97316"
-      : fc.alert_level === "low" ? "#eab308"
-      : "#22c55e";
-  };
+
+  if (available.length === 0) {
+    return (
+      <div className="flex gap-1.5">
+        {[24, 48, 72].map((h) => (
+          <div key={h} className="flex-1 py-1.5 px-2 text-xs rounded-lg font-semibold text-center animate-pulse"
+            style={{ backgroundColor: isDarkMode ? "#1e293b" : "#f1f5f9", color: isDarkMode ? "#334155" : "#e2e8f0" }}>
+            +{h}h
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-1.5">
-      {tabs.map((h) => {
+      {available.map((h) => {
+        const fc = forecasts.find((f) => f.leadtime_hours === h);
         const isActive = selected === h;
-        const ac = alertColor(h);
+        const alertColor = !fc ? "" :
+          fc.alert_level === "extreme" || fc.alert_level === "high" ? "#ef4444"
+          : fc.alert_level === "medium" ? "#f97316"
+          : fc.alert_level === "low" ? "#eab308"
+          : "#22c55e";
         return (
           <button
             key={h}
@@ -138,10 +149,10 @@ function LeadtimeTabs({
             }}
           >
             +{h}h
-            {ac && (
+            {alertColor && (
               <span
-                className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-slate-800"
-                style={{ backgroundColor: ac }}
+                className="absolute -top-1 -right-1 w-2 h-2 rounded-full"
+                style={{ backgroundColor: alertColor, border: `1px solid ${isDarkMode ? "#0f172a" : "#fff"}` }}
               />
             )}
           </button>
@@ -255,14 +266,14 @@ function BasinImpactCard({
 // ── FilterContent ─────────────────────────────────────────────────────────────
 const FilterContent = ({
   selectedBasin, setSelectedBasin,
-  selectedLeadtime, setSelectedLeadtime,
+  selectedLeadtime, onLeadtimeChange,
   availableBasinNames, forecastsFull, isDarkMode,
   textMuted, textSecondary, borderColor, headerText,
   totalPopulation, criticalCount, activeAlerts,
 }: {
   timeRange: string; setTimeRange: (val: string) => void;
   selectedBasin: string; setSelectedBasin: (val: string) => void;
-  selectedLeadtime: number; setSelectedLeadtime: (val: number) => void;
+  selectedLeadtime: number; onLeadtimeChange: (val: number) => void;
   selectedDate: string; setSelectedDate: (val: string) => void;
   availableDates: string[]; availableBasinNames: string[];
   dateRange: string; setDateRange: (val: string) => void;
@@ -278,7 +289,7 @@ const FilterContent = ({
       <label className={`text-xs font-semibold ${headerText} mb-1.5 block`}>Forecast Lead Time</label>
       <LeadtimeTabs
         selected={selectedLeadtime}
-        onChange={setSelectedLeadtime}
+        onChange={onLeadtimeChange}
         forecasts={forecastsFull}
         isDarkMode={isDarkMode}
       />
@@ -344,7 +355,7 @@ const FilterContent = ({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitoringPageProps) {
-  const { dateRange, setDateRange, setLayerMode, forecastStep, setFloodAlerts, setShowNotifications } = useAppStore((state) => state);
+  const { dateRange, setDateRange, setLayerMode, forecastStep, setForecastStep, setFloodAlerts, setShowNotifications } = useAppStore((state) => state);
   const [timeRange, setTimeRange] = useState("Last 24 Hours");
   const [selectedBasin, setSelectedBasin] = useState("All Basins");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -352,18 +363,11 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
 
   // Supplemental API state
   const [actualEvents, setActualEvents] = useState<FloodActualEvent[]>([]);
-  const [allBasins, setAllBasins] = useState<FloodBasin[]>([]);
   const [currentSeason, setCurrentSeason] = useState<FloodSeason | null>(null);
   const [pipeline, setPipeline] = useState<FloodPipelineStatus | null>(null);
 
   useEffect(() => {
     floodAPI.getActualEvents(8).then((res) => { if (res?.results) setActualEvents(res.results); }).catch(() => {});
-    floodAPI.getBasins().then((res) => {
-      if (Array.isArray(res)) {
-        const seen = new Set<string>();
-        setAllBasins(res.filter((b) => { if (seen.has(b.name)) return false; seen.add(b.name); return true; }));
-      }
-    }).catch(() => {});
     floodAPI.getSeasons().then((res) => {
       if (Array.isArray(res)) setCurrentSeason(res.find((s) => s.is_current) ?? null);
     }).catch(() => {});
@@ -376,14 +380,25 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
   const [selectedLeadtime, setSelectedLeadtime] = useState<number>(24);
   const [selectedDate, setSelectedDate] = useState<string>("");
 
-  const statsDate = selectedFloodLayer?.forecast_date || selectedDate || dateRange || undefined;
-  const statsLeadtime = selectedFloodLayer?.leadtime_hours ?? selectedLeadtime ?? forecastStep;
-
+  // Fetch ALL forecasts with no date/leadtime filter so we get all dates and all leadtimes at once.
+  // The API returns results like: [{forecast_date:'2026-06-07', leadtime_hours:24}, {forecast_date:'2026-06-07', leadtime_hours:48}, ...]
+  // We pick the LATEST forecast_date and filter by selectedLeadtime client-side.
   const basinForTrend = selectedBasin === "All Basins" ? undefined : selectedBasin;
-  const { dashboard, basinStatus, basinTrend, forecastsFull, loading: dataLoading, partialErrors = {}, refetch } = useFloodData(statsDate, statsLeadtime, basinForTrend);
+  const { dashboard, basinStatus, basinTrend, forecastsFull, loading: dataLoading, partialErrors = {}, refetch } = useFloodData(undefined, undefined, basinForTrend);
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => { setLayerMode("forecast"); }, [setLayerMode]);
+
+  // Auto-select first available leadtime when forecasts load
+  useEffect(() => {
+    if (forecastsFull.length === 0) return;
+    // Only consider leadtimes from the latest forecast_date
+    const latestDate = forecastsFull.map((f) => f.forecast_date).sort().reverse()[0];
+    const available = Array.from(new Set(
+      forecastsFull.filter((f) => f.forecast_date === latestDate).map((f) => f.leadtime_hours)
+    )).sort((a, b) => a - b);
+    if (!available.includes(selectedLeadtime)) setSelectedLeadtime(available[0]);
+  }, [forecastsFull.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const forecastDate = dashboard?.forecast_date;
@@ -393,26 +408,61 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
     }
   }, [dashboard?.forecast_date, selectedFloodLayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleLayerResolved = (layer: FloodRasterLayer | null) => {
+  // Keep refs of current values so the useCallback has stable identity
+  // but can still read latest state without being in the dep array.
+  const selectedLeadtimeRef = useRef(selectedLeadtime);
+  selectedLeadtimeRef.current = selectedLeadtime;
+  const selectedDateRef = useRef(selectedDate);
+  selectedDateRef.current = selectedDate;
+
+  // useCallback with empty deps gives a stable function reference.
+  // The map effect has onLayerResolved in its dep array — if this function
+  // is recreated every render it triggers an infinite loop.
+  const handleLayerResolved = useCallback((layer: FloodRasterLayer | null) => {
     setSelectedFloodLayer((current) => {
       if (current?.layer_name === layer?.layer_name) return current;
       return layer;
     });
-    if (layer?.leadtime_hours) setSelectedLeadtime(layer.leadtime_hours);
-    if (layer?.forecast_date) setSelectedDate(layer.forecast_date);
-  };
+    // Only update leadtime/date if they actually changed — prevents unnecessary re-renders
+    if (layer?.leadtime_hours && layer.leadtime_hours !== selectedLeadtimeRef.current) {
+      setSelectedLeadtime(layer.leadtime_hours);
+      setForecastStep(layer.leadtime_hours);
+    }
+    if (layer?.forecast_date && layer.forecast_date !== selectedDateRef.current) {
+      setSelectedDate(layer.forecast_date);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Only hide the initial full-page spinner once — never re-show it.
+  // dataLoading re-firing (on basin change) should not blank the screen.
+  const [hasEverLoaded, setHasEverLoaded] = useState(false);
   useEffect(() => {
-    if (!dataLoading) {
-      const timer = setTimeout(() => setPageLoading(false), 300);
+    if (!dataLoading && !hasEverLoaded) {
+      const timer = setTimeout(() => {
+        setPageLoading(false);
+        setHasEverLoaded(true);
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [dataLoading]);
+  }, [dataLoading, hasEverLoaded]);
 
-  // ── Active forecast — matched by leadtime then date ───────────────────────
+  // ── Latest forecast_date across all results, then filter by selectedLeadtime ───────
+  // The API may return multiple forecast_dates (e.g. 2026-06-07, 2026-06-06).
+  // Always work from the latest date unless the map layer overrides it.
+  const latestForecastDate = forecastsFull.length > 0
+    ? forecastsFull.map((f) => f.forecast_date).sort().reverse()[0]
+    : "";
+  const activeForecastDate = selectedFloodLayer?.forecast_date ?? (selectedDate || latestForecastDate);
+
+  // All forecasts belonging to the active date, keyed by leadtime
+  const forecastsByLeadtime = forecastsFull.filter((f) => f.forecast_date === activeForecastDate);
+
+  // Tabs only show leadtimes available for the active date
+  const availableLeadtimes = Array.from(new Set(forecastsByLeadtime.map((f) => f.leadtime_hours))).sort((a, b) => a - b);
+
   const activeForecast: FloodForecastFull | undefined =
-    forecastsFull.find((f) => f.leadtime_hours === selectedLeadtime && (!selectedDate || f.forecast_date === selectedDate))
-    ?? forecastsFull.find((f) => f.leadtime_hours === selectedLeadtime)
+    forecastsByLeadtime.find((f) => f.leadtime_hours === selectedLeadtime)
+    ?? forecastsByLeadtime[0]
     ?? forecastsFull[0];
 
   // All impacts from the active forecast
@@ -443,11 +493,18 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
   const avgDischargeApi  = allAvgDischarges.length > 0 ? allAvgDischarges.reduce((s, v) => s + v, 0) / allAvgDischarges.length : 0;
 
   const availableDates = Array.from(new Set(forecastsFull.map((f) => f.forecast_date))).sort().reverse();
-  const availableBasinNames: string[] = allBasins.length > 0
-    ? allBasins.map((b) => b.name).sort()
-    : Array.from(new Set((activeForecast?.impacts ?? []).filter((i) => i.river_basin_name !== null).map((i) => i.river_basin_name!))).sort();
 
-  const getBasinThreshold = (basinName: string): number => allBasins.find((b) => b.name.toLowerCase() === basinName.toLowerCase())?.flood_threshold ?? 3000;
+  // Basin names sourced exclusively from the latest forecast's impacts.
+  // river_basin_name is populated in the latest forecast; older ones may have null.
+  const availableBasinNames: string[] = Array.from(new Set(
+    forecastsByLeadtime
+      .flatMap((f) => f.impacts)
+      .filter((i) => i.river_basin_name !== null && i.river_basin_name !== undefined)
+      .map((i) => i.river_basin_name!)
+  )).sort();
+
+  // Fixed discharge threshold for alert colouring (no basins API needed)
+  const getBasinThreshold = (_basinName: string): number => 3000;
 
   const riverBasins = basinStatus.map((basin) => {
     const isSelectedBasin = selectedBasin === "All Basins" || basin.name.toLowerCase().includes(selectedBasin.toLowerCase().replace(" basin", "").trim());
@@ -512,12 +569,6 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
       namedCriticalBasins.map((b) => ({ id: `flood-${b.name}`, basinName: b.name, status: b.status, discharge: b.discharge, population: b.population }))
     );
   }, [namedCriticalBasins.length, namedCriticalBasins.map((b) => b.name).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Per-leadtime summary for the comparison row
-  const leadtimeSummaries = [24, 48, 72].map((h) => {
-    const fc = forecastsFull.find((f) => f.leadtime_hours === h);
-    return { hours: h, forecast: fc };
-  }).filter((s) => s.forecast !== undefined);
 
   const cardBg      = isDarkMode ? "bg-slate-800/85" : "bg-white/95";
   const textMuted   = isDarkMode ? "text-slate-400"  : "text-slate-500";
@@ -598,7 +649,7 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
                   <RefreshCw className={`w-3 h-3 ${(dataLoading || pipeline?.status === "running") ? "animate-spin" : ""}`} />
                   <span className="hidden sm:inline">{pipeline?.status === "running" ? "Running…" : pipeline?.last_run ? `${Math.round((Date.now() - new Date(pipeline.last_run).getTime()) / 60000)}m ago` : "Refresh"}</span>
                 </button>
-                <button onClick={() => { floodAPI.exportData("csv", statsDate, selectedBasin).then(() => {}).catch(() => {}); }} className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
+                <button onClick={() => { floodAPI.exportData("csv", activeForecastDate || undefined, selectedBasin).then(() => {}).catch(() => {}); }} className="flex items-center gap-1 px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 rounded-lg text-xs font-medium text-white transition-colors">
                   <Download className="w-3 h-3" />
                   <span className="hidden sm:inline">Export</span>
                 </button>
@@ -606,65 +657,6 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
             </div>
           </div>
         </div>
-
-        {/* ── Leadtime comparison strip (all 3 horizons at a glance) ─────────── */}
-        {leadtimeSummaries.length > 0 && (
-          <div className="hidden lg:grid grid-cols-3 gap-3 mb-3">
-            {leadtimeSummaries.map(({ hours, forecast }) => {
-              if (!forecast) return null;
-              const isActive = hours === selectedLeadtime;
-              const alertColor =
-                forecast.alert_level === "extreme" ? "#ef4444"
-                : forecast.alert_level === "high" ? "#f97316"
-                : forecast.alert_level === "medium" ? "#eab308"
-                : forecast.alert_level === "low" ? "#60a5fa"
-                : "#22c55e";
-              const pop = forecast.total_affected_population ?? 0;
-              const ext = forecast.total_flood_extent_km2 ?? 0;
-              return (
-                <button
-                  key={hours}
-                  onClick={() => setSelectedLeadtime(hours)}
-                  className={`rounded-lg p-3 text-left transition-all border ${isActive ? "ring-2" : ""}`}
-                  style={{
-                    backgroundColor: isActive
-                      ? isDarkMode ? `${FAO_BLUE}25` : `${FAO_BLUE}12`
-                      : isDarkMode ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.9)",
-                    borderColor: isActive ? FAO_BLUE : isDarkMode ? "#1e293b" : "#e2e8f0",
-                    ringColor: FAO_BLUE,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" style={{ color: isDarkMode ? "#64748b" : "#94a3b8" }} />
-                      <span className={`text-sm font-bold ${isActive ? "" : textMuted}`} style={{ color: isActive ? FAO_BLUE : undefined }}>+{hours}h</span>
-                    </div>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase" style={{ backgroundColor: `${alertColor}20`, color: alertColor }}>
-                      {forecast.alert_level}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div>
-                      <p className={`text-[9px] ${textMuted}`}>Population</p>
-                      <p className="text-xs font-bold text-orange-400">
-                        {pop >= 1_000_000 ? `${(pop / 1_000_000).toFixed(1)}M` : pop >= 1000 ? `${Math.round(pop / 1000)}K` : pop}
-                      </p>
-                    </div>
-                    <div>
-                      <p className={`text-[9px] ${textMuted}`}>Flood Extent</p>
-                      <p className="text-xs font-bold" style={{ color: FAO_BLUE }}>{ext.toFixed(1)} km²</p>
-                    </div>
-                  </div>
-                  {forecast.valid_date && (
-                    <p className={`text-[9px] mt-1.5 ${textMuted}`}>
-                      Valid: {new Date(forecast.valid_date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
 
         {/* ── Desktop layout ──────────────────────────────────────────────────── */}
         <div className="hidden lg:grid lg:grid-cols-12 gap-4">
@@ -675,11 +667,11 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
                 <FilterContent
                   timeRange={timeRange} setTimeRange={setTimeRange}
                   selectedBasin={selectedBasin} setSelectedBasin={setSelectedBasin}
-                  selectedLeadtime={selectedLeadtime} setSelectedLeadtime={setSelectedLeadtime}
+                  selectedLeadtime={selectedLeadtime} onLeadtimeChange={(h) => { setSelectedLeadtime(h); setForecastStep(h); }}
                   selectedDate={selectedDate} setSelectedDate={setSelectedDate}
                   availableDates={availableDates} availableBasinNames={availableBasinNames}
                   dateRange={dateRange} setDateRange={setDateRange}
-                  forecastsFull={forecastsFull}
+                  forecastsFull={forecastsByLeadtime}
                   isDarkMode={isDarkMode} textMuted={textMuted} textSecondary={textSecondary}
                   borderColor={borderColor} headerText={headerText}
                   riverBasins={riverBasins}
@@ -914,24 +906,7 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
               <Clock className="w-3.5 h-3.5" style={{ color: FAO_BLUE }} />
               <h3 className={`text-sm font-semibold ${headerText}`}>Forecast Lead Time</h3>
             </div>
-            <LeadtimeTabs selected={selectedLeadtime} onChange={setSelectedLeadtime} forecasts={forecastsFull} isDarkMode={isDarkMode} />
-            {/* Mobile leadtime comparison cards */}
-            {leadtimeSummaries.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {leadtimeSummaries.map(({ hours, forecast }) => {
-                  if (!forecast) return null;
-                  const alertColor = forecast.alert_level === "extreme" ? "#ef4444" : forecast.alert_level === "high" ? "#f97316" : forecast.alert_level === "medium" ? "#eab308" : "#22c55e";
-                  const pop = forecast.total_affected_population ?? 0;
-                  return (
-                    <div key={hours} className={`rounded-lg p-2 text-center ${hours === selectedLeadtime ? "ring-1" : ""}`} style={{ backgroundColor: isDarkMode ? "rgba(15,23,42,0.5)" : "rgba(248,250,252,0.9)", border: `1px solid ${hours === selectedLeadtime ? FAO_BLUE : isDarkMode ? "#1e293b" : "#e2e8f0"}` }}>
-                      <p className="text-xs font-bold" style={{ color: hours === selectedLeadtime ? FAO_BLUE : undefined }}>+{hours}h</p>
-                      <div className="w-2 h-2 rounded-full mx-auto my-1" style={{ backgroundColor: alertColor }} />
-                      <p className="text-[9px] font-semibold text-orange-400">{pop >= 1000 ? `${Math.round(pop / 1000)}K` : pop}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <LeadtimeTabs selected={selectedLeadtime} onChange={(h) => { setSelectedLeadtime(h); setForecastStep(h); }} forecasts={forecastsByLeadtime} isDarkMode={isDarkMode} />
           </div>
 
           {/* Human Impact (mobile) */}
@@ -988,11 +963,11 @@ export default function FloodMonitoringPage({ isDarkMode = true }: FloodMonitori
                   <FilterContent
                     timeRange={timeRange} setTimeRange={setTimeRange}
                     selectedBasin={selectedBasin} setSelectedBasin={setSelectedBasin}
-                    selectedLeadtime={selectedLeadtime} setSelectedLeadtime={setSelectedLeadtime}
+                    selectedLeadtime={selectedLeadtime} onLeadtimeChange={(h) => { setSelectedLeadtime(h); setForecastStep(h); }}
                     selectedDate={selectedDate} setSelectedDate={setSelectedDate}
                     availableDates={availableDates} availableBasinNames={availableBasinNames}
                     dateRange={dateRange} setDateRange={setDateRange}
-                    forecastsFull={forecastsFull}
+                    forecastsFull={forecastsByLeadtime}
                     isDarkMode={isDarkMode} textMuted={textMuted} textSecondary={textSecondary}
                     borderColor={borderColor} headerText={headerText}
                     riverBasins={riverBasins}

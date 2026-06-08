@@ -41,7 +41,35 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
   const [error, setError] = useState<string | null>(null);
   const [partialErrors, setPartialErrors] = useState<FloodDataError>({});
 
-  const cachePrefix = `${date ?? "latest"}:${leadtimeHours ?? "all"}:${basin ?? "all"}`;
+  // ── Fetch forecasts separately — no basin/leadtime dependency.
+  // This runs once on mount and never clears existing data on refetch,
+  // preventing the blank screen when other params change.
+  const fetchForecasts = useCallback(async () => {
+    try {
+      const result = await floodAPI.getForecasts(undefined, undefined);
+      if (result && result.length > 0) {
+        floodDataCache.forecastsFull = result;
+        setForecastsFull(result);
+        setForecasts(result as any);
+      }
+      // If result is empty/null, keep the existing data — don't clear it
+    } catch (err) {
+      console.warn('[useFloodData] forecasts fetch failed:', err);
+      // Do NOT clear forecastsFull on error — keep showing last good data
+    }
+  }, []); // no deps — only fetch once
+
+  useEffect(() => {
+    // Restore from cache immediately if available
+    if (floodDataCache.forecastsFull && floodDataCache.forecastsFull.length > 0) {
+      setForecastsFull(floodDataCache.forecastsFull);
+      setForecasts(floodDataCache.forecastsFull as any);
+    }
+    fetchForecasts();
+  }, [fetchForecasts]);
+
+  // ── Fetch everything else (dashboard, basin status, trend) — these depend on basin
+  const cachePrefix = `${date ?? 'latest'}:${leadtimeHours ?? 'all'}:${basin ?? 'all'}`;
   const cacheKey = useCallback((key: string) => `${cachePrefix}:${key}`, [cachePrefix]);
 
   const isCacheValid = useCallback((key: string) => {
@@ -70,14 +98,11 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
         !useCache || !isCacheValid(cacheKey('districts'))
           ? floodAPI.getDistricts({ date, leadtimeHours }).then(res => res?.districts || [])
           : Promise.resolve(floodDataCache.districts),
-        // Always fetch full forecasts (not cached differently)
-        floodAPI.getForecasts(date, leadtimeHours),
       ]);
 
       floodDataCache.lastFetch = floodDataCache.lastFetch || {};
       const errors: FloodDataError = {};
 
-      // Dashboard — error only on rejection (network/server failure), not on null response
       const dashboardResult = results[0];
       if (dashboardResult.status === 'fulfilled') {
         floodDataCache.dashboard = (dashboardResult.value ?? null) as FloodDashboard;
@@ -88,7 +113,6 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
         setDashboard(null);
       }
 
-      // Basin Status — empty array is valid (no basins), only rejected = error
       const basinStatusResult: any = results[1];
       if (basinStatusResult.status === 'fulfilled') {
         const val = Array.isArray(basinStatusResult.value) ? basinStatusResult.value : [];
@@ -100,7 +124,6 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
         setBasinStatus([]);
       }
 
-      // Basin Trend — null is valid when no basin is selected or data not yet available
       const basinTrendResult: any = results[2];
       if (basinTrendResult.status === 'fulfilled') {
         floodDataCache.basinTrend = basinTrendResult.value ?? null;
@@ -111,7 +134,6 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
         setBasinTrend(null);
       }
 
-      // Districts — empty array is valid
       const districtsResult: any = results[3];
       if (districtsResult.status === 'fulfilled') {
         const val = Array.isArray(districtsResult.value) ? districtsResult.value : [];
@@ -121,21 +143,6 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
       } else {
         errors.districts = true;
         setDistricts([]);
-      }
-
-      // Full Forecasts (from /floods/forecasts/)
-      const forecastsResult: any = results[4];
-      if (forecastsResult.status === 'fulfilled' && forecastsResult.value) {
-        const full: FloodForecastFull[] = forecastsResult.value;
-        floodDataCache.forecastsFull = full;
-        floodDataCache.lastFetch[cacheKey('forecasts')] = Date.now();
-        setForecastsFull(full);
-        // Also populate legacy forecasts for any consumers that use it
-        setForecasts(full as any);
-      } else {
-        errors.forecasts = true;
-        setForecastsFull([]);
-        setForecasts([]);
       }
 
       setPartialErrors(errors);
@@ -153,14 +160,11 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
       setBasinStatus([]);
       setBasinTrend(null);
       setDistricts([]);
-      setForecasts([]);
-      setForecastsFull([]);
       setPartialErrors({
         dashboard: true,
         basinStatus: true,
         basinTrend: true,
         districts: true,
-        forecasts: true,
       });
     } finally {
       setLoading(false);
@@ -174,7 +178,8 @@ export function useFloodData(date?: string, leadtimeHours?: number, basin?: stri
   const refetch = useCallback(() => {
     floodDataCache = {};
     fetchFloodData();
-  }, [fetchFloodData]);
+    fetchForecasts();
+  }, [fetchFloodData, fetchForecasts]);
 
   return {
     dashboard,
